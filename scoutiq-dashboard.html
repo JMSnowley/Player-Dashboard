@@ -364,18 +364,8 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <input type="text" id="cfgSheetId" placeholder="From the URL: /spreadsheets/d/THIS_PART/edit">
         <div class="field-hint">The long string between /d/ and /edit in your Google Sheet URL</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="field-group">
-          <div class="field-label">Raw Input Tab Name</div>
-          <input type="text" id="cfgRawTab" placeholder="e.g. Raw">
-          <div class="field-hint">The tab where Wyscout data is pasted</div>
-        </div>
-        <div class="field-group">
-          <div class="field-label">Output Tab Name</div>
-          <input type="text" id="cfgOutputTab" placeholder="e.g. Output">
-          <div class="field-hint">The tab with calculated ratings</div>
-        </div>
-      </div>
+      <div class="field-hint" style="margin-bottom:10px">Enter the exact tab name for each position — data is written to and read back from the same tab.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="tabConfigGrid"></div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('setupModal')">Cancel</button>
@@ -496,7 +486,8 @@ const LEAGUES = [
 let ST = {
   players: [],
   optaData: {},
-  cfg: { clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com', sheetId:'', rawTab:'', outputTab:'' },
+  cfg: { clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com', sheetId:'',
+    tabs: { CF:'CF', WF:'WF', AM:'AM', CM:'CM', DM:'DM', FB:'FB', CB:'CB', GK:'GK' } },
   auth: null,
   filterPos: 'all',
   filterLeague: 'all',
@@ -692,7 +683,7 @@ async function processImport() {
     pf.style.width = `${Math.round(done/total*40)}%`;
 
     // Push to sheet + read back if connected
-    if(ST.auth && ST.cfg.sheetId && ST.cfg.rawTab && ST.cfg.outputTab) {
+    if(ST.auth && ST.cfg.sheetId && ST.cfg.tabs[posCode]) {
       pl.textContent = `Pushing ${POS_CONFIG[posCode]?.label||posCode} to Sheet…`;
       try {
         await pushAndRead(file, filePlayers, posCode, pf, pl, done, total);
@@ -786,17 +777,19 @@ async function ensureAuth() {
 async function pushAndRead(file, players, posCode, pf, pl, done, total) {
   const ok = await ensureAuth();
   if(!ok) return;
+  const tab = ST.cfg.tabs[posCode];
+  if(!tab) { showToast(`No tab configured for ${posCode} — set it in Setup`, 'error'); return; }
 
-  // Write raw headers + rows to rawTab
+  // Write raw headers + rows to position tab
   const headers = file.headers.filter(h=>!h.startsWith('_'));
   const rows = [headers, ...players.map(p=>headers.map(h=>p.rawRow[h]||''))];
-  await sheetsWrite(`${ST.cfg.rawTab}!A1`, rows);
+  await sheetsWrite(`${tab}!A1`, rows);
   await sleep(800); // allow recalc
 
-  // Read output tab
+  // Read back from same tab
   pl.textContent = `Reading Sheet output for ${POS_CONFIG[posCode]?.label||posCode}…`;
   pf.style.width = `${Math.round(done/total*40+40)}%`;
-  const outputRows = await sheetsRead(`${ST.cfg.outputTab}!A1:ZZ`);
+  const outputRows = await sheetsRead(`${tab}!A1:ZZ`);
   if(!outputRows || outputRows.length < 2) return;
 
   applyOutputToPlayers(players, outputRows, posCode);
@@ -1127,15 +1120,22 @@ function getLeagueStats(teams) {
 function openSetupModal() {
   document.getElementById('cfgClientId').value=ST.cfg.clientId||'';
   document.getElementById('cfgSheetId').value=ST.cfg.sheetId||'';
-  document.getElementById('cfgRawTab').value=ST.cfg.rawTab||'';
-  document.getElementById('cfgOutputTab').value=ST.cfg.outputTab||'';
+  // Render per-position tab inputs
+  const grid = document.getElementById('tabConfigGrid');
+  grid.innerHTML = Object.entries(POS_CONFIG).map(([k,v])=>`
+    <div class="field-group">
+      <div class="field-label">${k} — ${v.label.split(' ')[0]}</div>
+      <input type="text" id="cfgTab_${k}" placeholder="e.g. ${k}" value="${ST.cfg.tabs[k]||k}">
+    </div>`).join('');
   document.getElementById('setupModal').classList.add('open');
 }
 function saveSetup() {
   ST.cfg.clientId=document.getElementById('cfgClientId').value.trim()||ST.cfg.clientId;
   ST.cfg.sheetId=document.getElementById('cfgSheetId').value.trim();
-  ST.cfg.rawTab=document.getElementById('cfgRawTab').value.trim();
-  ST.cfg.outputTab=document.getElementById('cfgOutputTab').value.trim();
+  Object.keys(POS_CONFIG).forEach(k=>{
+    const el=document.getElementById(`cfgTab_${k}`);
+    if(el) ST.cfg.tabs[k]=el.value.trim()||k;
+  });
   saveState();
   if(ST.cfg.clientId) loadGapi();
   showToast('Settings saved','success');
