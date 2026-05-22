@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScoutIQ</title>
+<title>PLYRDASH</title>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#080a0d;--surface:#0e1117;--surface2:#151921;--surface3:#1c2230;--border:#1e2736;--border2:#263044;--text:#dce4f0;--muted:#566880;--muted2:#8a9bb0;--accent:#00d4ff;--accent-dim:rgba(0,212,255,0.07);--accent-border:rgba(0,212,255,0.18);--gold:#f5c842;--gold-dim:rgba(245,200,66,0.08);--green:#00e599;--green-dim:rgba(0,229,153,0.08);--red:#ff4d6a;--red-dim:rgba(255,77,106,0.08);--orange:#ff8c42;
+:root{--bg:#080a0d;--surface:#0e1117;--surface2:#151921;--surface3:#1c2230;--border:#1e2736;--border2:#263044;--text:#dce4f0;--muted:#566880;--muted2:#8a9bb0;--accent:#00d4ff;--accent-dim:rgba(0,212,255,0.07);--accent-border:rgba(0,212,255,0.18);--gold:#f5c842;--gold-dim:rgba(245,200,66,0.08);--green:#00e599;--green-dim:rgba(0,229,153,0.08);--red:#ff4d6a;--red-dim:rgba(255,77,106,0.08);--orange:#ff8c42;--neon:#39ff14;--neon-dim:rgba(57,255,20,0.07);--neon-glow:rgba(57,255,20,0.4);
 --sk-pass:#7c6fcd;--sk-drib:#00d4ff;--sk-goal:#f5c842;--sk-aer:#ff8c42;--sk-def:#00e599;
 --sk-stop:#f5c842;--sk-claim:#00d4ff;--sk-gkpass:#7c6fcd}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -14,7 +14,7 @@ html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:'Archivo',sans-serif;font-size:13px;display:flex;flex-direction:column}
 body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:1000;opacity:.4}
 .topbar{display:flex;align-items:center;gap:14px;padding:0 20px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
-.logo{font-family:'Archivo Black',sans-serif;font-size:15px;letter-spacing:3px;color:var(--text)}
+.logo{font-family:'Archivo',sans-serif;font-weight:300;font-size:17px;letter-spacing:6px;color:var(--neon);text-shadow:0 0 8px var(--neon-glow),0 0 20px var(--neon-glow);white-space:nowrap;user-select:none}
 .logo em{color:var(--accent);font-style:normal}
 .tb-div{width:1px;height:24px;background:var(--border2)}
 .tb-status{display:flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)}
@@ -193,7 +193,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 </head>
 <body>
 <div class="topbar">
-  <div class="logo">Scout<em>IQ</em></div>
+  <div class="logo">PLYRDASH</div>
   <div class="tb-div"></div>
   <div class="tb-status"><div class="sdot" id="sheetDot"></div><span id="sheetStatus">Not connected</span></div>
   <div class="tb-right">
@@ -221,7 +221,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="toolbar">
       <div class="tb-title" id="viewTitle">ALL PLAYERS</div>
       <div class="sw"><span class="sw-icon">⌕</span><input type="text" id="searchInput" placeholder="Search players, clubs…" oninput="renderTable()"></div>
-      <select id="sortSelect" onchange="renderTable()">
+      <select id="sortSelect" style="display:none" onchange="renderTable()">
         <option value="rating" selected>Rating</option>
         <option value="potential">Potential</option>
         <option value="ptPriority">PT Priority</option>
@@ -240,17 +240,17 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="tw">
       <table>
         <thead><tr>
-          <th onclick="setSort('rank')">#</th>
-          <th onclick="setSort('name')">Player</th>
-          <th onclick="setSort('nationality')">Nat.</th>
-          <th onclick="setSort('pos')">Pos</th>
-          <th onclick="setSort('league')">League</th>
-          <th class="r" onclick="setSort('age')">Age</th>
-          <th class="r" onclick="setSort('minutes')">Mins</th>
-          <th onclick="setSort('rating')">Rating</th>
-          <th onclick="setSort('potential')">Potential</th>
-          <th onclick="setSort('ptPriority')">PT Priority</th>
-          <th onclick="setSort('capturedAt')">Captured</th>
+          <th data-sort="rank" onclick="setSort('rank')">#</th>
+          <th data-sort="name" onclick="setSort('name')">Player</th>
+          <th data-sort="nationality" onclick="setSort('nationality')">Nat.</th>
+          <th data-sort="pos" onclick="setSort('pos')">Pos</th>
+          <th data-sort="leagueTag" onclick="setSort('leagueTag')">League</th>
+          <th data-sort="age" class="r" onclick="setSort('age')">Age</th>
+          <th data-sort="minutes" class="r" onclick="setSort('minutes')">Mins</th>
+          <th data-sort="rating" onclick="setSort('rating')">Rating</th>
+          <th data-sort="potential" onclick="setSort('potential')">Potential</th>
+          <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Priority</th>
+          <th data-sort="capturedAt" onclick="setSort('capturedAt')">Captured</th>
           <th></th>
         </tr></thead>
         <tbody id="tableBody"></tbody>
@@ -393,14 +393,14 @@ const METRIC_SKILLS = {
   },
   WF:{
     nm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','Passes to Box':'Passing','Succ Through Balls':'Passing','xA':'Passing','Shot Assists':'Passing','Crosses':'Passing','Cross Success':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','Passes to Box':'Passing','Succ. Through Balls':'Passing','xA':'Passing','Shot Assists':'Passing','Crosses':'Passing','Cross Success':'Passing',
       'Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','Carries':'Dribbling & Carrying','Fouls Won':'Dribbling & Carrying',
       'NP xG':'Goal Threat','Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','Touches in Box':'Goal Threat',
       'Aerial Duel Success':'Aerial',
       'Interceptions':'Defending','Defensive Duels':'Defending','Defensive Duel Success':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj Succ Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Crosses':'Passing','Cross Success':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj Succ. Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Crosses':'Passing','Cross Success':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
       'PAdj NP xG':'Goal Threat','PAdj Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','PAdj Touches in Box':'Goal Threat',
       'Aerial Duel Success':'Aerial',
@@ -416,7 +416,7 @@ const METRIC_SKILLS = {
       'Defensive Duels':'Defending','Def Duel Success':'Defending','Tackles':'Defending','Interceptions':'Defending','Fouls':'Defending','Succ. Def Actions':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','PAdj Passes to F3rd':'Passing','PAdj Passes to Pen Box':'Passing','PAdj Passes Progressed':'Passing','Pass % v xPass %':'Passing','PAdj Succ Through Balls':'Passing','PAdj Shot Assists':'Passing','PAdj xA':'Passing',
+      'Pass Success':'Passing','PAdj Passes to F3rd':'Passing','PAdj Passes to Pen Box':'Passing','PAdj Passes Progressed':'Passing','Pass % v xPass %':'Passing','PAdj Succ. Through Balls':'Passing','PAdj Shot Assists':'Passing','PAdj xA':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
       'PAdj xG':'Goal Threat','PAdj Shots':'Goal Threat','xG O/UPerformance':'Goal Threat','xG per Shot':'Goal Threat',
       'Aerial Duel Success':'Aerial',
@@ -506,11 +506,11 @@ const POS_CONFIG = {
     nm:['xG','Shots','xG per Shot','xG Over/Underperformance','Adj Shot on Target Ratio','Touches in Box','Dribbles','Dribble Success','Fouls Won','Carries','xA','Shot Assists','Deep Completions','Succ. Through Balls','Pass Success','Pass % v xPass %','Succ. Passes to Box','Aerial Duels','Aerial Duel Success','Interceptions','Defensive Duel Success','Defensive Duels'],
     pm:['PAdj xG','PAdj Shots','xG per Shot','xG Over/Underperformance','Adj Shot on Target Ratio','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Fouls Won','PAdj Carries','PAdj xA','PAdj Shot Assists','PAdj Deep Completions','PAdj Succ. Through Balls','Pass Success','Pass % v xPass %','PAdj Passes to Box','PAdj Aerial Duels','Aerial Duel Success','PAdj Interceptions','Defensive Duel Success','PAdj Defensive Duels']},
   WF:{label:'Wide Forwards',roles:['DIRECT WINGER %','INTERIOR CREATOR %','GOALSCORER %','PRESSING WINGER %'],
-    nm:['NP xG','Shots','xG Over/Underperformance','xG p/Shot','Touches in Box','Dribbles','Dribble Success','Carries','Fouls Won','Crosses','Cross Success','xA','Shot Assists','Pass Success','Pass % v xPass %','Succ Through Balls','Passes to Box','Aerial Duel Success','Interceptions','Defensive Duels','Defensive Duel Success'],
-    pm:['PAdj NP xG','PAdj Shots','xG Over/Underperformance','xG p/Shot','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','PAdj Crosses','Cross Success','PAdj xA','PAdj Shot Assists','Pass Success','Pass % v xPass %','PAdj Succ Through Balls','PAdj Passes to Box','Aerial Duel Success','PAdj Interceptions','PAdj Defensive Duels','Defensive Duel Success']},
+    nm:['NP xG','Shots','xG Over/Underperformance','xG p/Shot','Touches in Box','Dribbles','Dribble Success','Carries','Fouls Won','Crosses','Cross Success','xA','Shot Assists','Pass Success','Pass % v xPass %','Succ. Through Balls','Passes to Box','Aerial Duel Success','Interceptions','Defensive Duels','Defensive Duel Success'],
+    pm:['PAdj NP xG','PAdj Shots','xG Over/Underperformance','xG p/Shot','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','PAdj Crosses','Cross Success','PAdj xA','PAdj Shot Assists','Pass Success','Pass % v xPass %','PAdj Succ. Through Balls','PAdj Passes to Box','Aerial Duel Success','PAdj Interceptions','PAdj Defensive Duels','Defensive Duel Success']},
   AM:{label:'Attacking Midfielders',roles:['CREATOR %','BOX CRASHER %','DRIBBLER %','PRESSING 10 %'],
     nm:['Defensive Duels','Def Duel Success','Tackles','Interceptions','Fouls','Succ. Def Actions','Aerial Duel Success','NP xG','Shots','Dribbles','Dribble Success','Carries','Fouls Won','Pass Success','Adj Long Pass Success','Succ. Passes to F3rd','Succ. Passes to Box','Succ. Progressive Passes','Pass % v xPass %','Succ. Through Balls','xA','Shot Assists'],
-    pm:['PAdj Def Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Duel Success','PAdj xG','PAdj Shots','xG O/UPerformance','xG per Shot','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','PAdj Passes to F3rd','PAdj Passes to Pen Box','PAdj Passes Progressed','Pass % v xPass %','PAdj Succ Through Balls','PAdj Shot Assists','PAdj xA']},
+    pm:['PAdj Def Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Duel Success','PAdj xG','PAdj Shots','xG O/UPerformance','xG per Shot','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','PAdj Passes to F3rd','PAdj Passes to Pen Box','PAdj Passes Progressed','Pass % v xPass %','PAdj Succ. Through Balls','PAdj Shot Assists','PAdj xA']},
   CM:{label:'Central Midfielders',roles:['BALL WINNER %','DEEP LYING PASSER %','CREATOR & DRIBBLER %','CARRIER & CRASHER %'],
     nm:['Defensive Duels','Def Duel Success','Tackles','Interceptions','Fouls','Succ. Def Actions','Aerial Duel Success','NP xG','Shots','Dribbles','Dribble Success','Carries','Fouls Won','Pass Success','Adj Long Pass Success','Succ. Passes to F3rd','Succ. Passes to Box','Succ. Progressive Passes','Pass % v xPass %','Succ. Through Balls','xA','Shot Assists'],
     pm:['PAdj Defensive Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Duel Success','PAdj NP xG','PAdj Shots','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','Adj Long Pass Success','PAdj Passes to F3rd','PAdj Passes to Box','PAdj Progressive Passes','Pass % v xPass %','PAdj Succ. Through Balls','PAdj xA','PAdj Shot Assists']},
@@ -671,11 +671,11 @@ function buildColMap(headerRow){
   const m={};
   headerRow.forEach((h,i)=>{
     const k=(h||'').trim();
+    const kl=k.toLowerCase();
     if(!m[k])m[k]=[];
     m[k].push(i);
-    // Also store lowercase version for fallback
-    const kl=k.toLowerCase();
-    if(kl!==k){if(!m[kl])m[kl]=[];m[kl].push(i);}
+    if(!m[kl])m[kl]=[];
+    if(!m[kl].includes(i))m[kl].push(i);
   });
   return m;
 }
@@ -693,7 +693,7 @@ function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
   const cm=buildColMap(rows[0]);
   const nameIdx=col1(cm,'Player'),teamIdx=col1(cm,'Team within selected timeframe'),
         ageIdx=col1(cm,'Age'),minIdx=col1(cm,'Minutes played'),
-        ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth Country'),
+        ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth country')||col1(cm,'Birth Country'),
         ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY');
   const snaps=[];
   rows.slice(1).forEach(row=>{
@@ -716,7 +716,7 @@ function parseMFOutput(mfRows,posTabRows,leagueTag,capturedAt){
   const cm=buildColMap(mfRows[0]);
   const nameIdx=col1(cm,'Player'),teamIdx=col1(cm,'Team within selected timeframe'),
         ageIdx=col1(cm,'Age'),minIdx=col1(cm,'Minutes played'),
-        ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth Country'),
+        ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth country')||col1(cm,'Birth Country'),
         primaryPosIdx=col1(cm,'Primary Position'),
         ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY');
   // Build lookup from each mid tab
@@ -833,11 +833,12 @@ function getFiltered(){
   if(ST.filterTeam!=='all')list=list.filter(p=>p.team===ST.filterTeam);
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.team||'').toLowerCase().includes(q));
-  const sk=document.getElementById('sortSelect')?.value||ST.sortKey;
+  const sk=ST.sortKey||'rating';
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
+    if(sk==='rank')return ST.sortDir*((b.rating??-Infinity)-(a.rating??-Infinity));
     const av=a[sk]??-Infinity,bv=b[sk]??-Infinity;
-    if(typeof av==='string')return ST.sortDir*av.localeCompare(bv);
+    if(typeof av==='string'||typeof bv==='string')return ST.sortDir*(String(av).localeCompare(String(bv)));
     return ST.sortDir*(bv-av);
   });
   return list;
@@ -1097,7 +1098,29 @@ function setLeague(l,el){ST.filterLeague=ST.filterLeague===decodeURIComponent(l)
 function setNat(n,el){ST.filterNat=ST.filterNat===decodeURIComponent(n)?'all':decodeURIComponent(n);_refreshNav(el);renderAll();}
 function setTeam(t,el){ST.filterTeam=ST.filterTeam===decodeURIComponent(t)?'all':decodeURIComponent(t);_refreshNav(el);renderAll();}
 function _refreshNav(el){document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));if(ST.filterPos==='all'&&ST.filterLeague==='all'&&ST.filterNat==='all'&&ST.filterTeam==='all')document.getElementById('nav-all').classList.add('active');else el.classList.add('active');}
-function setSort(k){if(ST.sortKey===k)ST.sortDir*=-1;else{ST.sortKey=k;ST.sortDir=-1;}renderTable();}
+function setSort(k){
+  if(ST.sortKey===k) ST.sortDir*=-1;
+  else{ST.sortKey=k;ST.sortDir=-1;}
+  // Sync hidden select
+  const sel=document.getElementById('sortSelect');
+  if(sel&&[...sel.options].some(o=>o.value===k))sel.value=k;
+  // Update header indicators
+  document.querySelectorAll('th').forEach(th=>{
+    th.classList.remove('sorted');
+    const arrow=th.querySelector('.sort-arrow');
+    if(arrow)arrow.remove();
+  });
+  // Find the clicked th by data-sort
+  document.querySelectorAll(`th[data-sort="${k}"]`).forEach(th=>{
+    th.classList.add('sorted');
+    const span=document.createElement('span');
+    span.className='sort-arrow';
+    span.style.cssText='margin-left:3px;font-size:8px;opacity:.7';
+    span.textContent=ST.sortDir<0?'▼':'▲';
+    th.appendChild(span);
+  });
+  renderTable();
+}
 
 // ═══════════════════════════════════
 // EXPORT & CLEAR
@@ -1131,6 +1154,8 @@ loadState();
 if(ST.cfg.clientId)loadGoogleScripts();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
+// Set initial sort indicator
+setTimeout(()=>{ const th=document.querySelector(`th[data-sort="${ST.sortKey}"]`); if(th){th.classList.add('sorted');const s=document.createElement('span');s.className='sort-arrow';s.style.cssText='margin-left:3px;font-size:8px;opacity:.7';s.textContent='▼';th.appendChild(s);} },0);
 </script>
 </body>
 </html>
