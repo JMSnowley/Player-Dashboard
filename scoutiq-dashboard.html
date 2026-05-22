@@ -250,6 +250,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="rating" onclick="setSort('rating')">Rating</th>
           <th data-sort="potential" onclick="setSort('potential')">Potential</th>
           <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Priority</th>
+          <th>Top Role</th>
           <th data-sort="capturedAt" onclick="setSort('capturedAt')">Captured</th>
           <th></th>
         </tr></thead>
@@ -274,7 +275,6 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   <div class="pp-tabs">
     <div class="pp-tab active" onclick="setPPTab('overview',this)">Overview</div>
     <div class="pp-tab" onclick="setPPTab('metrics',this)">Metrics</div>
-    <div class="pp-tab" onclick="setPPTab('roles',this)">Roles</div>
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
   <div class="pp-body" id="ppBody"></div>
@@ -384,7 +384,7 @@ const METRIC_SKILLS = {
       'Interceptions':'Defending','Defensive Duel Success':'Defending','Defensive Duels':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Deep Completions':'Passing','PAdj Succ. Through Balls':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Succ. Passes to Box':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Deep Completions':'Passing','PAdj Succ. Through Balls':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying',
       'PAdj xG':'Goal Threat','PAdj Shots':'Goal Threat','xG per Shot':'Goal Threat','xG Over/Underperformance':'Goal Threat','Adj Shot on Target Ratio':'Goal Threat','PAdj Touches in Box':'Goal Threat','PAdj Fouls Won':'Goal Threat',
       'PAdj Aerial Duels':'Aerial','Aerial Duel Success':'Aerial',
@@ -400,7 +400,7 @@ const METRIC_SKILLS = {
       'Interceptions':'Defending','Defensive Duels':'Defending','Defensive Duel Success':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj Succ. Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Crosses':'Passing','Cross Success':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Succ. Passes to Box':'Passing','PAdj Succ. Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Crosses':'Passing','Cross Success':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
       'PAdj NP xG':'Goal Threat','PAdj Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','PAdj Touches in Box':'Goal Threat',
       'Aerial Duel Success':'Aerial',
@@ -416,7 +416,7 @@ const METRIC_SKILLS = {
       'Defensive Duels':'Defending','Def Duel Success':'Defending','Tackles':'Defending','Interceptions':'Defending','Fouls':'Defending','Succ. Def Actions':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','PAdj Passes to F3rd':'Passing','PAdj Passes to Pen Box':'Passing','PAdj Passes Progressed':'Passing','Pass % v xPass %':'Passing','PAdj Succ. Through Balls':'Passing','PAdj Shot Assists':'Passing','PAdj xA':'Passing',
+      'Pass Success':'Passing','PAdj Succ. Passes to F3rd':'Passing','PAdj Succ. Passes to Pen Box':'Passing','PAdj Succ. Passes Progressed':'Passing','Pass % v xPass %':'Passing','PAdj Succ. Through Balls':'Passing','PAdj Shot Assists':'Passing','PAdj xA':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
       'PAdj xG':'Goal Threat','PAdj Shots':'Goal Threat','xG O/UPerformance':'Goal Threat','xG per Shot':'Goal Threat',
       'Aerial Duel Success':'Aerial',
@@ -432,7 +432,7 @@ const METRIC_SKILLS = {
       'Defensive Duels':'Defending','Def Duel Success':'Defending','Tackles':'Defending','Interceptions':'Defending','Fouls':'Defending','Succ. Def Actions':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Adj Long Pass Success':'Passing','PAdj Passes to F3rd':'Passing','PAdj Passes to Box':'Passing','PAdj Progressive Passes':'Passing','Pass % v xPass %':'Passing','PAdj Succ. Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing',
+      'Pass Success':'Passing','Adj Long Pass Success':'Passing','PAdj Succ. Passes to F3rd':'Passing','PAdj Succ. Passes to Box':'Passing','PAdj Succ. Progressive Passes':'Passing','Pass % v xPass %':'Passing','PAdj Succ. Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
       'PAdj NP xG':'Goal Threat','PAdj Shots':'Goal Threat',
       'Aerial Duel Success':'Aerial',
@@ -448,7 +448,7 @@ const METRIC_SKILLS = {
       'Defensive Duels':'Defending','Def Duel Success':'Defending','Tackles':'Defending','Interceptions':'Defending','Fouls (big = fewer)':'Defending','Succ. Def Actions':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Adj Long Pass Success':'Passing','PAdj Passes to F3rd':'Passing','PAdj Passes to Box':'Passing','PAdj Progressive Passes':'Passing','Pass % v xPass %':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing',
+      'Pass Success':'Passing','Adj Long Pass Success':'Passing','PAdj Succ. Passes to F3rd':'Passing','PAdj Succ. Passes to Box':'Passing','PAdj Succ. Progressive Passes':'Passing','Pass % v xPass %':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
       'PAdj xG':'Goal Threat','PAdj Shots':'Goal Threat',
       'Aerial Duel Success':'Aerial',
@@ -464,7 +464,7 @@ const METRIC_SKILLS = {
       'Def Duels':'Defending','Def Duel Success':'Defending','Tackles':'Defending','Interceptions':'Defending','Fouls':'Defending','Succ. Def Actions':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Adj Long Pass Success':'Passing','PAdj Passes to F3rd':'Passing','PAdj Passes to Box':'Passing','PAdj Passes Progressed':'Passing','Pass % v xPass %':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Crosses':'Passing','Cross Success':'Passing',
+      'Pass Success':'Passing','Adj Long Pass Success':'Passing','PAdj Succ. Passes to F3rd':'Passing','PAdj Succ. Passes to Box':'Passing','PAdj Succ. Passes Progressed':'Passing','Pass % v xPass %':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Crosses':'Passing','Cross Success':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying',
       'PAdj NP xG':'Goal Threat','PAdj Touches in Box':'Goal Threat',
       'Aerial Success':'Aerial',
@@ -480,7 +480,7 @@ const METRIC_SKILLS = {
       'Defensive Duels':'Defending','Defensive Duel Success':'Defending','Tackles':'Defending','Fouls':'Defending','Shots Blocked':'Defending','Interceptions/Blocks':'Defending','Succ. Def Actions':'Defending',
     },
     pm:{
-      'Passes':'Passing','Pass Success':'Passing','PAdj Passes to F3rd':'Passing','PAdj Passes Progressed':'Passing','Pass % v xPass %':'Passing','Adj Long Pass Success':'Passing',
+      'Passes':'Passing','Pass Success':'Passing','PAdj Succ. Passes to F3rd':'Passing','PAdj Succ. Passes Progressed':'Passing','Pass % v xPass %':'Passing','Adj Long Pass Success':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying',
       'PAdj NP xG':'Goal Threat',
       'PAdj Aerial Duels':'Aerial','Aerial Duel Success':'Aerial',
@@ -496,7 +496,7 @@ const METRIC_SKILLS = {
     pm:{
       'Goals Prevented':'Shot Stopping','Save %':'Shot Stopping',
       'PAdj Claims':'Claiming & Sweeping','Claim Success':'Claiming & Sweeping','PAdj Sweeps':'Claiming & Sweeping',
-      'Adj Long Pass Success':'Passing','Pass Success':'Passing','PAdj Progressive Passes':'Passing','PAdj Passes to Final 3rd':'Passing','Pass Success vs. xPass Success':'Passing',
+      'Adj Long Pass Success':'Passing','Pass Success':'Passing','PAdj Succ. Progressive Passes':'Passing','PAdj Passes to Final 3rd':'Passing','Pass Success vs. xPass Success':'Passing',
     }
   }
 };
@@ -504,34 +504,34 @@ const METRIC_SKILLS = {
 const POS_CONFIG = {
   CF:{label:'Centre Forwards',roles:['TARGET MAN %','POACHER %','CREATIVE DRIBBLER %','DEFENSIVE 9 %'],
     nm:['xG','Shots','xG per Shot','xG Over/Underperformance','Adj Shot on Target Ratio','Touches in Box','Dribbles','Dribble Success','Fouls Won','Carries','xA','Shot Assists','Deep Completions','Succ. Through Balls','Pass Success','Pass % v xPass %','Succ. Passes to Box','Aerial Duels','Aerial Duel Success','Interceptions','Defensive Duel Success','Defensive Duels'],
-    pm:['PAdj xG','PAdj Shots','xG per Shot','xG Over/Underperformance','Adj Shot on Target Ratio','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Fouls Won','PAdj Carries','PAdj xA','PAdj Shot Assists','PAdj Deep Completions','PAdj Succ. Through Balls','Pass Success','Pass % v xPass %','PAdj Passes to Box','PAdj Aerial Duels','Aerial Duel Success','PAdj Interceptions','Defensive Duel Success','PAdj Defensive Duels']},
+    pm:['PAdj xG','PAdj Shots','xG per Shot','xG Over/Underperformance','Adj Shot on Target Ratio','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Fouls Won','PAdj Carries','PAdj xA','PAdj Shot Assists','PAdj Deep Completions','PAdj Succ. Through Balls','Pass Success','Pass % v xPass %','PAdj Succ. Passes to Box','PAdj Aerial Duels','Aerial Duel Success','PAdj Interceptions','Defensive Duel Success','PAdj Defensive Duels']},
   WF:{label:'Wide Forwards',roles:['DIRECT WINGER %','INTERIOR CREATOR %','GOALSCORER %','PRESSING WINGER %'],
     nm:['NP xG','Shots','xG Over/Underperformance','xG p/Shot','Touches in Box','Dribbles','Dribble Success','Carries','Fouls Won','Crosses','Cross Success','xA','Shot Assists','Pass Success','Pass % v xPass %','Succ. Through Balls','Passes to Box','Aerial Duel Success','Interceptions','Defensive Duels','Defensive Duel Success'],
-    pm:['PAdj NP xG','PAdj Shots','xG Over/Underperformance','xG p/Shot','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','PAdj Crosses','Cross Success','PAdj xA','PAdj Shot Assists','Pass Success','Pass % v xPass %','PAdj Succ. Through Balls','PAdj Passes to Box','Aerial Duel Success','PAdj Interceptions','PAdj Defensive Duels','Defensive Duel Success']},
+    pm:['PAdj NP xG','PAdj Shots','xG Over/Underperformance','xG p/Shot','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','PAdj Crosses','Cross Success','PAdj xA','PAdj Shot Assists','Pass Success','Pass % v xPass %','PAdj Succ. Through Balls','PAdj Succ. Passes to Box','Aerial Duel Success','PAdj Interceptions','PAdj Defensive Duels','Defensive Duel Success']},
   AM:{label:'Attacking Midfielders',roles:['CREATOR %','BOX CRASHER %','DRIBBLER %','PRESSING 10 %'],
-    nm:['Defensive Duels','Def Duel Success','Tackles','Interceptions','Fouls','Succ. Def Actions','Aerial Duel Success','NP xG','Shots','Dribbles','Dribble Success','Carries','Fouls Won','Pass Success','Adj Long Pass Success','Succ. Passes to F3rd','Succ. Passes to Box','Succ. Progressive Passes','Pass % v xPass %','Succ. Through Balls','xA','Shot Assists'],
-    pm:['PAdj Def Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Duel Success','PAdj xG','PAdj Shots','xG O/UPerformance','xG per Shot','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','PAdj Passes to F3rd','PAdj Passes to Pen Box','PAdj Passes Progressed','Pass % v xPass %','PAdj Succ. Through Balls','PAdj Shot Assists','PAdj xA']},
+    nm:['Defensive Duels','Def Duel Success','Tackles','Interceptions','Fouls','Succ. Def Actions','Aerial Duel Success','NP xG','Shots','Dribbles','Dribble Success','Carries','Fouls Won','Pass Success','Adj Long Pass Success','Succ. Passes to F3rd','Succ. Passes to Box','Succ. Progressive Passes','Pass % v xPass %','Succ. Through Balls','Shot Assists','xA'],
+    pm:['PAdj Def Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Duel Success','PAdj xG','PAdj Shots','xG O/UPerformance','xG per Shot','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','PAdj Succ. Passes to F3rd','PAdj Succ. Passes to Pen Box','PAdj Succ. Passes Progressed','Pass % v xPass %','PAdj Succ. Through Balls','PAdj Shot Assists','PAdj xA']},
   CM:{label:'Central Midfielders',roles:['BALL WINNER %','DEEP LYING PASSER %','CREATOR & DRIBBLER %','CARRIER & CRASHER %'],
     nm:['Defensive Duels','Def Duel Success','Tackles','Interceptions','Fouls','Succ. Def Actions','Aerial Duel Success','NP xG','Shots','Dribbles','Dribble Success','Carries','Fouls Won','Pass Success','Adj Long Pass Success','Succ. Passes to F3rd','Succ. Passes to Box','Succ. Progressive Passes','Pass % v xPass %','Succ. Through Balls','xA','Shot Assists'],
-    pm:['PAdj Defensive Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Duel Success','PAdj NP xG','PAdj Shots','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','Adj Long Pass Success','PAdj Passes to F3rd','PAdj Passes to Box','PAdj Progressive Passes','Pass % v xPass %','PAdj Succ. Through Balls','PAdj xA','PAdj Shot Assists']},
+    pm:['PAdj Defensive Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Duel Success','PAdj NP xG','PAdj Shots','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','Adj Long Pass Success','PAdj Succ. Passes to F3rd','PAdj Succ. Passes to Box','PAdj Succ. Progressive Passes','Pass % v xPass %','PAdj Succ. Through Balls','PAdj xA','PAdj Shot Assists']},
   DM:{label:'Defensive Midfielders',roles:['DESTROYER %','POSITIONAL RETAINER %','PROGRESSIVE PASSER %','DEEP CARRIER %'],
     nm:['Defensive Duels','Def Duel Success','Tackles','Interceptions','Fouls (big = fewer)','Succ. Def Actions','Aerial Duel Success','xG','Shots','Dribbles','Dribble Success','Carries','Fouls Won','Pass Success','Adj Long Pass Success','Succ. Passes to F3rd','Succ. Passes to Box','Succ. Progressive Passes','Pass % v xPass %','xA','Shot Assists'],
-    pm:['PAdj Defensive Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls (big = fewer)','PAdj Succ. Def Actions','Aerial Duel Success','PAdj xG','PAdj Shots','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','Adj Long Pass Success','PAdj Passes to F3rd','PAdj Passes to Box','PAdj Progressive Passes','Pass % v xPass %','PAdj xA','PAdj Shot Assists']},
+    pm:['PAdj Defensive Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls (big = fewer)','PAdj Succ. Def Actions','Aerial Duel Success','PAdj xG','PAdj Shots','PAdj Dribbles','Dribble Success','PAdj Carries','PAdj Fouls Won','Pass Success','Adj Long Pass Success','PAdj Succ. Passes to F3rd','PAdj Succ. Passes to Box','PAdj Succ. Progressive Passes','Pass % v xPass %','PAdj xA','PAdj Shot Assists']},
   FB:{label:'Full Backs',roles:['PLAYMAKING FB %','WING BACK %','INVERTED FB %','DEFENSIVE FB %'],
     nm:['Def Duels','Def Duel Success','Tackles','Interceptions','Fouls','Succ. Def Actions','Aerial Success','NP xG','Touches in Box','Dribbles','Dribble Success','Carries','Pass Success','Adj Long Pass Success','Succ. Passes to F3rd','Succ. Passes to Box','Succ. Passes Progressed','Pass % v xPass %','Crosses','Cross Success','xA','Shot Assists'],
-    pm:['PAdj Def Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Success','PAdj NP xG','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Carries','Pass Success','Adj Long Pass Success','PAdj Passes to F3rd','PAdj Passes to Box','PAdj Passes Progressed','Pass % v xPass %','PAdj Crosses','Cross Success','PAdj xA','PAdj Shot Assists']},
+    pm:['PAdj Def Duels','Def Duel Success','PAdj Tackles','PAdj Interceptions','PAdj Fouls','PAdj Succ. Def Actions','Aerial Success','PAdj NP xG','PAdj Touches in Box','PAdj Dribbles','Dribble Success','PAdj Carries','Pass Success','Adj Long Pass Success','PAdj Succ. Passes to F3rd','PAdj Succ. Passes to Box','PAdj Succ. Passes Progressed','Pass % v xPass %','PAdj Crosses','Cross Success','PAdj xA','PAdj Shot Assists']},
   CB:{label:'Centre Backs',roles:['FRONT FOOT CB %','PENALTY BOX CB %','BALL PLAYER %','WIDE BALL CARRIER %'],
     nm:['Defensive Duels','Defensive Duel Success','Tackles','Fouls','Shots Blocked','Interceptions/Blocks','Succ. Def Actions','Aerial Duels','Aerial Duel Success','NP xG','Carries','Dribbles','Dribble Success','Passes','Pass Success','Succ. Passes to F3rd','Succ. Passes Progressed','Pass % v xPass %','Adj Long Pass Success'],
-    pm:['PAdj Defensive Duels','Defensive Duel Success','PAdj Tackles','PAdj Fouls','PAdj Shots Blocked','PAdj Interceptions/Blocks','PAdj Succ. Def Actions','PAdj Aerial Duels','Aerial Duel Success','PAdj NP xG','PAdj Carries','PAdj Dribbles','Dribble Success','Passes','Pass Success','PAdj Passes to F3rd','PAdj Passes Progressed','Pass % v xPass %','Adj Long Pass Success']},
+    pm:['PAdj Defensive Duels','Defensive Duel Success','PAdj Tackles','PAdj Fouls','PAdj Shots Blocked','PAdj Interceptions/Blocks','PAdj Succ. Def Actions','PAdj Aerial Duels','Aerial Duel Success','PAdj NP xG','PAdj Carries','PAdj Dribbles','Dribble Success','Passes','Pass Success','PAdj Succ. Passes to F3rd','PAdj Succ. Passes Progressed','Pass % v xPass %','Adj Long Pass Success']},
   GK:{label:'Goalkeepers',roles:['TRADITIONAL SHOT STOPPER %','SWEEPER KEEPER %','BALL PLAYER %'],
     nm:['Goals Prevented','Save %','Claims','Claim Success','Sweeps','Adj Long Pass Success','Pass Success','Succ. Progressive Passes','Succ. Passes to Final 3rd','Pass Success vs. xPass Success'],
-    pm:['Goals Prevented','Save %','PAdj Claims','Claim Success','PAdj Sweeps','Adj Long Pass Success','Pass Success','PAdj Progressive Passes','PAdj Passes to Final 3rd','Pass Success vs. xPass Success']},
+    pm:['Goals Prevented','Save %','PAdj Claims','Claim Success','PAdj Sweeps','Adj Long Pass Success','Pass Success','PAdj Succ. Progressive Passes','PAdj Passes to Final 3rd','Pass Success vs. xPass Success']},
 };
 
 const CAPTURE_GROUPS=[
-  {key:'CF',label:'Centre Forwards'},{key:'WF',label:'Wide Forwards'},
-  {key:'MF',label:'Midfielders (DM/CM/AM)'},{key:'FB',label:'Full Backs'},
-  {key:'CB',label:'Centre Backs'},{key:'GK',label:'Goalkeepers'},
+  {key:'GK',label:'Goalkeepers'},{key:'CB',label:'Centre Backs'},
+  {key:'FB',label:'Full Backs'},{key:'MF',label:'Midfielders (DM/CM/AM)'},
+  {key:'WF',label:'Wide Forwards'},{key:'CF',label:'Centre Forwards'},
 ];
 
 const COUNTRIES=['Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahrain','Bangladesh','Belarus','Belgium','Bolivia','Bosnia & Herzegovina','Brazil','Bulgaria','Burkina Faso','Cameroon','Canada','Chile','China','Colombia','Costa Rica','Croatia','Czech Republic','Denmark','DR Congo','Ecuador','Egypt','England','Estonia','Ethiopia','Finland','France','Georgia','Germany','Ghana','Greece','Guatemala','Honduras','Hungary','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kosovo','Latvia','Lebanon','Libya','Lithuania','Malaysia','Mali','Mexico','Moldova','Montenegro','Morocco','Netherlands','New Zealand','Nigeria','Northern Ireland','North Macedonia','Norway','Panama','Paraguay','Peru','Philippines','Poland','Portugal','Romania','Russia','Saudi Arabia','Scotland','Senegal','Serbia','Slovakia','Slovenia','South Africa','South Korea','Spain','Sweden','Switzerland','Syria','Tanzania','Tunisia','Turkey','Uganda','Ukraine','United Arab Emirates','Uruguay','USA','Uzbekistan','Venezuela','Vietnam','Wales','Zambia','Zimbabwe'];
@@ -547,12 +547,15 @@ let ST={
   players:[],
   cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
-  auth:null,filterPos:'all',filterLeague:'all',filterNat:'all',filterTeam:'all',
+  auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   sortKey:'rating',sortDir:-1,panelId:null,panelTab:'overview',metricView:'normal',
   dupQueue:[],dupResolve:null,
 };
 
-function loadState(){try{const s=localStorage.getItem('scoutiq_v4');if(s){const p=JSON.parse(s);ST.players=p.players||[];if(p.cfg)ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})}}}}catch(e){}}
+function loadState(){
+  try{const s=localStorage.getItem('scoutiq_v4');if(s){const p=JSON.parse(s);ST.players=p.players||[];if(p.cfg)ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})}}}}catch(e){}
+  ['filterPos','filterLeague','filterNat','filterTeam'].forEach(k=>{if(!Array.isArray(ST[k]))ST[k]=[];});
+}
 function saveState(){try{localStorage.setItem('scoutiq_v4',JSON.stringify({players:ST.players,cfg:ST.cfg}))}catch(e){}}
 
 // ═══════════════════════════════════
@@ -827,10 +830,10 @@ function leagueFlag(tag){const c=(tag||'').split(' ')[0];return COUNTRY_FLAGS[c]
 // ═══════════════════════════════════
 function getFiltered(){
   let list=[...ST.players];
-  if(ST.filterPos!=='all')list=list.filter(p=>p.pos===ST.filterPos);
-  if(ST.filterLeague!=='all')list=list.filter(p=>p.leagueTag===ST.filterLeague);
-  if(ST.filterNat!=='all')list=list.filter(p=>p.nationality===ST.filterNat);
-  if(ST.filterTeam!=='all')list=list.filter(p=>p.team===ST.filterTeam);
+  if(ST.filterPos.length)list=list.filter(p=>ST.filterPos.includes(p.pos));
+  if(ST.filterLeague.length)list=list.filter(p=>ST.filterLeague.includes(p.leagueTag));
+  if(ST.filterNat.length)list=list.filter(p=>ST.filterNat.includes(p.nationality));
+  if(ST.filterTeam.length)list=list.filter(p=>ST.filterTeam.includes(p.team));
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.team||'').toLowerCase().includes(q));
   const sk=ST.sortKey||'rating';
@@ -858,19 +861,19 @@ function renderSidebar(){
   // Position in fixed order
   const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
   document.getElementById('posNav').innerHTML=posOrder.filter(k=>pc[k]).map(k=>`
-    <div class="nav-item ${ST.filterPos===k?'active':''}" onclick="setPos('${k}',this)">
+    <div class="nav-item ${ST.filterPos.includes(k)?'active':''}" onclick="toggleFilter('pos','${k}')">
       <span class="nav-icon">${k}</span>${POS_CONFIG[k].label}<span class="nav-count">${pc[k]}</span></div>`).join('');
   // Leagues alphabetical
   document.getElementById('leagueNav').innerHTML=Object.keys(lc).sort().map(l=>`
-    <div class="nav-item ${ST.filterLeague===l?'active':''}" onclick="setLeague('${encodeURIComponent(l)}',this)">
+    <div class="nav-item ${ST.filterLeague.includes(l)?'active':''}" onclick="toggleFilter('league','${encodeURIComponent(l)}')">
       <span class="nav-icon" style="font-size:13px">${leagueFlag(l)}</span>${l}<span class="nav-count">${lc[l]}</span></div>`).join('');
-  // Nationality alphabetical
+  // Nationality alphabetical with flags
   document.getElementById('natNav').innerHTML=Object.keys(nc).sort().map(n=>`
-    <div class="nav-item ${ST.filterNat===n?'active':''}" onclick="setNat('${encodeURIComponent(n)}',this)">
-      <span class="nav-icon" style="font-size:11px">◈</span>${n}<span class="nav-count">${nc[n]}</span></div>`).join('');
+    <div class="nav-item ${ST.filterNat.includes(n)?'active':''}" onclick="toggleFilter('nat','${encodeURIComponent(n)}')">
+      <span class="nav-icon" style="font-size:14px">${natFlag(n)}</span>${n}<span class="nav-count">${nc[n]}</span></div>`).join('');
   // Teams alphabetical
   document.getElementById('teamNav').innerHTML=Object.keys(tc).sort().map(t=>`
-    <div class="nav-item ${ST.filterTeam===t?'active':''}" onclick="setTeam('${encodeURIComponent(t)}',this)">
+    <div class="nav-item ${ST.filterTeam.includes(t)?'active':''}" onclick="toggleFilter('team','${encodeURIComponent(t)}')">
       <span class="nav-icon" style="font-size:11px">◈</span>${t}<span class="nav-count">${tc[t]}</span></div>`).join('');
 }
 
@@ -891,46 +894,57 @@ function renderTable(){
   const list=getFiltered();
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   document.getElementById('rowCount').textContent=`${list.length} player${list.length!==1?'s':''}`;
-  const posName=ST.filterPos!=='all'?(POS_CONFIG[ST.filterPos]?.label||ST.filterPos):'ALL PLAYERS';
-  const lgName=ST.filterLeague!=='all'?ST.filterLeague:'';
-  const natName=ST.filterNat!=='all'?ST.filterNat:'';
-  const teamName=ST.filterTeam!=='all'?ST.filterTeam:'';
+  const posName=ST.filterPos.length?ST.filterPos.join('/'):('ALL PLAYERS');
+  const lgName=ST.filterLeague.length?ST.filterLeague.join('/\u200b'):'';
+  const natName=ST.filterNat.length?ST.filterNat.join('/'):'';
+  const teamName=ST.filterTeam.length?ST.filterTeam.join('/'):'';
   document.getElementById('viewTitle').textContent=[lgName,teamName,natName,posName].filter(Boolean).join(' · ').toUpperCase();
   const tbody=document.getElementById('tableBody'),empty=document.getElementById('emptyState');
   if(!list.length){tbody.innerHTML='';empty.style.display='flex';return;}
   empty.style.display='none';
 
-  // Compute min/mean/max for colour coding across current filtered list
+  // Compute percentile colour scale (5-step green→red)
+  const gradientColor=(val,arr,field)=>{
+    if(val==null||!arr.length) return 'var(--muted)';
+    const vals=[...arr.map(p=>p[field])].sort((a,b)=>a-b);
+    const rank=vals.filter(v=>v<=val).length/vals.length;
+    if(rank>=0.8) return '#00e599';       // top quintile - green
+    if(rank>=0.6) return '#7fd97f';       // 2nd quintile - green-yellow
+    if(rank>=0.4) return '#f5c842';       // 3rd quintile - yellow
+    if(rank>=0.2) return '#ff8c42';       // 4th quintile - yellow-red
+    return '#ff4d6a';                      // bottom quintile - red
+  };
+
   const ratedList=list.filter(p=>p.rating!=null);
   const potList=list.filter(p=>p.potential!=null);
   const ptList=list.filter(p=>p.ptPriority!=null);
-  const colScale=(val,arr,field)=>{
-    if(val==null||!arr.length) return 'var(--muted)';
-    const vals=arr.map(p=>p[field]);
-    const mn=Math.min(...vals), mx=Math.max(...vals), mean=vals.reduce((s,v)=>s+v,0)/vals.length;
-    if(mx===mn) return 'var(--gold)';
-    if(val>=mean+(mx-mean)*0.5) return 'var(--green)';
-    if(val>=mean-(mean-mn)*0.5) return 'var(--gold)';
-    return 'var(--red)';
-  };
 
   const hl=(s)=>{if(!q||!s)return s||'';return s.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark>${m}</mark>`);};
   tbody.innerHTML=list.map((p,i)=>{
     const r=p.rating, rc=ratingColor(r);
     const rankCell=i<3?`<td class="rank-cell top">${['🥇','🥈','🥉'][i]}</td>`:`<td class="rank-cell">${i+1}</td>`;
     const hCount=p.history?.length||1;
-    const potColor=colScale(p.potential,potList,'potential');
-    const ptColor=colScale(p.ptPriority,ptList,'ptPriority');
-    const ratingScaleColor=colScale(p.rating,ratedList,'rating');
+    const potColor=gradientColor(p.potential,potList,'potential');
+    const ptColor=gradientColor(p.ptPriority,ptList,'ptPriority');
+    const ratingScaleColor=gradientColor(p.rating,ratedList,'rating');
+    const natF=p.nationality?natFlag(p.nationality):'—';
+    // League: flag + tier number
+    const lgParts=(p.leagueTag||'').split(' ');
+    const lgTier=lgParts.length>1?lgParts[lgParts.length-1]:'';
+    const lgFlag=leagueFlag(p.leagueTag);
+    const posConf=POS_CONFIG[p.pos];
+    const topRole=posConf?posConf.roles.map(role=>[role.replace(' %',''),p.roles[role]||0]).sort((a,b)=>b[1]-a[1])[0]:null;
+    const topRoleLabel=topRole&&topRole[1]>0?topRole[0]:'—';
+    const topRoleVal=topRole&&topRole[1]>0?fmt(topRole[1],1)+'%':'';
     return `<tr>
       ${rankCell}
       <td><div class="pc"><div class="av">${initials(p.name)}</div><div>
         <div class="pn">${hl(p.name)}</div>
         <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
-      <td style="font-size:11px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${p.nationality||'—'}</td>
+      <td style="font-size:16px;text-align:center" title="${p.nationality||''}">${natF}</td>
       <td><span class="pos-tag">${p.pos}</span></td>
-      <td><span class="league-tag">${leagueFlag(p.leagueTag)} ${p.leagueTag||'—'}</span></td>
+      <td><span class="league-tag" title="${p.leagueTag||''}">${lgFlag} ${lgTier}</span></td>
       <td class="r" style="color:var(--muted2)">${p.age||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${r||0}%;background:rgba(255,255,255,0.25)"></div></div>
@@ -939,6 +953,10 @@ function renderTable(){
         <div class="rn" style="color:${potColor}">${p.potential!=null?fmt(p.potential):'—'}</div></div></td>
       <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${p.ptPriority||0}%;background:rgba(255,255,255,0.25)"></div></div>
         <div class="rn" style="color:${ptColor}">${p.ptPriority!=null?fmt(p.ptPriority):'—'}</div></div></td>
+      <td style="white-space:nowrap">
+        <div style="font-size:11px;font-weight:600;color:var(--accent)">${topRoleLabel}</div>
+        ${topRoleVal?`<div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2)">${topRoleVal}</div>`:''}
+      </td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
       <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
     </tr>`;
@@ -964,6 +982,26 @@ function renderPanel(){
   const body=document.getElementById('ppBody');
 
   if(ST.panelTab==='overview'){
+    // Build pie chart for roles
+    const roles=posConf.roles;
+    const vals=roles.map(r=>({label:r.replace(' %',''),val:p.roles&&p.roles[r]!=null?p.roles[r]:0}));
+    const total=vals.reduce((s,v)=>s+v.val,0)||1;
+    const pieColors=['#00d4ff','#f5c842','#00e599','#ff8c42','#7c6fcd'];
+    const cx=130,cy=90,radius=72;
+    let cumAngle=-Math.PI/2;
+    const slices=vals.map((v,i)=>{
+      const fraction=v.val/total;
+      const angle=fraction*2*Math.PI;
+      const x1=cx+radius*Math.cos(cumAngle),y1=cy+radius*Math.sin(cumAngle);
+      cumAngle+=angle;
+      const x2=cx+radius*Math.cos(cumAngle),y2=cy+radius*Math.sin(cumAngle);
+      const large=angle>Math.PI?1:0;
+      const path=fraction>0.999
+        ?`M ${cx} ${cy} m -${radius} 0 a ${radius} ${radius} 0 1 1 ${radius*2} 0 a ${radius} ${radius} 0 1 1 -${radius*2} 0`
+        :`M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${large} 1 ${x2} ${y2} Z`;
+      return{path,color:pieColors[i%pieColors.length],label:v.label,val:v.val};
+    });
+    const topRole=vals.reduce((a,b)=>b.val>a.val?b:a,{val:0,label:'—'});
     body.innerHTML=`
       <div class="big-r"><div class="big-num" style="color:${rc}">${r!=null?fmt(r):'—'}</div><div class="big-lbl">Rating · ${fmtDate(p.capturedAt)}</div></div>
       <div class="sg">
@@ -973,7 +1011,24 @@ function renderPanel(){
         <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
         ${p.nationality?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:13px">${natFlag(p.nationality)} ${p.nationality}</div></div>`:''}
         ${p.contractExpires?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Contract</div><div class="sg-v" style="font-size:13px">${p.contractExpires}</div></div>`:''}
-      </div>`;
+      </div>
+      ${vals.some(v=>v.val>0)?`
+      <div class="pst" style="margin-top:4px">Role Profile</div>
+      <div class="pie-wrap">
+        <svg width="260" height="180" viewBox="0 0 260 180">
+          ${slices.map(s=>`<path d="${s.path}" fill="${s.color}" opacity="0.88" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}
+          <circle cx="${cx}" cy="${cy}" r="32" fill="var(--surface2)"/>
+          <text x="${cx}" y="${cy-6}" text-anchor="middle" fill="var(--muted2)" font-family="Archivo" font-size="8" font-weight="600">${topRole.label.split(' ')[0]}</text>
+          <text x="${cx}" y="${cy+8}" text-anchor="middle" fill="var(--accent)" font-family="JetBrains Mono" font-size="10" font-weight="500">${fmt(topRole.val,1)}%</text>
+        </svg>
+        <div class="pie-legend">
+          ${slices.map(s=>`<div class="pie-legend-item">
+            <div class="pie-legend-dot" style="background:${s.color}"></div>
+            <div class="pie-legend-label">${s.label}</div>
+            <div class="pie-legend-val">${fmt(s.val,1)}%</div>
+          </div>`).join('')}
+        </div>
+      </div>`:''}`;
 
   } else if(ST.panelTab==='metrics'){
     const isN=ST.metricView==='normal';
@@ -999,51 +1054,66 @@ function renderPanel(){
             const v=data&&data[m]!=null?data[m]:null;
             const pct=v!=null?Math.min(100,Math.max(0,v)):0;
             const displayLabel=m.replace(/^PAdj\s+/i,'');
+            // Quintile colour based on 0-100 percentile value
+            const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
             return `<div class="mrow"><div class="ml" title="${m}">${displayLabel}</div>
               <div class="mt"><div class="mf" style="width:${pct}%;background:${color}"></div></div>
-              <div class="mp" style="color:${color}">${v!=null?fmt(v,0):'—'}</div></div>`;
+              <div class="mp" style="color:${mc}">${v!=null?fmt(v,0):'—'}</div></div>`;
           }).join('')}
         </div>`;
       }).join('')}`;
 
-  } else if(ST.panelTab==='roles'){
-    const roles=posConf.roles;
-    const vals=roles.map(r=>({label:r.replace(' %',''),val:p.roles&&p.roles[r]!=null?p.roles[r]:0}));
-    const total=vals.reduce((s,v)=>s+v.val,0)||1;
-    // Pie chart colours
-    const pieColors=['#00d4ff','#f5c842','#00e599','#ff8c42','#7c6fcd'];
-    const cx=140,cy=110,radius=85;
-    let cumAngle=-Math.PI/2;
-    const slices=vals.map((v,i)=>{
-      const fraction=v.val/total;
-      const angle=fraction*2*Math.PI;
-      const x1=cx+radius*Math.cos(cumAngle),y1=cy+radius*Math.sin(cumAngle);
-      cumAngle+=angle;
-      const x2=cx+radius*Math.cos(cumAngle),y2=cy+radius*Math.sin(cumAngle);
-      const large=angle>Math.PI?1:0;
-      const path=fraction>0.999?`M ${cx} ${cy} m -${radius} 0 a ${radius} ${radius} 0 1 1 ${radius*2} 0 a ${radius} ${radius} 0 1 1 -${radius*2} 0`
-        :`M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${large} 1 ${x2} ${y2} Z`;
-      return{path,color:pieColors[i%pieColors.length],label:v.label,val:v.val,fraction};
-    });
-    body.innerHTML=`<div class="pie-wrap">
-      <svg class="pie-svg" width="280" height="220" viewBox="0 0 280 220">
-        ${slices.map(s=>`<path d="${s.path}" fill="${s.color}" opacity="0.85" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}
-        <circle cx="${cx}" cy="${cy}" r="38" fill="var(--surface2)"/>
-        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" fill="var(--text)" font-family="Archivo Black" font-size="11" letter-spacing="1">ROLES</text>
-      </svg>
-      <div class="pie-legend" style="padding:0 8px">
-        ${slices.map(s=>`<div class="pie-legend-item">
-          <div class="pie-legend-dot" style="background:${s.color}"></div>
-          <div class="pie-legend-label">${s.label}</div>
-          <div class="pie-legend-val">${fmt(s.val,1)}%</div>
-        </div>`).join('')}
-      </div>
-    </div>`;
-
   } else if(ST.panelTab==='history'){
-    const hist=[...(p.history||[])].sort((a,b)=>new Date(b.capturedAt)-new Date(a.capturedAt));
-    body.innerHTML=`<div class="pst">${hist.length} Snapshot${hist.length!==1?'s':''}</div>
-      ${hist.map((h,i)=>{
+    const hist=[...(p.history||[])].sort((a,b)=>new Date(a.capturedAt)-new Date(b.capturedAt));
+    const rated=hist.filter(h=>h.rating!=null);
+    // Build SVG line graph
+    let graphHTML='';
+    if(rated.length>=2){
+      const W=296,H=100,PAD={t:12,r:12,b:28,l:36};
+      const iW=W-PAD.l-PAD.r, iH=H-PAD.t-PAD.b;
+      const ratings=rated.map(h=>h.rating);
+      const mn=Math.min(...ratings)-2, mx=Math.max(...ratings)+2;
+      const xS=(i)=>PAD.l+i/(rated.length-1)*iW;
+      const yS=(v)=>PAD.t+iH-(v-mn)/(mx-mn)*iH;
+      const pts=rated.map((h,i)=>({x:xS(i),y:yS(h.rating),r:h.rating,d:fmtDate(h.capturedAt)}));
+      const polyline=pts.map(p=>`${p.x},${p.y}`).join(' ');
+      const area=`${PAD.l},${PAD.t+iH} `+pts.map(p=>`${p.x},${p.y}`).join(' ')+` ${PAD.l+iW},${PAD.t+iH}`;
+      // Y axis labels
+      const yTicks=[mn,mn+(mx-mn)*0.5,mx].map(v=>Math.round(v));
+      const yTicksHTML=yTicks.map(v=>`<text x="${PAD.l-4}" y="${yS(v)+4}" text-anchor="end" fill="#566880" font-size="8" font-family="JetBrains Mono">${v.toFixed(1)}</text>`).join('');
+      // X axis date labels (first and last)
+      const xLabels=[
+        `<text x="${PAD.l}" y="${H-4}" text-anchor="middle" fill="#566880" font-size="7" font-family="JetBrains Mono">${pts[0].d}</text>`,
+        `<text x="${PAD.l+iW}" y="${H-4}" text-anchor="middle" fill="#566880" font-size="7" font-family="JetBrains Mono">${pts[pts.length-1].d}</text>`,
+      ].join('');
+      graphHTML=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:14px">
+        <div class="pst" style="margin-bottom:8px">Rating Over Time</div>
+        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
+          <defs>
+            <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${rc}" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="${rc}" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          ${yTicks.map(v=>`<line x1="${PAD.l}" y1="${yS(v)}" x2="${PAD.l+iW}" y2="${yS(v)}" stroke="#1e2736" stroke-width="1"/>`).join('')}
+          <!-- Area fill -->
+          <polygon points="${area}" fill="url(#rg)"/>
+          <!-- Line -->
+          <polyline points="${polyline}" fill="none" stroke="${rc}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <!-- Data points -->
+          ${pts.map(pt=>`<circle cx="${pt.x}" cy="${pt.y}" r="3" fill="${ratingColor(pt.r)}" stroke="var(--surface2)" stroke-width="1.5">
+            <title>${pt.d}: ${fmt(pt.r)}</title>
+          </circle>`).join('')}
+          ${yTicksHTML}
+          ${xLabels}
+        </svg>
+      </div>`;
+    }
+    // Snapshots list (newest first)
+    const histDesc=[...hist].reverse();
+    body.innerHTML=graphHTML+`<div class="pst">${hist.length} Snapshot${hist.length!==1?'s':''}</div>
+      ${histDesc.map((h,i)=>{
         const hrc=ratingColor(h.rating);
         return`<div class="hist-item">
           <div class="hist-header" onclick="toggleHist(this)">
@@ -1092,12 +1162,20 @@ function saveSetup(){
 // ═══════════════════════════════════
 // NAV & FILTERS
 // ═══════════════════════════════════
-function setNavAll(el){ST.filterPos='all';ST.filterLeague='all';ST.filterNat='all';ST.filterTeam='all';document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');renderAll();}
-function setPos(p,el){ST.filterPos=ST.filterPos===p?'all':p;_refreshNav(el);renderAll();}
-function setLeague(l,el){ST.filterLeague=ST.filterLeague===decodeURIComponent(l)?'all':decodeURIComponent(l);_refreshNav(el);renderAll();}
-function setNat(n,el){ST.filterNat=ST.filterNat===decodeURIComponent(n)?'all':decodeURIComponent(n);_refreshNav(el);renderAll();}
-function setTeam(t,el){ST.filterTeam=ST.filterTeam===decodeURIComponent(t)?'all':decodeURIComponent(t);_refreshNav(el);renderAll();}
-function _refreshNav(el){document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));if(ST.filterPos==='all'&&ST.filterLeague==='all'&&ST.filterNat==='all'&&ST.filterTeam==='all')document.getElementById('nav-all').classList.add('active');else el.classList.add('active');}
+function setNavAll(el){ST.filterPos=[];ST.filterLeague=[];ST.filterNat=[];ST.filterTeam=[];document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');renderAll();}
+function toggleFilter(type,rawVal){
+  const val=decodeURIComponent(rawVal);
+  const map={pos:'filterPos',league:'filterLeague',nat:'filterNat',team:'filterTeam'};
+  const key=map[type];if(!key)return;
+  const arr=ST[key];
+  const idx=arr.indexOf(val);
+  if(idx>=0)arr.splice(idx,1);else arr.push(val);
+  // If all filters cleared, highlight All Players
+  const allClear=!ST.filterPos.length&&!ST.filterLeague.length&&!ST.filterNat.length&&!ST.filterTeam.length;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(allClear)document.getElementById('nav-all').classList.add('active');
+  renderAll();
+}
 function setSort(k){
   if(ST.sortKey===k) ST.sortDir*=-1;
   else{ST.sortKey=k;ST.sortDir=-1;}
