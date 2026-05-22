@@ -221,7 +221,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="tb-title" id="viewTitle">ALL PLAYERS</div>
       <div class="sw"><span class="sw-icon">⌕</span><input type="text" id="searchInput" placeholder="Search players, clubs…" oninput="renderTable()"></div>
       <select id="sortSelect" onchange="renderTable()">
-        <option value="rating">Rating</option>
+        <option value="rating" selected>Rating</option>
         <option value="potential">Potential</option>
         <option value="ptPriority">PT Priority</option>
         <option value="age">Age</option>
@@ -241,15 +241,14 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <thead><tr>
           <th onclick="setSort('rank')">#</th>
           <th onclick="setSort('name')">Player</th>
-          <th onclick="setSort('nat')">Nat</th>
+          <th onclick="setSort('nationality')">Nat.</th>
           <th onclick="setSort('pos')">Pos</th>
           <th onclick="setSort('league')">League</th>
           <th class="r" onclick="setSort('age')">Age</th>
           <th class="r" onclick="setSort('minutes')">Mins</th>
           <th onclick="setSort('rating')">Rating</th>
-          <th class="r" onclick="setSort('potential')">Potential</th>
+          <th onclick="setSort('potential')">Potential</th>
           <th class="r" onclick="setSort('ptPriority')">PT Pri.</th>
-          <th>Roles</th>
           <th onclick="setSort('capturedAt')">Captured</th>
           <th></th>
         </tr></thead>
@@ -377,32 +376,32 @@ const GK_SKILL_ORDER = ['Shot Stopping','Claiming & Sweeping','Passing'];
 const METRIC_SKILLS = {
   CF:{
     nm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','Succ. Passes to Box':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','Succ. Passes to Box':'Passing','xA':'Passing','Shot Assists':'Passing','Deep Completions':'Passing','Succ. Through Balls':'Passing',
       'Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','Carries':'Dribbling & Carrying',
-      'xG':'Goal Threat','Shots':'Goal Threat','xG per Shot':'Goal Threat','xG Over/Underperformance':'Goal Threat','Adj Shot on Target Ratio':'Goal Threat','Touches in Box':'Goal Threat','xA':'Goal Threat','Shot Assists':'Goal Threat','Deep Completions':'Goal Threat','Succ. Through Balls':'Goal Threat','Fouls Won':'Goal Threat',
+      'xG':'Goal Threat','Shots':'Goal Threat','xG per Shot':'Goal Threat','xG Over/Underperformance':'Goal Threat','Adj Shot on Target Ratio':'Goal Threat','Touches in Box':'Goal Threat','Fouls Won':'Goal Threat',
       'Aerial Duels':'Aerial','Aerial Duel Success':'Aerial',
       'Interceptions':'Defending','Defensive Duel Success':'Defending','Defensive Duels':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Deep Completions':'Passing','PAdj Succ. Through Balls':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying',
-      'PAdj xG':'Goal Threat','PAdj Shots':'Goal Threat','xG per Shot':'Goal Threat','xG Over/Underperformance':'Goal Threat','Adj Shot on Target Ratio':'Goal Threat','PAdj Touches in Box':'Goal Threat','PAdj xA':'Goal Threat','PAdj Shot Assists':'Goal Threat','PAdj Deep Completions':'Goal Threat','PAdj Succ. Through Balls':'Goal Threat','PAdj Fouls Won':'Goal Threat',
+      'PAdj xG':'Goal Threat','PAdj Shots':'Goal Threat','xG per Shot':'Goal Threat','xG Over/Underperformance':'Goal Threat','Adj Shot on Target Ratio':'Goal Threat','PAdj Touches in Box':'Goal Threat','PAdj Fouls Won':'Goal Threat',
       'PAdj Aerial Duels':'Aerial','Aerial Duel Success':'Aerial',
       'PAdj Interceptions':'Defending','Defensive Duel Success':'Defending','PAdj Defensive Duels':'Defending',
     }
   },
   WF:{
     nm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','Passes to Box':'Passing','Succ Through Balls':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','Passes to Box':'Passing','Succ Through Balls':'Passing','xA':'Passing','Shot Assists':'Passing',
       'Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','Carries':'Dribbling & Carrying','Fouls Won':'Dribbling & Carrying',
-      'NP xG':'Goal Threat','Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','Touches in Box':'Goal Threat','xA':'Goal Threat','Shot Assists':'Goal Threat','Crosses':'Goal Threat','Cross Success':'Goal Threat',
+      'NP xG':'Goal Threat','Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','Touches in Box':'Goal Threat','Crosses':'Goal Threat','Cross Success':'Goal Threat',
       'Aerial Duel Success':'Aerial',
       'Interceptions':'Defending','Defensive Duels':'Defending','Defensive Duel Success':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj Succ Through Balls':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj Succ Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
-      'PAdj NP xG':'Goal Threat','PAdj Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','PAdj Touches in Box':'Goal Threat','PAdj xA':'Goal Threat','PAdj Shot Assists':'Goal Threat','PAdj Crosses':'Goal Threat','Cross Success':'Goal Threat',
+      'PAdj NP xG':'Goal Threat','PAdj Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','PAdj Touches in Box':'Goal Threat','PAdj Crosses':'Goal Threat','Cross Success':'Goal Threat',
       'Aerial Duel Success':'Aerial',
       'PAdj Interceptions':'Defending','PAdj Defensive Duels':'Defending','Defensive Duel Success':'Defending',
     }
@@ -870,33 +869,44 @@ function renderTable(){
   const tbody=document.getElementById('tableBody'),empty=document.getElementById('emptyState');
   if(!list.length){tbody.innerHTML='';empty.style.display='flex';return;}
   empty.style.display='none';
+
+  // Compute min/mean/max for colour coding across current filtered list
+  const ratedList=list.filter(p=>p.rating!=null);
+  const potList=list.filter(p=>p.potential!=null);
+  const ptList=list.filter(p=>p.ptPriority!=null);
+  const colScale=(val,arr,field)=>{
+    if(val==null||!arr.length) return 'var(--muted)';
+    const vals=arr.map(p=>p[field]);
+    const mn=Math.min(...vals), mx=Math.max(...vals), mean=vals.reduce((s,v)=>s+v,0)/vals.length;
+    if(mx===mn) return 'var(--gold)';
+    if(val>=mean+(mx-mean)*0.5) return 'var(--green)';
+    if(val>=mean-(mean-mn)*0.5) return 'var(--gold)';
+    return 'var(--red)';
+  };
+
   const hl=(s)=>{if(!q||!s)return s||'';return s.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark>${m}</mark>`);};
   tbody.innerHTML=list.map((p,i)=>{
-    const r=p.rating,rc=ratingColor(r),gr=getGrade(r);
-    const posConf=POS_CONFIG[p.pos];
-    const topRoles=posConf?posConf.roles.map(role=>[role,p.roles[role]||0]).sort((a,b)=>b[1]-a[1]).slice(0,2):[];
-    const roleMini=topRoles.map(([role,v])=>`<div title="${role.replace(' %','')}: ${fmt(v)}%" style="height:13px;width:${Math.max(5,Math.round(v*.4))}px;background:var(--accent);opacity:${.35+v*.006};border-radius:2px;flex-shrink:0"></div>`).join('');
+    const r=p.rating, rc=ratingColor(r);
     const rankCell=i<3?`<td class="rank-cell top">${['🥇','🥈','🥉'][i]}</td>`:`<td class="rank-cell">${i+1}</td>`;
     const hCount=p.history?.length||1;
-    const flag=p.nationality?natFlag(p.nationality):'';
+    const potColor=colScale(p.potential,potList,'potential');
+    const ptColor=colScale(p.ptPriority,ptList,'ptPriority');
+    const ratingScaleColor=colScale(p.rating,ratedList,'rating');
     return `<tr>
       ${rankCell}
       <td><div class="pc"><div class="av">${initials(p.name)}</div><div>
         <div class="pn">${hl(p.name)}</div><div class="pc-club">${hl(p.team)}</div>
       </div></div></td>
-      <td><span class="nat-flag" title="${p.nationality||''}">${flag}</span></td>
+      <td style="font-size:11px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${p.nationality||'—'}</td>
       <td><span class="pos-tag">${p.pos}</span></td>
       <td><span class="league-tag">${leagueFlag(p.leagueTag)} ${p.leagueTag||'—'}</span></td>
       <td class="r" style="color:var(--muted2)">${p.age||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       <td><div class="rw"><div class="rt"><div class="rf" style="width:${r||0}%;background:${rc}"></div></div>
-        <div class="rn" style="color:${rc}">${r!=null?fmt(r):'—'}</div></div></td>
-      <td class="r"><div style="display:flex;align-items:center;justify-content:flex-end;gap:5px">
-        <span class="grade g${gr}">${gr}</span>
-        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--green)">${p.potential!=null?fmt(p.potential):'—'}</span>
-      </div></td>
-      <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gold)">${p.ptPriority!=null?fmt(p.ptPriority):'—'}</td>
-      <td><div class="role-mini">${roleMini}</div></td>
+        <div class="rn" style="color:${ratingScaleColor}">${r!=null?fmt(r):'—'}</div></div></td>
+      <td><div class="rw"><div class="rt"><div class="rf" style="width:${p.potential||0}%;background:${potColor}"></div></div>
+        <div class="rn" style="color:${potColor}">${p.potential!=null?fmt(p.potential):'—'}</div></div></td>
+      <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${ptColor}">${p.ptPriority!=null?fmt(p.ptPriority):'—'}</td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
       <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
     </tr>`;
