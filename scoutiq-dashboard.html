@@ -360,10 +360,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 // ═══════════════════════════════════
 // Skills in display order: Passing, Dribbling & Carrying, Goal Threat, Aerial, Defending
 // GK: Shot Stopping, Claiming & Sweeping, Passing
-const COUNTRY_FLAGS = {'England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Spain':'🇪🇸','Germany':'🇩🇪','Italy':'🇮🇹','France':'🇫🇷','Netherlands':'🇳🇱','Portugal':'🇵🇹','Turkey':'🇹🇷','USA':'🇺🇸','Japan':'🇯🇵','Brazil':'🇧🇷','Argentina':'🇦🇷','Belgium':'🇧🇪','Greece':'🇬🇷','Russia':'🇷🇺','Mexico':'🇲🇽','Colombia':'🇨🇴','Saudi Arabia':'🇸🇦','China':'🇨🇳','Australia':'🇦🇺','Denmark':'🇩🇰','Sweden':'🇸🇪','Norway':'🇳🇴','Switzerland':'🇨🇭','Austria':'🇦🇹','Poland':'🇵🇱','Ukraine':'🇺🇦','Croatia':'🇭🇷','Serbia':'🇷🇸','Romania':'🇷🇴','Czech Republic':'🇨🇿','Hungary':'🇭🇺','Morocco':'🇲🇦','Senegal':'🇸🇳','Ghana':'🇬🇭','Nigeria':'🇳🇬','Ivory Coast':'🇨🇮','Algeria':'🇩🇿','Egypt':'🇪🇬','Cameroon':'🇨🇲','Tunisia':'🇹🇳','Mali':'🇲🇱','South Africa':'🇿🇦','Uruguay':'🇺🇾','Chile':'🇨🇱','Paraguay':'🇵🇾','Ecuador':'🇪🇨','Venezuela':'🇻🇪','Peru':'🇵🇪','Colombia':'🇨🇴','Bolivia':'🇧🇴','Costa Rica':'🇨🇷','Honduras':'🇭🇳','Panama':'🇵🇦','Jamaica':'🇯🇲','Canada':'🇨🇦','South Korea':'🇰🇷','Iran':'🇮🇷','Iraq':'🇮🇶','Saudi Arabia':'🇸🇦','UAE':'🇦🇪','Israel':'🇮🇱','Georgia':'🇬🇪','Armenia':'🇦🇲','Azerbaijan':'🇦🇿','Kazakhstan':'🇰🇿','Slovakia':'🇸🇰','Slovenia':'🇸🇮','Bulgaria':'🇧🇬','Albania':'🇦🇱','Kosovo':'🇽🇰','North Macedonia':'🇲🇰','Montenegro':'🇲🇪','Bosnia & Herzegovina':'🇧🇦','Finland':'🇫🇮','Ireland':'🇮🇪','Northern Ireland':'🏴󠁧󠁢󠁮󠁩󠁲󠁿','New Zealand':'🇳🇿','Angola':'🇦🇴','DR Congo':'🇨🇩','Burkina Faso':'🇧🇫','Zambia':'🇿🇲','Zimbabwe':'🇿🇼','Tanzania':'🇹🇿','Uganda':'🇺🇬','Kenya':'🇰🇪','Ethiopia':'🇪🇹','Indonesia':'🇮🇩','Vietnam':'🇻🇳','Philippines':'🇵🇭','Malaysia':'🇲🇾','Bangladesh':'🇧🇩','India':'🇮🇳','Pakistan':'🇵🇰','Lebanon':'🇱🇧','Jordan':'🇯🇴','Syria':'🇸🇾','Libya':'🇱🇾','Bahrain':'🇧🇭','Latvia':'🇱🇻','Lithuania':'🇱🇹','Estonia':'🇪🇪','Moldova':'🇲🇩','Belarus':'🇧🇾','Uzbekistan':'🇺🇿','Guinea':'🇬🇳','Congo':'🇨🇬','Mozambique':'🇲🇿'};
-function natFlag(n){return COUNTRY_FLAGS[n]||'🌍';}
-
-
+const SKILL_COLORS = {
   'Passing':        {color:'#7c6fcd', css:'var(--sk-pass)'},
   'Dribbling & Carrying': {color:'#00d4ff', css:'var(--sk-drib)'},
   'Goal Threat':    {color:'#f5c842', css:'var(--sk-goal)'},
