@@ -211,6 +211,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="sb-section"><div class="sb-label">Position</div><div id="posNav"></div></div>
     <div class="sb-section"><div class="sb-label">League</div><div id="leagueNav"></div></div>
     <div class="sb-section"><div class="sb-label">Nationality</div><div id="natNav"></div></div>
+    <div class="sb-section"><div class="sb-label">Team</div><div id="teamNav"></div></div>
     <div class="sb-footer">
       <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:10px" onclick="exportCSV()">↓ Export CSV</button>
       <button class="btn btn-danger" style="width:100%;justify-content:center;font-size:10px" onclick="clearAllData()">✕ Clear All Data</button>
@@ -248,7 +249,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th class="r" onclick="setSort('minutes')">Mins</th>
           <th onclick="setSort('rating')">Rating</th>
           <th onclick="setSort('potential')">Potential</th>
-          <th class="r" onclick="setSort('ptPriority')">PT Pri.</th>
+          <th onclick="setSort('ptPriority')">PT Priority</th>
           <th onclick="setSort('capturedAt')">Captured</th>
           <th></th>
         </tr></thead>
@@ -392,16 +393,16 @@ const METRIC_SKILLS = {
   },
   WF:{
     nm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','Passes to Box':'Passing','Succ Through Balls':'Passing','xA':'Passing','Shot Assists':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','Passes to Box':'Passing','Succ Through Balls':'Passing','xA':'Passing','Shot Assists':'Passing','Crosses':'Passing','Cross Success':'Passing',
       'Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','Carries':'Dribbling & Carrying','Fouls Won':'Dribbling & Carrying',
-      'NP xG':'Goal Threat','Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','Touches in Box':'Goal Threat','Crosses':'Goal Threat','Cross Success':'Goal Threat',
+      'NP xG':'Goal Threat','Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','Touches in Box':'Goal Threat',
       'Aerial Duel Success':'Aerial',
       'Interceptions':'Defending','Defensive Duels':'Defending','Defensive Duel Success':'Defending',
     },
     pm:{
-      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj Succ Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing',
+      'Pass Success':'Passing','Pass % v xPass %':'Passing','PAdj Passes to Box':'Passing','PAdj Succ Through Balls':'Passing','PAdj xA':'Passing','PAdj Shot Assists':'Passing','PAdj Crosses':'Passing','Cross Success':'Passing',
       'PAdj Dribbles':'Dribbling & Carrying','Dribble Success':'Dribbling & Carrying','PAdj Carries':'Dribbling & Carrying','PAdj Fouls Won':'Dribbling & Carrying',
-      'PAdj NP xG':'Goal Threat','PAdj Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','PAdj Touches in Box':'Goal Threat','PAdj Crosses':'Goal Threat','Cross Success':'Goal Threat',
+      'PAdj NP xG':'Goal Threat','PAdj Shots':'Goal Threat','xG Over/Underperformance':'Goal Threat','xG p/Shot':'Goal Threat','PAdj Touches in Box':'Goal Threat',
       'Aerial Duel Success':'Aerial',
       'PAdj Interceptions':'Defending','PAdj Defensive Duels':'Defending','Defensive Duel Success':'Defending',
     }
@@ -546,7 +547,7 @@ let ST={
   players:[],
   cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
-  auth:null,filterPos:'all',filterLeague:'all',filterNat:'all',
+  auth:null,filterPos:'all',filterLeague:'all',filterNat:'all',filterTeam:'all',
   sortKey:'rating',sortDir:-1,panelId:null,panelTab:'overview',metricView:'normal',
   dupQueue:[],dupResolve:null,
 };
@@ -668,11 +669,24 @@ async function runCapture(){
 // ═══════════════════════════════════
 function buildColMap(headerRow){
   const m={};
-  headerRow.forEach((h,i)=>{const k=(h||'').trim();if(!m[k])m[k]=[];m[k].push(i);});
+  headerRow.forEach((h,i)=>{
+    const k=(h||'').trim();
+    if(!m[k])m[k]=[];
+    m[k].push(i);
+    // Also store lowercase version for fallback
+    const kl=k.toLowerCase();
+    if(kl!==k){if(!m[kl])m[kl]=[];m[kl].push(i);}
+  });
   return m;
 }
-function col1(cm,name){const a=cm[name]||[];return a.length?a[0]:-1;}
-function col2(cm,name){const a=cm[name]||[];return a.length>=2?a[1]:a.length?a[0]:-1;}
+function col1(cm,name){
+  const a=cm[name]||cm[(name||'').toLowerCase()]||[];
+  return a.length?a[0]:-1;
+}
+function col2(cm,name){
+  const a=cm[name]||cm[(name||'').toLowerCase()]||[];
+  return a.length>=2?a[1]:a.length?a[0]:-1;
+}
 
 function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
   const posConf=POS_CONFIG[posCode];
@@ -816,6 +830,7 @@ function getFiltered(){
   if(ST.filterPos!=='all')list=list.filter(p=>p.pos===ST.filterPos);
   if(ST.filterLeague!=='all')list=list.filter(p=>p.leagueTag===ST.filterLeague);
   if(ST.filterNat!=='all')list=list.filter(p=>p.nationality===ST.filterNat);
+  if(ST.filterTeam!=='all')list=list.filter(p=>p.team===ST.filterTeam);
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.team||'').toLowerCase().includes(q));
   const sk=document.getElementById('sortSelect')?.value||ST.sortKey;
@@ -831,18 +846,31 @@ function getFiltered(){
 function renderAll(){renderSidebar();renderStatsStrip();renderTable();}
 
 function renderSidebar(){
-  const pc={},lc={},nc={};
-  ST.players.forEach(p=>{pc[p.pos]=(pc[p.pos]||0)+1;lc[p.leagueTag]=(lc[p.leagueTag]||0)+1;if(p.nationality)nc[p.nationality]=(nc[p.nationality]||0)+1;});
+  const pc={},lc={},nc={},tc={};
+  ST.players.forEach(p=>{
+    pc[p.pos]=(pc[p.pos]||0)+1;
+    lc[p.leagueTag]=(lc[p.leagueTag]||0)+1;
+    if(p.nationality)nc[p.nationality]=(nc[p.nationality]||0)+1;
+    if(p.team)tc[p.team]=(tc[p.team]||0)+1;
+  });
   document.getElementById('nc-all').textContent=ST.players.length;
-  document.getElementById('posNav').innerHTML=Object.entries(POS_CONFIG).filter(([k])=>pc[k]).map(([k,v])=>`
+  // Position in fixed order
+  const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
+  document.getElementById('posNav').innerHTML=posOrder.filter(k=>pc[k]).map(k=>`
     <div class="nav-item ${ST.filterPos===k?'active':''}" onclick="setPos('${k}',this)">
-      <span class="nav-icon">${k}</span>${v.label}<span class="nav-count">${pc[k]}</span></div>`).join('');
+      <span class="nav-icon">${k}</span>${POS_CONFIG[k].label}<span class="nav-count">${pc[k]}</span></div>`).join('');
+  // Leagues alphabetical
   document.getElementById('leagueNav').innerHTML=Object.keys(lc).sort().map(l=>`
     <div class="nav-item ${ST.filterLeague===l?'active':''}" onclick="setLeague('${encodeURIComponent(l)}',this)">
       <span class="nav-icon" style="font-size:13px">${leagueFlag(l)}</span>${l}<span class="nav-count">${lc[l]}</span></div>`).join('');
+  // Nationality alphabetical
   document.getElementById('natNav').innerHTML=Object.keys(nc).sort().map(n=>`
     <div class="nav-item ${ST.filterNat===n?'active':''}" onclick="setNat('${encodeURIComponent(n)}',this)">
-      <span class="nav-icon" style="font-size:13px">${natFlag(n)}</span>${n}<span class="nav-count">${nc[n]}</span></div>`).join('');
+      <span class="nav-icon" style="font-size:11px">◈</span>${n}<span class="nav-count">${nc[n]}</span></div>`).join('');
+  // Teams alphabetical
+  document.getElementById('teamNav').innerHTML=Object.keys(tc).sort().map(t=>`
+    <div class="nav-item ${ST.filterTeam===t?'active':''}" onclick="setTeam('${encodeURIComponent(t)}',this)">
+      <span class="nav-icon" style="font-size:11px">◈</span>${t}<span class="nav-count">${tc[t]}</span></div>`).join('');
 }
 
 function renderStatsStrip(){
@@ -865,7 +893,8 @@ function renderTable(){
   const posName=ST.filterPos!=='all'?(POS_CONFIG[ST.filterPos]?.label||ST.filterPos):'ALL PLAYERS';
   const lgName=ST.filterLeague!=='all'?ST.filterLeague:'';
   const natName=ST.filterNat!=='all'?ST.filterNat:'';
-  document.getElementById('viewTitle').textContent=[lgName,natName,posName].filter(Boolean).join(' · ').toUpperCase();
+  const teamName=ST.filterTeam!=='all'?ST.filterTeam:'';
+  document.getElementById('viewTitle').textContent=[lgName,teamName,natName,posName].filter(Boolean).join(' · ').toUpperCase();
   const tbody=document.getElementById('tableBody'),empty=document.getElementById('emptyState');
   if(!list.length){tbody.innerHTML='';empty.style.display='flex';return;}
   empty.style.display='none';
@@ -895,18 +924,20 @@ function renderTable(){
     return `<tr>
       ${rankCell}
       <td><div class="pc"><div class="av">${initials(p.name)}</div><div>
-        <div class="pn">${hl(p.name)}</div><div class="pc-club">${hl(p.team)}</div>
+        <div class="pn">${hl(p.name)}</div>
+        <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
       <td style="font-size:11px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${p.nationality||'—'}</td>
       <td><span class="pos-tag">${p.pos}</span></td>
       <td><span class="league-tag">${leagueFlag(p.leagueTag)} ${p.leagueTag||'—'}</span></td>
       <td class="r" style="color:var(--muted2)">${p.age||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
-      <td><div class="rw"><div class="rt"><div class="rf" style="width:${r||0}%;background:${rc}"></div></div>
+      <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${r||0}%;background:rgba(255,255,255,0.25)"></div></div>
         <div class="rn" style="color:${ratingScaleColor}">${r!=null?fmt(r):'—'}</div></div></td>
-      <td><div class="rw"><div class="rt"><div class="rf" style="width:${p.potential||0}%;background:${potColor}"></div></div>
+      <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${p.potential||0}%;background:rgba(255,255,255,0.25)"></div></div>
         <div class="rn" style="color:${potColor}">${p.potential!=null?fmt(p.potential):'—'}</div></div></td>
-      <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:${ptColor}">${p.ptPriority!=null?fmt(p.ptPriority):'—'}</td>
+      <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${p.ptPriority||0}%;background:rgba(255,255,255,0.25)"></div></div>
+        <div class="rn" style="color:${ptColor}">${p.ptPriority!=null?fmt(p.ptPriority):'—'}</div></div></td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
       <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
     </tr>`;
@@ -966,7 +997,8 @@ function renderPanel(){
           ${groups[skillName].map(m=>{
             const v=data&&data[m]!=null?data[m]:null;
             const pct=v!=null?Math.min(100,Math.max(0,v)):0;
-            return `<div class="mrow"><div class="ml" title="${m}">${m}</div>
+            const displayLabel=m.replace(/^PAdj\s+/i,'');
+            return `<div class="mrow"><div class="ml" title="${m}">${displayLabel}</div>
               <div class="mt"><div class="mf" style="width:${pct}%;background:${color}"></div></div>
               <div class="mp" style="color:${color}">${v!=null?fmt(v,0):'—'}</div></div>`;
           }).join('')}
@@ -1059,11 +1091,12 @@ function saveSetup(){
 // ═══════════════════════════════════
 // NAV & FILTERS
 // ═══════════════════════════════════
-function setNavAll(el){ST.filterPos='all';ST.filterLeague='all';ST.filterNat='all';document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');renderAll();}
+function setNavAll(el){ST.filterPos='all';ST.filterLeague='all';ST.filterNat='all';ST.filterTeam='all';document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');renderAll();}
 function setPos(p,el){ST.filterPos=ST.filterPos===p?'all':p;_refreshNav(el);renderAll();}
 function setLeague(l,el){ST.filterLeague=ST.filterLeague===decodeURIComponent(l)?'all':decodeURIComponent(l);_refreshNav(el);renderAll();}
 function setNat(n,el){ST.filterNat=ST.filterNat===decodeURIComponent(n)?'all':decodeURIComponent(n);_refreshNav(el);renderAll();}
-function _refreshNav(el){document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));if(ST.filterPos==='all'&&ST.filterLeague==='all'&&ST.filterNat==='all')document.getElementById('nav-all').classList.add('active');else el.classList.add('active');}
+function setTeam(t,el){ST.filterTeam=ST.filterTeam===decodeURIComponent(t)?'all':decodeURIComponent(t);_refreshNav(el);renderAll();}
+function _refreshNav(el){document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));if(ST.filterPos==='all'&&ST.filterLeague==='all'&&ST.filterNat==='all'&&ST.filterTeam==='all')document.getElementById('nav-all').classList.add('active');else el.classList.add('active');}
 function setSort(k){if(ST.sortKey===k)ST.sortDir*=-1;else{ST.sortKey=k;ST.sortDir=-1;}renderTable();}
 
 // ═══════════════════════════════════
