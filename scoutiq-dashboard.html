@@ -390,7 +390,10 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <input type="text" id="cfgDbTab" placeholder="PLYRDASH_DB">
         <div class="fhint">A tab where PLYRDASH stores its player database. Created automatically if it doesn't exist.</div>
       </div>
-      <div class="fg"><div class="fl">Published CSV URL (for public viewing)</div>
+      <div class="fg"><div class="fl">GitHub Personal Access Token (editor only)</div>
+        <input type="password" id="cfgGhToken" placeholder="ghp_…">
+        <div class="fhint">Stored only in this browser — never saved to the file or repo. Required to capture/save data. Viewers don't need this.</div>
+      </div>
         <input type="text" id="cfgPubUrl" placeholder="https://docs.google.com/spreadsheets/d/…/pub?gid=…&single=true&output=csv">
         <div class="fhint">File → Share → Publish to web → select PLYRDASH_DB tab → CSV → copy URL. Enables viewing without login.</div>
       </div>
@@ -748,10 +751,6 @@ function setEditorMode(isEditor){
   // Delete button in panel — hide for viewers
   ST._isEditor=isEditor;
 }
-async function manualSync(){
-  await loadFromSheet();
-  if(ST.auth) await saveToSheet();
-}
 async function sheetsRead(tabName){
   const resp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(tabName+'!A1:ZZ')}`,{headers:{'Authorization':'Bearer '+ST.auth}});
   if(!resp.ok){const t=await resp.text();throw new Error(t);}
@@ -790,77 +789,99 @@ function chunkString(str,size=40000){
   return chunks;
 }
 
+// ═══════════════════════════════════
+// GITHUB DB STORAGE
+// Token stored in localStorage only — never in this file
+// ═══════════════════════════════════
+const GH = {
+  rawUrl: 'https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/db.json',
+  workflowUrl: 'https://api.github.com/repos/JMSnowley/Player-Dashboard/actions/workflows/save-db.yml/dispatches',
+  get token(){ return localStorage.getItem('plyrdash_ghtoken')||''; },
+};
+
+async function loadFromGitHub(){
+  try{
+    setSyncStatus('loading');
+    const resp = await fetch(GH.rawUrl + '?cb=' + Date.now());
+    if(!resp.ok){ setSyncStatus('idle'); return; }
+    const data = await resp.json();
+    if(data.players && data.players.length){
+      ST.players = data.players;
+      ST.selectedIds = new Set();
+      saveState(); renderAll();
+      showToast('Loaded ' + data.players.length + ' players', 'success');
+    }
+    setSyncStatus('synced');
+    if(!ST.auth) setSheetStatus('public');
+  } catch(e){ setSyncStatus('error'); console.error('loadFromGitHub', e); }
+}
+
+async function saveToGitHub(){
+  if(!GH.token){ showToast('Enter your GitHub token in Setup to save','error'); return; }
+  try{
+    setSyncStatus('saving');
+    const payload = JSON.stringify({players: ST.players, savedAt: new Date().toISOString()});
+    const resp = await fetch(GH.workflowUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'token ' + GH.token,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ref: 'main', inputs: { payload } }),
+    });
+    if(resp.status === 204){
+      setSyncStatus('saved');
+      showToast('Saved — viewers will see updates in ~30s', 'success');
+    } else {
+      const t = await resp.text(); console.error('saveToGitHub', resp.status, t);
+      setSyncStatus('error');
+    }
+  } catch(e){ setSyncStatus('error'); console.error('saveToGitHub', e); }
+}
+
 async function saveToSheet(){
   if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
   try{
-    setSyncStatus('saving');
-    const ok=await ensureDbTab();
-    if(!ok){setSyncStatus('error');return;}
+    const ok=await ensureDbTab(); if(!ok) return;
     const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString(),v:2});
     const chunks=chunkString(payload);
     const rows=[[chunks.length.toString()],...chunks.map(c=>[c])];
     await sheetsWrite(ST.cfg.dbTab,'A1:A'+(rows.length),rows);
-    setSyncStatus('saved');
-  }catch(e){setSyncStatus('error');console.error('saveToSheet',e);}
+  }catch(e){ console.error('saveToSheet',e); }
 }
 
 async function loadFromSheet(){
-  if(!ST.cfg.sheetId&&!ST.cfg.pubUrl) return;
+  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
   try{
-    setSyncStatus('loading');
-    let rows=[], usedAuth=false;
-
-    if(ST.auth&&ST.cfg.sheetId){
-      // Authenticated API read
-      const resp=await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1:A200')}`,
-        {headers:{'Authorization':'Bearer '+ST.auth}});
-      if(resp.ok){ const d=await resp.json(); rows=(d.values||[]).map(r=>r[0]||''); usedAuth=true; }
-    } else if(ST.cfg.pubUrl){
-      // Try multiple CORS proxies in sequence until one works
-      const proxies=[
-        'https://corsproxy.io/?'+encodeURIComponent(ST.cfg.pubUrl),
-        'https://api.allorigins.win/raw?url='+encodeURIComponent(ST.cfg.pubUrl),
-        'https://cors-anywhere.herokuapp.com/'+ST.cfg.pubUrl,
-      ];
-      let text=null;
-      for(const proxyUrl of proxies){
-        try{
-          const r=await fetch(proxyUrl,{signal:AbortSignal.timeout(8000)});
-          if(r.ok){text=await r.text();break;}
-          console.warn('Proxy failed:',proxyUrl,r.status);
-        }catch(e){console.warn('Proxy error:',proxyUrl,e.message);}
-      }
-      if(text){
-        rows=text.split('\n').map(r=>r.replace(/^"|"$/g,'').trim()).filter(Boolean);
-      } else {
-        console.error('All proxies failed for pubUrl');
-        setSyncStatus('error');
-        showToast('Could not load data — see console for details','error');
-        return;
-      }
-    }
-
-    if(!rows.length||!rows[0]){ setSyncStatus('synced'); return; }
-
+    const resp=await fetch(
+      'https://sheets.googleapis.com/v4/spreadsheets/'+ST.cfg.sheetId+'/values/'+encodeURIComponent(ST.cfg.dbTab+'!A1:A200'),
+      {headers:{'Authorization':'Bearer '+ST.auth}});
+    if(!resp.ok) return;
+    const data=await resp.json();
+    const rows=(data.values||[]).map(r=>r[0]||'');
+    if(!rows.length||!rows[0]) return;
     let fullJson='';
     const firstVal=rows[0].trim();
     if(firstVal.startsWith('{')){ fullJson=firstVal; }
     else{ const n=parseInt(firstVal)||1; fullJson=rows.slice(1,1+n).join(''); }
-    if(!fullJson){setSyncStatus('synced');return;}
-
+    if(!fullJson) return;
     const parsed=JSON.parse(fullJson);
     if(parsed.players&&parsed.players.length){
-      ST.players=parsed.players;
-      ST.selectedIds=new Set();
-      saveState();renderAll();
-      showToast(`Loaded ${parsed.players.length} players`,'success');
+      ST.players=parsed.players; ST.selectedIds=new Set();
+      saveState(); renderAll();
     }
-    setSyncStatus('synced');
-    if(!usedAuth) setSheetStatus('public');
-  }catch(e){setSyncStatus('error');console.error('loadFromSheet',e);}
+  }catch(e){ console.error('loadFromSheet',e); }
 }
 
+async function saveData(){
+  await saveToGitHub();
+  saveToSheet();
+}
+
+async function manualSync(){
+  await loadFromGitHub();
+}
 
 function setSyncStatus(status){
   const lbl=document.getElementById('syncStatus');
@@ -1093,7 +1114,7 @@ async function runCapture(){
   pf.style.width='100%';pl.textContent='Done!';
   saveState();renderAll();
   showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
-  saveToSheet();
+  saveData();
   setTimeout(()=>{closeModal('captureModal');btn.disabled=false;pw.style.display='none';},800);
 }
 
@@ -1467,7 +1488,7 @@ function deleteSelected(){
   if(ST.panelId&&!ST.players.find(p=>p.id===ST.panelId))closePanel();
   saveState();renderAll();
   showToast(`${n} player${n!==1?'s':''} deleted`,'success');
-  saveToSheet();
+  saveData();
 }
 
 function deleteSinglePlayer(id){
@@ -1479,7 +1500,7 @@ function deleteSinglePlayer(id){
   closePanel();
   saveState();renderAll();
   showToast(`${p.name} deleted`,'success');
-  saveToSheet();
+  saveData();
 }
 
 // ═══════════════════════════════════
@@ -1663,7 +1684,7 @@ function openSetupModal(){
   document.getElementById('cfgClientId').value=ST.cfg.clientId||'';
   document.getElementById('cfgSheetId').value=ST.cfg.sheetId||'';
   document.getElementById('cfgDbTab').value=ST.cfg.dbTab||'PLYRDASH_DB';
-  document.getElementById('cfgPubUrl').value=ST.cfg.pubUrl||'';
+  document.getElementById('cfgGhToken').value=localStorage.getItem('plyrdash_ghtoken')||'';
   const tabDefs=[{k:'CF',l:'CF — Centre Forwards'},{k:'WF',l:'WF — Wide Forwards'},
     {k:'MF',l:'MF — Midfielders (combined)'},{k:'DM',l:'DM — Def Mid (percentiles only)'},
     {k:'CM',l:'CM — Cen Mid (percentiles only)'},{k:'AM',l:'AM — Att Mid (percentiles only)'},
@@ -1677,7 +1698,8 @@ function saveSetup(){
   ST.cfg.clientId=document.getElementById('cfgClientId').value.trim()||ST.cfg.clientId;
   ST.cfg.sheetId=document.getElementById('cfgSheetId').value.trim();
   ST.cfg.dbTab=document.getElementById('cfgDbTab').value.trim()||'PLYRDASH_DB';
-  ST.cfg.pubUrl=document.getElementById('cfgPubUrl').value.trim();
+  const ghTok=document.getElementById('cfgGhToken').value.trim();
+  if(ghTok) localStorage.setItem('plyrdash_ghtoken', ghTok);
   ['CF','WF','MF','DM','CM','AM','FB','CB','GK'].forEach(k=>{const el=document.getElementById(`cfgTab_${k}`);if(el)ST.cfg.tabs[k]=el.value.trim()||k;});
   saveState();if(ST.cfg.clientId)loadGoogleScripts();showToast('Settings saved','success');closeModal('setupModal');
 }
@@ -1736,7 +1758,7 @@ function exportCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`scoutiq-${new Date().toISOString().slice(0,10)}.csv`;a.click();
   showToast('Exported','success');
 }
-function clearAllData(){if(!confirm('Clear all player data?'))return;ST.players=[];saveState();renderAll();saveToSheet();showToast('Cleared','info');}
+function clearAllData(){if(!confirm('Clear all player data?'))return;ST.players=[];saveState();renderAll();saveData();showToast('Cleared','info');}
 
 // ═══════════════════════════════════
 // MODALS & TOASTS
@@ -1757,8 +1779,8 @@ loadState();
 initSliders();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
-// Auto-load data from public CSV on startup — works on any device without auth
-if(ST.cfg.pubUrl||ST.cfg.sheetId) loadFromSheet();
+// Auto-load from GitHub on startup — open CORS, works on all devices without auth
+loadFromGitHub();
 // Set initial sort indicator
 setTimeout(()=>{ const th=document.querySelector(`th[data-sort="${ST.sortKey}"]`); if(th){th.classList.add('sorted');const s=document.createElement('span');s.className='sort-arrow';s.style.cssText='margin-left:3px;font-size:8px;opacity:.7';s.textContent='▼';th.appendChild(s);} },0);
 </script>
