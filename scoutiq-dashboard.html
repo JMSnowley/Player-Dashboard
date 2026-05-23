@@ -896,6 +896,7 @@ async function saveData(){
 }
 
 async function manualSync(){
+  await saveData();
   await loadFromGitHub();
 }
 
