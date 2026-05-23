@@ -191,6 +191,41 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .toast.info{border-color:var(--accent-border);color:var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
+/* FONT SMOOTHING */
+*{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* RING METER */
+.ring-cell{display:flex;align-items:center;gap:7px;min-width:90px}
+.ring-wrap{position:relative;width:38px;height:38px;flex-shrink:0}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:rgba(255,255,255,0.07);stroke-width:3.5}
+.ring-fill{fill:none;stroke-width:3.5;stroke-linecap:round;transition:stroke-dashoffset .5s ease}
+.ring-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Archivo',sans-serif;font-size:9.5px;font-weight:700;line-height:1}
+
+/* ROLE COLOUR BAR */
+.role-colorbar{display:flex;height:5px;border-radius:3px;overflow:hidden;width:100%;min-width:80px;cursor:default;gap:1px}
+.rcb-seg{height:100%;border-radius:1px;transition:opacity .15s;flex-shrink:0}
+.rcb-seg:hover{opacity:.6}
+
+/* COLLAPSIBLE SIDEBAR */
+.sb-section{padding:0;border-bottom:1px solid var(--border)}
+.sb-toggle{display:flex;align-items:center;justify-content:space-between;padding:8px 13px;cursor:pointer;user-select:none;font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);transition:color .15s}
+.sb-toggle:hover{color:var(--text)}
+.sb-arrow{font-size:9px;transition:transform .2s;opacity:.5}
+.sb-arrow.open{transform:rotate(90deg)}
+.sb-content{display:none}
+.sb-content.open{display:block}
+
+/* RANGE SLIDERS */
+.range-group{padding:5px 13px 8px}
+.range-lbl{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+.range-lbl em{color:var(--accent);font-style:normal}
+.dual-wrap{position:relative;height:18px;margin:0 2px}
+.dual-wrap input[type=range]{position:absolute;width:100%;-webkit-appearance:none;appearance:none;background:transparent;pointer-events:none;outline:none;margin:0;padding:0;height:18px}
+.dual-wrap input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;background:var(--accent);border-radius:50%;cursor:pointer;pointer-events:all;border:2px solid var(--surface);box-shadow:0 0 4px rgba(0,212,255,.3)}
+.dual-wrap input[type=range]::-webkit-slider-runnable-track{height:3px;background:transparent}
+.range-track{position:absolute;top:50%;transform:translateY(-50%);height:3px;left:0;right:0;background:var(--surface3);border-radius:2px;pointer-events:none}
+.range-fill{position:absolute;height:100%;background:var(--accent);border-radius:2px}
 </style>
 </head>
 <body>
@@ -202,20 +237,60 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   <span id="syncStatus" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)"></span>
   <div class="tb-right">
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
+    <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
     <button class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button class="btn btn-ghost" onclick="openSetupModal()">⚙ Setup</button>
   </div>
 </div>
 <div class="app-body">
   <nav class="sidebar">
-    <div class="sb-section">
-      <div class="sb-label">View</div>
+    <!-- All Players (always visible) -->
+    <div class="sb-section" style="padding:8px 0">
       <div class="nav-item active" id="nav-all" onclick="setNavAll(this)"><span class="nav-icon">◈</span>All Players<span class="nav-count" id="nc-all">0</span></div>
     </div>
-    <div class="sb-section"><div class="sb-label">Position</div><div id="posNav"></div></div>
-    <div class="sb-section"><div class="sb-label">League</div><div id="leagueNav"></div></div>
-    <div class="sb-section"><div class="sb-label">Nationality</div><div id="natNav"></div></div>
-    <div class="sb-section"><div class="sb-label">Team</div><div id="teamNav"></div></div>
+    <!-- Position -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('posContent',this)"><span>Position</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="posContent"><div id="posNav"></div></div>
+    </div>
+    <!-- League -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('leagueContent',this)"><span>League</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="leagueContent"><div id="leagueNav"></div></div>
+    </div>
+    <!-- Nationality -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('natContent',this)"><span>Nationality</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="natContent"><div id="natNav"></div></div>
+    </div>
+    <!-- Team -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('teamContent',this)"><span>Team</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="teamContent"><div id="teamNav"></div></div>
+    </div>
+    <!-- Rating / Potential / PT Priority sliders -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('ratingFilters',this)"><span>Ratings</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="ratingFilters">
+        <div class="range-group" id="ratingSlider"></div>
+        <div class="range-group" id="potentialSlider"></div>
+        <div class="range-group" id="ptPrioritySlider"></div>
+      </div>
+    </div>
+    <!-- Role sliders -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('roleFilters',this)"><span>Role Profiles</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="roleFilters">
+        <div id="roleSliders"></div>
+      </div>
+    </div>
+    <!-- Metric sliders -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('metricFilters',this)"><span>Metrics</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="metricFilters">
+        <div id="metricSliders"></div>
+      </div>
+    </div>
     <div class="sb-footer">
       <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:10px" onclick="exportCSV()">↓ Export CSV</button>
       <button class="btn btn-danger" style="width:100%;justify-content:center;font-size:10px" onclick="clearAllData()">✕ Clear All Data</button>
@@ -260,8 +335,8 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="minutes" class="r" onclick="setSort('minutes')">Mins</th>
           <th data-sort="rating" onclick="setSort('rating')">Rating</th>
           <th data-sort="potential" onclick="setSort('potential')">Potential</th>
-          <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Priority</th>
-          <th>Top Role</th>
+          <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Pri.</th>
+          <th>Roles</th>
           <th data-sort="capturedAt" onclick="setSort('capturedAt')">Captured</th>
           <th></th>
         </tr></thead>
@@ -615,10 +690,14 @@ async function ensureAuth(){
   });
 }
 function setSheetStatus(s){
-  const dot=document.getElementById('sheetDot'),lbl=document.getElementById('sheetStatus'),btn=document.getElementById('connectBtn');
-  if(s==='connected'){dot.className='sdot on';lbl.textContent='Sheet connected';btn.style.display='none';}
+  const dot=document.getElementById('sheetDot'),lbl=document.getElementById('sheetStatus'),btn=document.getElementById('connectBtn'),syncBtn=document.getElementById('syncBtn');
+  if(s==='connected'){dot.className='sdot on';lbl.textContent='Sheet connected';btn.style.display='none';if(syncBtn)syncBtn.style.display='inline-flex';}
   else if(s==='ready'){dot.className='sdot rdy';lbl.textContent='Click Connect Google';}
   else{dot.className='sdot';lbl.textContent='Not connected';}
+}
+async function manualSync(){
+  await loadFromSheet();
+  await saveToSheet();
 }
 async function sheetsRead(tabName){
   const resp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(tabName+'!A1:ZZ')}`,{headers:{'Authorization':'Bearer '+ST.auth}});
@@ -636,56 +715,74 @@ async function sheetsWrite(tabName,range,values){
 }
 
 async function ensureDbTab(){
-  // Check tab exists; if not, create it
-  const metaResp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}?fields=sheets.properties.title`,
-    {headers:{'Authorization':'Bearer '+ST.auth}});
-  if(!metaResp.ok) return;
-  const meta=await metaResp.json();
-  const exists=(meta.sheets||[]).some(s=>s.properties.title===ST.cfg.dbTab);
-  if(!exists){
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}:batchUpdate`,
-      {method:'POST',headers:{'Authorization':'Bearer '+ST.auth,'Content-Type':'application/json'},
-       body:JSON.stringify({requests:[{addSheet:{properties:{title:ST.cfg.dbTab,gridProperties:{rowCount:2,columnCount:1}}}}]})});
-  }
+  try{
+    const metaResp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}?fields=sheets.properties.title`,
+      {headers:{'Authorization':'Bearer '+ST.auth}});
+    if(!metaResp.ok){console.warn('ensureDbTab meta failed',await metaResp.text());return false;}
+    const meta=await metaResp.json();
+    const exists=(meta.sheets||[]).some(s=>s.properties.title===ST.cfg.dbTab);
+    if(!exists){
+      const addResp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}:batchUpdate`,
+        {method:'POST',headers:{'Authorization':'Bearer '+ST.auth,'Content-Type':'application/json'},
+         body:JSON.stringify({requests:[{addSheet:{properties:{title:ST.cfg.dbTab}}}]})});
+      if(!addResp.ok){console.warn('ensureDbTab addSheet failed',await addResp.text());return false;}
+    }
+    return true;
+  }catch(e){console.error('ensureDbTab error',e);return false;}
 }
 
 async function saveToSheet(){
-  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
+  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab)return;
   try{
     setSyncStatus('saving');
-    await ensureDbTab();
+    const ok=await ensureDbTab();
+    if(!ok){setSyncStatus('error');return;}
     const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
-    await sheetsWrite(ST.cfg.dbTab,'A1',[[payload]]);
+    // Use append-style write to ensure cell A1 is written correctly
+    const range=encodeURIComponent(`${ST.cfg.dbTab}!A1`);
+    const resp=await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${range}?valueInputOption=RAW`,
+      {method:'PUT',headers:{'Authorization':'Bearer '+ST.auth,'Content-Type':'application/json'},
+       body:JSON.stringify({range:`${ST.cfg.dbTab}!A1`,majorDimension:'ROWS',values:[[payload]]})});
+    if(!resp.ok){const t=await resp.text();console.error('saveToSheet write failed',t);setSyncStatus('error');return;}
     setSyncStatus('saved');
-  }catch(e){
-    setSyncStatus('error');
-    console.error('saveToSheet error:',e);
-  }
+  }catch(e){setSyncStatus('error');console.error('saveToSheet error:',e);}
 }
 
 async function loadFromSheet(){
-  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
+  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab)return;
   try{
     setSyncStatus('loading');
-    const rows=await sheetsRead(ST.cfg.dbTab);
-    if(rows&&rows[0]&&rows[0][0]){
-      const data=JSON.parse(rows[0][0]);
-      if(data.players&&data.players.length){
-        // Merge: Sheet data wins for existing players, keep local-only players
-        const sheetIds=new Set(data.players.map(p=>p.id));
+    // Try to read — if tab doesn't exist yet this will 400/404
+    const resp=await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1')}`,
+      {headers:{'Authorization':'Bearer '+ST.auth}});
+    if(!resp.ok){
+      // Tab likely doesn't exist — create it and save current data
+      setSyncStatus('idle');
+      await saveToSheet();
+      return;
+    }
+    const data=await resp.json();
+    const cell=data.values&&data.values[0]&&data.values[0][0];
+    if(cell){
+      const parsed=JSON.parse(cell);
+      if(parsed.players&&parsed.players.length){
+        const sheetIds=new Set(parsed.players.map(p=>p.id));
         const localOnly=ST.players.filter(p=>!sheetIds.has(p.id));
-        ST.players=[...data.players,...localOnly];
-        // Re-init Set
+        ST.players=[...parsed.players,...localOnly];
         ST.selectedIds=new Set();
-        saveState();
-        renderAll();
-        showToast(`Loaded ${data.players.length} players from Sheet`,'success');
+        saveState();renderAll();
+        showToast(`Loaded ${parsed.players.length} players from Sheet`,'success');
       }
+    } else {
+      // Tab exists but empty — push local data up
+      if(ST.players.length) await saveToSheet();
     }
     setSyncStatus('synced');
   }catch(e){
-    setSyncStatus('idle');
-    // Tab probably doesn't exist yet — that's fine
+    setSyncStatus('error');
+    console.error('loadFromSheet error:',e);
   }
 }
 
@@ -698,8 +795,115 @@ function setSyncStatus(status){
 }
 
 // ═══════════════════════════════════
-// CAPTURE
+// RING METER
 // ═══════════════════════════════════
+function ringCell(val,color){
+  const pct=val!=null?Math.min(100,Math.max(0,val)):0;
+  const R=16,circ=2*Math.PI*R;
+  const dash=circ*(pct/100);
+  const gap=circ-dash;
+  return `<div class="ring-cell">
+    <div class="ring-wrap">
+      <svg width="38" height="38" viewBox="0 0 38 38">
+        <circle class="ring-bg" cx="19" cy="19" r="${R}"/>
+        <circle class="ring-fill" cx="19" cy="19" r="${R}"
+          stroke="${val!=null?color:'rgba(255,255,255,0.07)'}"
+          stroke-dasharray="${dash} ${gap}"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="ring-num" style="color:${val!=null?color:'var(--muted)'}">${val!=null?fmt(val,0):'—'}</div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════
+// COLLAPSIBLE SIDEBAR
+// ═══════════════════════════════════
+function toggleSb(contentId,toggleEl){
+  const content=document.getElementById(contentId);
+  const arrow=toggleEl.querySelector('.sb-arrow');
+  const isOpen=content.classList.contains('open');
+  content.classList.toggle('open',!isOpen);
+  if(arrow) arrow.classList.toggle('open',!isOpen);
+}
+
+// ═══════════════════════════════════
+// SIDEBAR FILTERS — SLIDERS
+// ═══════════════════════════════════
+let SLIDER_STATE={
+  rating:[0,100],potential:[0,100],ptPriority:[0,100],
+  roles:{},metrics:{},
+};
+
+function initSliders(){
+  // Rating sliders
+  renderRangeSlider('ratingSlider','Rating','rating',0,100);
+  renderRangeSlider('potentialSlider','Potential','potential',0,100);
+  renderRangeSlider('ptPrioritySlider','PT Priority','ptPriority',0,100);
+  // Role sliders — collect all unique roles across positions
+  const allRoles=[];
+  Object.values(POS_CONFIG).forEach(pc=>pc.roles.forEach(r=>{if(!allRoles.includes(r))allRoles.push(r);}));
+  const rc=document.getElementById('roleSliders');
+  if(rc) rc.innerHTML=allRoles.map(r=>`<div id="role_slider_${CSS.escape(r)}"></div>`).join('');
+  allRoles.forEach(r=>{
+    SLIDER_STATE.roles[r]=[0,100];
+    const id=`role_slider_${CSS.escape(r)}`;
+    renderRangeSlider(id,r.replace(' %',''),'role:'+r,0,100);
+  });
+  // Metric sliders — collect all unique metrics across positions
+  const allMetrics=[];
+  Object.values(POS_CONFIG).forEach(pc=>[...pc.nm,...pc.pm].forEach(m=>{if(!allMetrics.includes(m))allMetrics.push(m);}));
+  const mc=document.getElementById('metricSliders');
+  if(mc) mc.innerHTML=allMetrics.map(m=>`<div id="met_slider_${CSS.escape(m)}"></div>`).join('');
+  allMetrics.forEach(m=>{
+    SLIDER_STATE.metrics[m]=[0,100];
+    const id=`met_slider_${CSS.escape(m)}`;
+    renderRangeSlider(id,m.replace(/^PAdj\s+/i,''),'metric:'+m,0,100);
+  });
+}
+
+function CSS_escape(str){return str.replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g,'\\$&').replace(/\s/g,'_');}
+function CSS_id(str){return str.replace(/[^a-zA-Z0-9_-]/g,'_');}
+
+function renderRangeSlider(containerId,label,key,mn,mx){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const safeKey=key.replace(/[^a-zA-Z0-9:_-]/g,'_');
+  el.innerHTML=`<div class="range-lbl">${label}<em id="rv_${safeKey}">${mn}–${mx}</em></div>
+    <div class="dual-wrap">
+      <div class="range-track"><div class="range-fill" id="rf_${safeKey}"></div></div>
+      <input type="range" id="rlo_${safeKey}" min="${mn}" max="${mx}" value="${mn}" step="1"
+        oninput="updateSlider('${safeKey}','lo',this.value,'${key}',${mn},${mx})">
+      <input type="range" id="rhi_${safeKey}" min="${mn}" max="${mx}" value="${mx}" step="1"
+        oninput="updateSlider('${safeKey}','hi',this.value,'${key}',${mn},${mx})">
+    </div>`;
+  updateSliderUI(safeKey,mn,mx,mn,mx);
+}
+
+function updateSlider(safeKey,side,val,key,mn,mx){
+  const lo=parseFloat(document.getElementById('rlo_'+safeKey).value);
+  const hi=parseFloat(document.getElementById('rhi_'+safeKey).value);
+  const loF=Math.min(lo,hi), hiF=Math.max(lo,hi);
+  updateSliderUI(safeKey,loF,hiF,mn,mx);
+  // Update state
+  if(key.startsWith('role:')){
+    SLIDER_STATE.roles[key.slice(5)]=[loF,hiF];
+  } else if(key.startsWith('metric:')){
+    SLIDER_STATE.metrics[key.slice(7)]=[loF,hiF];
+  } else {
+    SLIDER_STATE[key]=[loF,hiF];
+  }
+  renderTable();
+}
+
+function updateSliderUI(safeKey,lo,hi,mn,mx){
+  const range=mx-mn||1;
+  const loPct=((lo-mn)/range)*100, hiPct=((hi-mn)/range)*100;
+  const fill=document.getElementById('rf_'+safeKey);
+  if(fill){fill.style.left=loPct+'%';fill.style.width=(hiPct-loPct)+'%';}
+  const lbl=document.getElementById('rv_'+safeKey);
+  if(lbl)lbl.textContent=`${lo}–${hi}`;
+}
 function openCaptureModal(){
   document.getElementById('posCheckGrid').innerHTML=CAPTURE_GROUPS.map(({key,label})=>`
     <label class="pos-check" id="pck_${key}" onclick="togglePosCheck('${key}')">
@@ -926,6 +1130,19 @@ function getFiltered(){
   if(ST.filterTeam.length)list=list.filter(p=>ST.filterTeam.includes(p.team));
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.team||'').toLowerCase().includes(q));
+  // Slider range filters
+  const [rlo,rhi]=SLIDER_STATE.rating;
+  const [plo,phi]=SLIDER_STATE.potential;
+  const [tlo,thi]=SLIDER_STATE.ptPriority;
+  if(rlo>0||rhi<100)list=list.filter(p=>p.rating!=null&&p.rating>=rlo&&p.rating<=rhi);
+  if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
+  if(tlo>0||thi<100)list=list.filter(p=>p.ptPriority!=null&&p.ptPriority>=tlo&&p.ptPriority<=thi);
+  Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
+    if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[role]!=null?p.roles[role]:null;return v!=null&&v>=lo&&v<=hi;});
+  });
+  Object.entries(SLIDER_STATE.metrics).forEach(([metric,[lo,hi]])=>{
+    if(lo>0||hi<100)list=list.filter(p=>{const v=(p.nm&&p.nm[metric]!=null)?p.nm[metric]:(p.pm&&p.pm[metric]!=null)?p.pm[metric]:null;return v!=null&&v>=lo&&v<=hi;});
+  });
   const sk=ST.sortKey||'rating';
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
@@ -1025,7 +1242,13 @@ function renderTable(){
     const posConf=POS_CONFIG[p.pos];
     const topRole=posConf?posConf.roles.map(role=>[role.replace(' %',''),p.roles[role]||0]).sort((a,b)=>b[1]-a[1])[0]:null;
     const topRoleLabel=topRole&&topRole[1]>0?topRole[0]:'—';
-    const topRoleVal=topRole&&topRole[1]>0?fmt(topRole[1],1)+'%':'';
+    // Role colorbar
+    const roleColors=['#00d4ff','#f5c842','#00e599','#ff8c42','#7c6fcd'];
+    const roleSegs=posConf&&posConf.roles?posConf.roles.map((role,i)=>{
+      const v=p.roles[role]||0;
+      const w=Math.max(1,Math.round(v));
+      return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
+    }).join(''):'';
     const checked=ST.selectedIds.has(p.id);
     return `<tr class="${checked?'row-selected':''}">
       <td><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this)" style="accent-color:var(--accent);cursor:pointer"></td>
@@ -1039,15 +1262,12 @@ function renderTable(){
       <td><span class="league-tag" title="${p.leagueTag||''}">${lgFlag} ${lgTier}</span></td>
       <td class="r" style="color:var(--muted2)">${p.age||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
-      <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${r||0}%;background:rgba(255,255,255,0.25)"></div></div>
-        <div class="rn" style="color:${ratingScaleColor}">${r!=null?fmt(r):'—'}</div></div></td>
-      <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${p.potential||0}%;background:rgba(255,255,255,0.25)"></div></div>
-        <div class="rn" style="color:${potColor}">${p.potential!=null?fmt(p.potential):'—'}</div></div></td>
-      <td><div class="rw"><div class="rt" style="background:rgba(255,255,255,0.08)"><div class="rf" style="width:${p.ptPriority||0}%;background:rgba(255,255,255,0.25)"></div></div>
-        <div class="rn" style="color:${ptColor}">${p.ptPriority!=null?fmt(p.ptPriority):'—'}</div></div></td>
-      <td style="white-space:nowrap">
-        <div style="font-size:11px;font-weight:600;color:var(--accent)">${topRoleLabel}</div>
-        ${topRoleVal?`<div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2)">${topRoleVal}</div>`:''}
+      <td>${ringCell(r,ratingScaleColor)}</td>
+      <td>${ringCell(p.potential,potColor)}</td>
+      <td>${ringCell(p.ptPriority,ptColor)}</td>
+      <td style="min-width:110px">
+        <div style="font-size:10px;font-weight:600;color:var(--accent);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${topRoleLabel}">${topRoleLabel}</div>
+        <div class="role-colorbar">${roleSegs}</div>
       </td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
       <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
@@ -1385,6 +1605,7 @@ function showToast(msg,type='info'){
 // ═══════════════════════════════════
 loadState();
 if(ST.cfg.clientId)loadGoogleScripts();
+initSliders();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
 // Set initial sort indicator
