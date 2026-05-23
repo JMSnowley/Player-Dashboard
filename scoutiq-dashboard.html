@@ -203,9 +203,11 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .ring-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Archivo',sans-serif;font-size:9.5px;font-weight:700;line-height:1}
 
 /* ROLE COLOUR BAR */
-.role-colorbar{display:flex;height:5px;border-radius:3px;overflow:hidden;width:100%;min-width:80px;cursor:default;gap:1px}
-.rcb-seg{height:100%;border-radius:1px;transition:opacity .15s;flex-shrink:0}
-.rcb-seg:hover{opacity:.6}
+.role-colorbar{display:flex;height:7px;border-radius:3px;overflow:visible;width:100%;min-width:80px;cursor:default;gap:1px;position:relative}
+.rcb-seg{height:7px;border-radius:2px;transition:all .15s;flex-shrink:0;position:relative}
+.rcb-seg:hover{opacity:.75;transform:scaleY(1.4);z-index:2}
+.rcb-seg::after{content:attr(data-tip);position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:'Archivo',sans-serif;font-size:10px;padding:3px 7px;border-radius:4px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:100}
+.rcb-seg:hover::after{opacity:1}
 
 /* COLLAPSIBLE SIDEBAR */
 .sb-section{padding:0;border-bottom:1px solid var(--border)}
@@ -461,7 +463,7 @@ const SKILL_COLORS = {
   'Distribution':    {color:'#7c6fcd', css:'var(--sk-dist)'},
 };
 
-const SKILL_ORDER=['Defending','Aerial','Goal Threat','Dribbling & Carrying','Passing'];
+const SKILL_ORDER=['Passing','Dribbling & Carrying','Goal Threat','Aerial','Defending'];
 const GK_SKILL_ORDER=['Shot Stopping','Claims & Sweeping','Distribution'];
 
 const METRIC_SKILLS={
@@ -718,73 +720,76 @@ async function ensureDbTab(){
   try{
     const metaResp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}?fields=sheets.properties.title`,
       {headers:{'Authorization':'Bearer '+ST.auth}});
-    if(!metaResp.ok){console.warn('ensureDbTab meta failed',await metaResp.text());return false;}
+    if(!metaResp.ok) return false;
     const meta=await metaResp.json();
     const exists=(meta.sheets||[]).some(s=>s.properties.title===ST.cfg.dbTab);
     if(!exists){
       const addResp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}:batchUpdate`,
         {method:'POST',headers:{'Authorization':'Bearer '+ST.auth,'Content-Type':'application/json'},
          body:JSON.stringify({requests:[{addSheet:{properties:{title:ST.cfg.dbTab}}}]})});
-      if(!addResp.ok){console.warn('ensureDbTab addSheet failed',await addResp.text());return false;}
+      if(!addResp.ok) return false;
     }
     return true;
-  }catch(e){console.error('ensureDbTab error',e);return false;}
+  }catch(e){console.error('ensureDbTab',e);return false;}
+}
+
+function chunkString(str,size=40000){
+  const chunks=[];
+  for(let i=0;i<str.length;i+=size) chunks.push(str.slice(i,i+size));
+  return chunks;
 }
 
 async function saveToSheet(){
-  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab)return;
+  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
   try{
     setSyncStatus('saving');
     const ok=await ensureDbTab();
     if(!ok){setSyncStatus('error');return;}
-    const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
-    // Use append-style write to ensure cell A1 is written correctly
-    const range=encodeURIComponent(`${ST.cfg.dbTab}!A1`);
-    const resp=await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${range}?valueInputOption=RAW`,
-      {method:'PUT',headers:{'Authorization':'Bearer '+ST.auth,'Content-Type':'application/json'},
-       body:JSON.stringify({range:`${ST.cfg.dbTab}!A1`,majorDimension:'ROWS',values:[[payload]]})});
-    if(!resp.ok){const t=await resp.text();console.error('saveToSheet write failed',t);setSyncStatus('error');return;}
+    const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString(),v:2});
+    const chunks=chunkString(payload);
+    const rows=[[chunks.length.toString()],...chunks.map(c=>[c])];
+    await sheetsWrite(ST.cfg.dbTab,'A1:A'+(rows.length),rows);
     setSyncStatus('saved');
-  }catch(e){setSyncStatus('error');console.error('saveToSheet error:',e);}
+  }catch(e){setSyncStatus('error');console.error('saveToSheet',e);}
 }
 
 async function loadFromSheet(){
-  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab)return;
+  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
   try{
     setSyncStatus('loading');
-    // Try to read — if tab doesn't exist yet this will 400/404
     const resp=await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1')}`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1:A200')}`,
       {headers:{'Authorization':'Bearer '+ST.auth}});
     if(!resp.ok){
-      // Tab likely doesn't exist — create it and save current data
       setSyncStatus('idle');
       await saveToSheet();
       return;
     }
     const data=await resp.json();
-    const cell=data.values&&data.values[0]&&data.values[0][0];
-    if(cell){
-      const parsed=JSON.parse(cell);
-      if(parsed.players&&parsed.players.length){
-        const sheetIds=new Set(parsed.players.map(p=>p.id));
-        const localOnly=ST.players.filter(p=>!sheetIds.has(p.id));
-        ST.players=[...parsed.players,...localOnly];
-        ST.selectedIds=new Set();
-        saveState();renderAll();
-        showToast(`Loaded ${parsed.players.length} players from Sheet`,'success');
-      }
-    } else {
-      // Tab exists but empty — push local data up
+    const rows=(data.values||[]).map(r=>r[0]||'');
+    if(!rows.length||!rows[0]){
       if(ST.players.length) await saveToSheet();
+      else setSyncStatus('synced');
+      return;
+    }
+    let fullJson='';
+    const firstVal=rows[0].trim();
+    if(firstVal.startsWith('{')){ fullJson=firstVal; }
+    else{ const n=parseInt(firstVal)||1; fullJson=rows.slice(1,1+n).join(''); }
+    if(!fullJson){setSyncStatus('synced');return;}
+    const parsed=JSON.parse(fullJson);
+    if(parsed.players&&parsed.players.length){
+      const sheetIds=new Set(parsed.players.map(p=>p.id));
+      const localOnly=ST.players.filter(p=>!sheetIds.has(p.id));
+      ST.players=[...parsed.players,...localOnly];
+      ST.selectedIds=new Set();
+      saveState();renderAll();
+      showToast(`Loaded ${parsed.players.length} players from Sheet`,'success');
     }
     setSyncStatus('synced');
-  }catch(e){
-    setSyncStatus('error');
-    console.error('loadFromSheet error:',e);
-  }
+  }catch(e){setSyncStatus('error');console.error('loadFromSheet',e);}
 }
+
 
 function setSyncStatus(status){
   const lbl=document.getElementById('syncStatus');
@@ -835,75 +840,132 @@ let SLIDER_STATE={
   roles:{},metrics:{},
 };
 
+// Safe ID from any string
+function safeId(str){return str.replace(/[^a-zA-Z0-9_-]/g,'_');}
+
 function initSliders(){
   // Rating sliders
   renderRangeSlider('ratingSlider','Rating','rating',0,100);
   renderRangeSlider('potentialSlider','Potential','potential',0,100);
   renderRangeSlider('ptPrioritySlider','PT Priority','ptPriority',0,100);
-  // Role sliders — collect all unique roles across positions
-  const allRoles=[];
-  Object.values(POS_CONFIG).forEach(pc=>pc.roles.forEach(r=>{if(!allRoles.includes(r))allRoles.push(r);}));
-  const rc=document.getElementById('roleSliders');
-  if(rc) rc.innerHTML=allRoles.map(r=>`<div id="role_slider_${CSS.escape(r)}"></div>`).join('');
-  allRoles.forEach(r=>{
-    SLIDER_STATE.roles[r]=[0,100];
-    const id=`role_slider_${CSS.escape(r)}`;
-    renderRangeSlider(id,r.replace(' %',''),'role:'+r,0,100);
-  });
-  // Metric sliders — collect all unique metrics across positions
-  const allMetrics=[];
-  Object.values(POS_CONFIG).forEach(pc=>[...pc.nm,...pc.pm].forEach(m=>{if(!allMetrics.includes(m))allMetrics.push(m);}));
-  const mc=document.getElementById('metricSliders');
-  if(mc) mc.innerHTML=allMetrics.map(m=>`<div id="met_slider_${CSS.escape(m)}"></div>`).join('');
-  allMetrics.forEach(m=>{
-    SLIDER_STATE.metrics[m]=[0,100];
-    const id=`met_slider_${CSS.escape(m)}`;
-    renderRangeSlider(id,m.replace(/^PAdj\s+/i,''),'metric:'+m,0,100);
-  });
-}
 
-function CSS_escape(str){return str.replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g,'\\$&').replace(/\s/g,'_');}
-function CSS_id(str){return str.replace(/[^a-zA-Z0-9_-]/g,'_');}
+  // Role sliders — grouped by position in order: GK,CB,FB,DM,CM,AM,WF,CF
+  const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
+  const rc=document.getElementById('roleSliders');
+  if(rc){
+    rc.innerHTML=posOrder.map(pos=>{
+      const conf=POS_CONFIG[pos];
+      if(!conf)return'';
+      const sid=`rolepos_${pos}`;
+      return`<div style="border-bottom:1px solid var(--border)">
+        <div class="sb-toggle" style="padding:5px 13px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${pos} — ${conf.label}</span><span class="sb-arrow">›</span></div>
+        <div class="sb-content" id="${sid}">
+          ${conf.roles.map(r=>`<div id="rs_${safeId(r)}"></div>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    posOrder.forEach(pos=>{
+      const conf=POS_CONFIG[pos];if(!conf)return;
+      conf.roles.forEach(r=>{
+        SLIDER_STATE.roles[r]=[0,100];
+        renderRangeSlider('rs_'+safeId(r),r.replace(' %',''),'role:'+r,0,100);
+      });
+    });
+  }
+
+  // Metric sliders — split into Normal and PAdj, each grouped by skill
+  const allSkills=[...SKILL_ORDER,'Shot Stopping','Claims & Sweeping','Distribution'];
+  const mc=document.getElementById('metricSliders');
+  if(mc){
+    // Collect unique metrics per (mode, skill)
+    const nmBySkill={}, pmBySkill={};
+    allSkills.forEach(s=>{nmBySkill[s]=[];pmBySkill[s]=[];});
+
+    Object.entries(POS_CONFIG).forEach(([pos,conf])=>{
+      const skillMap=METRIC_SKILLS[pos]||{};
+      conf.nm.forEach(m=>{
+        const skill=skillMap.nm&&skillMap.nm[m]?skillMap.nm[m]:null;
+        if(skill&&nmBySkill[skill]&&!nmBySkill[skill].includes(m))nmBySkill[skill].push(m);
+      });
+      conf.pm.forEach(m=>{
+        const skill=skillMap.pm&&skillMap.pm[m]?skillMap.pm[m]:null;
+        if(skill&&pmBySkill[skill]&&!pmBySkill[skill].includes(m))pmBySkill[skill].push(m);
+      });
+    });
+
+    let html='';
+    // Normal
+    html+=`<div style="border-bottom:1px solid var(--border)">
+      <div class="sb-toggle" style="padding:5px 13px;font-size:9px" onclick="toggleSb('nm_metrics',this)"><span style="color:var(--accent)">NORMAL</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="nm_metrics">`;
+    allSkills.forEach(skill=>{
+      const metrics=nmBySkill[skill];if(!metrics||!metrics.length)return;
+      const sid=`nm_skill_${safeId(skill)}`;
+      html+=`<div><div class="sb-toggle" style="padding:4px 13px 4px 20px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${skill}</span><span class="sb-arrow">›</span></div>
+        <div class="sb-content" id="${sid}">${metrics.map(m=>`<div id="nms_${safeId(m)}"></div>`).join('')}</div></div>`;
+    });
+    html+=`</div></div>`;
+    // PAdj
+    html+=`<div><div class="sb-toggle" style="padding:5px 13px;font-size:9px" onclick="toggleSb('pm_metrics',this)"><span style="color:var(--green)">PADJ</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="pm_metrics">`;
+    allSkills.forEach(skill=>{
+      const metrics=pmBySkill[skill];if(!metrics||!metrics.length)return;
+      const sid=`pm_skill_${safeId(skill)}`;
+      html+=`<div><div class="sb-toggle" style="padding:4px 13px 4px 20px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${skill}</span><span class="sb-arrow">›</span></div>
+        <div class="sb-content" id="${sid}">${metrics.map(m=>`<div id="pms_${safeId(m)}"></div>`).join('')}</div></div>`;
+    });
+    html+=`</div></div>`;
+    mc.innerHTML=html;
+
+    // Render sliders
+    allSkills.forEach(skill=>{
+      (nmBySkill[skill]||[]).forEach(m=>{
+        SLIDER_STATE.metrics[m]=SLIDER_STATE.metrics[m]||[0,100];
+        renderRangeSlider('nms_'+safeId(m),m.replace(/^PAdj\s+/i,''),'metric:'+m,0,100);
+      });
+      (pmBySkill[skill]||[]).forEach(m=>{
+        SLIDER_STATE.metrics[m]=SLIDER_STATE.metrics[m]||[0,100];
+        renderRangeSlider('pms_'+safeId(m),m.replace(/^PAdj\s+/i,''),'metric:'+m,0,100);
+      });
+    });
+  }
+}
 
 function renderRangeSlider(containerId,label,key,mn,mx){
   const el=document.getElementById(containerId);
   if(!el)return;
-  const safeKey=key.replace(/[^a-zA-Z0-9:_-]/g,'_');
-  el.innerHTML=`<div class="range-lbl">${label}<em id="rv_${safeKey}">${mn}–${mx}</em></div>
+  const sk=safeId(key);
+  el.innerHTML=`<div class="range-group"><div class="range-lbl">${label}<em id="rv_${sk}">${mn}–${mx}</em></div>
     <div class="dual-wrap">
-      <div class="range-track"><div class="range-fill" id="rf_${safeKey}"></div></div>
-      <input type="range" id="rlo_${safeKey}" min="${mn}" max="${mx}" value="${mn}" step="1"
-        oninput="updateSlider('${safeKey}','lo',this.value,'${key}',${mn},${mx})">
-      <input type="range" id="rhi_${safeKey}" min="${mn}" max="${mx}" value="${mx}" step="1"
-        oninput="updateSlider('${safeKey}','hi',this.value,'${key}',${mn},${mx})">
-    </div>`;
-  updateSliderUI(safeKey,mn,mx,mn,mx);
+      <div class="range-track"><div class="range-fill" id="rf_${sk}"></div></div>
+      <input type="range" id="rlo_${sk}" min="${mn}" max="${mx}" value="${mn}" step="1"
+        oninput="updateSlider('${sk}','lo',this.value,'${key.replace(/'/g,"\\'")}',${mn},${mx})">
+      <input type="range" id="rhi_${sk}" min="${mn}" max="${mx}" value="${mx}" step="1"
+        oninput="updateSlider('${sk}','hi',this.value,'${key.replace(/'/g,"\\'")}',${mn},${mx})">
+    </div></div>`;
+  updateSliderUI(sk,mn,mx,mn,mx);
 }
 
-function updateSlider(safeKey,side,val,key,mn,mx){
-  const lo=parseFloat(document.getElementById('rlo_'+safeKey).value);
-  const hi=parseFloat(document.getElementById('rhi_'+safeKey).value);
-  const loF=Math.min(lo,hi), hiF=Math.max(lo,hi);
-  updateSliderUI(safeKey,loF,hiF,mn,mx);
-  // Update state
-  if(key.startsWith('role:')){
-    SLIDER_STATE.roles[key.slice(5)]=[loF,hiF];
-  } else if(key.startsWith('metric:')){
-    SLIDER_STATE.metrics[key.slice(7)]=[loF,hiF];
-  } else {
-    SLIDER_STATE[key]=[loF,hiF];
-  }
+function updateSlider(sk,side,val,key,mn,mx){
+  const lo=parseFloat(document.getElementById('rlo_'+sk).value);
+  const hi=parseFloat(document.getElementById('rhi_'+sk).value);
+  const loF=Math.min(lo,hi),hiF=Math.max(lo,hi);
+  updateSliderUI(sk,loF,hiF,mn,mx);
+  if(key.startsWith('role:')) SLIDER_STATE.roles[key.slice(5)]=[loF,hiF];
+  else if(key.startsWith('metric:')) SLIDER_STATE.metrics[key.slice(7)]=[loF,hiF];
+  else SLIDER_STATE[key]=[loF,hiF];
   renderTable();
 }
 
-function updateSliderUI(safeKey,lo,hi,mn,mx){
+function updateSliderUI(sk,lo,hi,mn,mx){
   const range=mx-mn||1;
-  const loPct=((lo-mn)/range)*100, hiPct=((hi-mn)/range)*100;
-  const fill=document.getElementById('rf_'+safeKey);
+  const loPct=((lo-mn)/range)*100,hiPct=((hi-mn)/range)*100;
+  const fill=document.getElementById('rf_'+sk);
   if(fill){fill.style.left=loPct+'%';fill.style.width=(hiPct-loPct)+'%';}
-  const lbl=document.getElementById('rv_'+safeKey);
-  if(lbl)lbl.textContent=`${lo}–${hi}`;
+  const lbl=document.getElementById('rv_'+sk);
+  if(lbl)lbl.textContent=`${Math.round(lo)}–${Math.round(hi)}`;
 }
+
 function openCaptureModal(){
   document.getElementById('posCheckGrid').innerHTML=CAPTURE_GROUPS.map(({key,label})=>`
     <label class="pos-check" id="pck_${key}" onclick="togglePosCheck('${key}')">
@@ -1247,7 +1309,7 @@ function renderTable(){
     const roleSegs=posConf&&posConf.roles?posConf.roles.map((role,i)=>{
       const v=p.roles[role]||0;
       const w=Math.max(1,Math.round(v));
-      return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
+      return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" data-tip="${role.replace(' %','')}: ${fmt(v,1)}%" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
     }).join(''):'';
     const checked=ST.selectedIds.has(p.id);
     return `<tr class="${checked?'row-selected':''}">
