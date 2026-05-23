@@ -795,7 +795,6 @@ function chunkString(str,size=40000){
 // ═══════════════════════════════════
 const GH = {
   rawUrl: 'https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/db.json',
-  workflowUrl: 'https://api.github.com/repos/JMSnowley/Player-Dashboard/actions/workflows/save-db.yml/dispatches',
   get token(){ return localStorage.getItem('plyrdash_ghtoken')||''; },
 };
 
@@ -821,23 +820,40 @@ async function saveToGitHub(){
   try{
     setSyncStatus('saving');
     const payload = JSON.stringify({players: ST.players, savedAt: new Date().toISOString()});
-    const resp = await fetch(GH.workflowUrl, {
-      method: 'POST',
+    // Get current file SHA (required by GitHub API for updates)
+    let sha = null;
+    try{
+      const meta = await fetch('https://api.github.com/repos/JMSnowley/Player-Dashboard/contents/db.json',
+        {headers:{'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json'}});
+      if(meta.ok){ const m=await meta.json(); sha=m.sha; }
+    }catch(e){}
+    // Encode payload as base64
+    const encoded = btoa(unescape(encodeURIComponent(payload)));
+    const body = {
+      message: 'PLYRDASH db ' + new Date().toISOString().slice(0,16),
+      content: encoded,
+      branch: 'main',
+    };
+    if(sha) body.sha = sha;
+    const resp = await fetch('https://api.github.com/repos/JMSnowley/Player-Dashboard/contents/db.json', {
+      method: 'PUT',
       headers: {
         'Authorization': 'token ' + GH.token,
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ref: 'main', inputs: { payload } }),
+      body: JSON.stringify(body),
     });
-    if(resp.status === 204){
+    if(resp.ok || resp.status===200 || resp.status===201){
       setSyncStatus('saved');
-      showToast('Saved — viewers will see updates in ~30s', 'success');
+      showToast('Saved — viewers will see updates shortly','success');
     } else {
-      const t = await resp.text(); console.error('saveToGitHub', resp.status, t);
+      const t=await resp.text();
+      console.error('saveToGitHub failed',resp.status,t);
       setSyncStatus('error');
+      showToast('Save failed: '+resp.status+' — check token in Setup','error');
     }
-  } catch(e){ setSyncStatus('error'); console.error('saveToGitHub', e); }
+  } catch(e){ setSyncStatus('error'); console.error('saveToGitHub',e); }
 }
 
 async function saveToSheet(){
