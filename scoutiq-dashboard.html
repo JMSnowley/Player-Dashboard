@@ -693,13 +693,14 @@ async function ensureAuth(){
 }
 function setSheetStatus(s){
   const dot=document.getElementById('sheetDot'),lbl=document.getElementById('sheetStatus'),btn=document.getElementById('connectBtn'),syncBtn=document.getElementById('syncBtn');
-  if(s==='connected'){dot.className='sdot on';lbl.textContent='Sheet connected';btn.style.display='none';if(syncBtn)syncBtn.style.display='inline-flex';}
-  else if(s==='ready'){dot.className='sdot rdy';lbl.textContent='Click Connect Google';}
+  if(s==='connected'){dot.className='sdot on';lbl.textContent='Editor mode';if(btn)btn.style.display='none';if(syncBtn)syncBtn.style.display='inline-flex';}
+  else if(s==='ready'){dot.className='sdot rdy';lbl.textContent='Click Connect to edit';}
+  else if(s==='public'){dot.className='sdot on';lbl.textContent='Viewing (read-only)';}
   else{dot.className='sdot';lbl.textContent='Not connected';}
 }
 async function manualSync(){
   await loadFromSheet();
-  await saveToSheet();
+  if(ST.auth) await saveToSheet();
 }
 async function sheetsRead(tabName){
   const resp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(tabName+'!A1:ZZ')}`,{headers:{'Authorization':'Bearer '+ST.auth}});
@@ -754,39 +755,51 @@ async function saveToSheet(){
 }
 
 async function loadFromSheet(){
-  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
+  if(!ST.cfg.sheetId||!ST.cfg.dbTab) return;
   try{
     setSyncStatus('loading');
-    const resp=await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1:A200')}`,
-      {headers:{'Authorization':'Bearer '+ST.auth}});
-    if(!resp.ok){
+    let resp, usedAuth=false;
+
+    if(ST.auth){
+      // Authenticated read — most reliable
+      resp=await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1:A200')}`,
+        {headers:{'Authorization':'Bearer '+ST.auth}});
+      usedAuth=true;
+    } else {
+      // Unauthenticated — works if Sheet is set to "Anyone with link can view"
+      resp=await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1:A200')}`);
+    }
+
+    if(!resp||!resp.ok){
       setSyncStatus('idle');
-      await saveToSheet();
       return;
     }
+
     const data=await resp.json();
     const rows=(data.values||[]).map(r=>r[0]||'');
     if(!rows.length||!rows[0]){
-      if(ST.players.length) await saveToSheet();
+      if(ST.auth&&ST.players.length) await saveToSheet();
       else setSyncStatus('synced');
       return;
     }
+
     let fullJson='';
     const firstVal=rows[0].trim();
     if(firstVal.startsWith('{')){ fullJson=firstVal; }
     else{ const n=parseInt(firstVal)||1; fullJson=rows.slice(1,1+n).join(''); }
     if(!fullJson){setSyncStatus('synced');return;}
+
     const parsed=JSON.parse(fullJson);
     if(parsed.players&&parsed.players.length){
-      const sheetIds=new Set(parsed.players.map(p=>p.id));
-      const localOnly=ST.players.filter(p=>!sheetIds.has(p.id));
-      ST.players=[...parsed.players,...localOnly];
+      ST.players=parsed.players;
       ST.selectedIds=new Set();
       saveState();renderAll();
-      showToast(`Loaded ${parsed.players.length} players from Sheet`,'success');
+      showToast(`Loaded ${parsed.players.length} players`,'success');
     }
     setSyncStatus('synced');
+    if(!usedAuth) setSheetStatus('public');
   }catch(e){setSyncStatus('error');console.error('loadFromSheet',e);}
 }
 
@@ -917,15 +930,17 @@ function initSliders(){
     html+=`</div></div>`;
     mc.innerHTML=html;
 
-    // Render sliders
+    // Render sliders — use nm:: and pm:: namespaced keys so shared metric names don't collide
     allSkills.forEach(skill=>{
       (nmBySkill[skill]||[]).forEach(m=>{
-        SLIDER_STATE.metrics[m]=SLIDER_STATE.metrics[m]||[0,100];
-        renderRangeSlider('nms_'+safeId(m),m.replace(/^PAdj\s+/i,''),'metric:'+m,0,100);
+        const key='nm::'+m;
+        SLIDER_STATE.metrics[key]=SLIDER_STATE.metrics[key]||[0,100];
+        renderRangeSlider('nms_'+safeId(m),m.replace(/^PAdj\s+/i,''),key,0,100);
       });
       (pmBySkill[skill]||[]).forEach(m=>{
-        SLIDER_STATE.metrics[m]=SLIDER_STATE.metrics[m]||[0,100];
-        renderRangeSlider('pms_'+safeId(m),m.replace(/^PAdj\s+/i,''),'metric:'+m,0,100);
+        const key='pm::'+m;
+        SLIDER_STATE.metrics[key]=SLIDER_STATE.metrics[key]||[0,100];
+        renderRangeSlider('pms_'+safeId(m),m.replace(/^PAdj\s+/i,''),key,0,100);
       });
     });
   }
@@ -952,6 +967,7 @@ function updateSlider(sk,side,val,key,mn,mx){
   const loF=Math.min(lo,hi),hiF=Math.max(lo,hi);
   updateSliderUI(sk,loF,hiF,mn,mx);
   if(key.startsWith('role:')) SLIDER_STATE.roles[key.slice(5)]=[loF,hiF];
+  else if(key.startsWith('nm::')||key.startsWith('pm::')) SLIDER_STATE.metrics[key]=[loF,hiF];
   else if(key.startsWith('metric:')) SLIDER_STATE.metrics[key.slice(7)]=[loF,hiF];
   else SLIDER_STATE[key]=[loF,hiF];
   renderTable();
@@ -1202,8 +1218,18 @@ function getFiltered(){
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
     if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[role]!=null?p.roles[role]:null;return v!=null&&v>=lo&&v<=hi;});
   });
-  Object.entries(SLIDER_STATE.metrics).forEach(([metric,[lo,hi]])=>{
-    if(lo>0||hi<100)list=list.filter(p=>{const v=(p.nm&&p.nm[metric]!=null)?p.nm[metric]:(p.pm&&p.pm[metric]!=null)?p.pm[metric]:null;return v!=null&&v>=lo&&v<=hi;});
+  Object.entries(SLIDER_STATE.metrics).forEach(([key,[lo,hi]])=>{
+    if(lo===0&&hi===100) return;
+    if(key.startsWith('nm::')){
+      const m=key.slice(4);
+      list=list.filter(p=>{ const v=p.nm&&p.nm[m]!=null?p.nm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+    } else if(key.startsWith('pm::')){
+      const m=key.slice(4);
+      list=list.filter(p=>{ const v=p.pm&&p.pm[m]!=null?p.pm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+    } else {
+      // legacy fallback
+      list=list.filter(p=>{ const v=(p.nm&&p.nm[key]!=null)?p.nm[key]:(p.pm&&p.pm[key]!=null)?p.pm[key]:null; return v!=null&&v>=lo&&v<=hi; });
+    }
   });
   const sk=ST.sortKey||'rating';
   list.sort((a,b)=>{
@@ -1670,6 +1696,8 @@ if(ST.cfg.clientId)loadGoogleScripts();
 initSliders();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
+// Auto-load from public Sheet on startup (no auth needed if sheet is public)
+if(ST.cfg.sheetId&&ST.cfg.dbTab) loadFromSheet();
 // Set initial sort indicator
 setTimeout(()=>{ const th=document.querySelector(`th[data-sort="${ST.sortKey}"]`); if(th){th.classList.add('sorted');const s=document.createElement('span');s.className='sort-arrow';s.style.cssText='margin-left:3px;font-size:8px;opacity:.7';s.textContent='▼';th.appendChild(s);} },0);
 </script>
