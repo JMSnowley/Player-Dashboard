@@ -240,7 +240,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   <div class="tb-right">
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
-    <button class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
+    <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button class="btn btn-ghost" onclick="openSetupModal()">⚙ Setup</button>
   </div>
 </div>
@@ -295,7 +295,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     </div>
     <div class="sb-footer">
       <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:10px" onclick="exportCSV()">↓ Export CSV</button>
-      <button class="btn btn-danger" style="width:100%;justify-content:center;font-size:10px" onclick="clearAllData()">✕ Clear All Data</button>
+      <button id="clearDataBtn" class="btn btn-danger" style="width:100%;justify-content:center;font-size:10px;display:none" onclick="clearAllData()">✕ Clear All Data</button>
     </div>
   </nav>
   <div class="main">
@@ -389,6 +389,10 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="fg"><div class="fl">Database Tab Name</div>
         <input type="text" id="cfgDbTab" placeholder="PLYRDASH_DB">
         <div class="fhint">A tab where PLYRDASH stores its player database. Created automatically if it doesn't exist.</div>
+      </div>
+      <div class="fg"><div class="fl">Published CSV URL (for public viewing)</div>
+        <input type="text" id="cfgPubUrl" placeholder="https://docs.google.com/spreadsheets/d/…/pub?gid=…&single=true&output=csv">
+        <div class="fhint">File → Share → Publish to web → select PLYRDASH_DB tab → CSV → copy URL. Enables viewing without login.</div>
       </div>
     </div>
     <div class="modal-sec">
@@ -637,7 +641,7 @@ function natFlag(country){ return COUNTRY_FLAGS[country]||'🌍'; }
 // ═══════════════════════════════════
 let ST={
   players:[],
-  cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',dbTab:'PLYRDASH_DB',
+  cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',dbTab:'PLYRDASH_DB',pubUrl:'',
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
@@ -692,11 +696,36 @@ async function ensureAuth(){
   });
 }
 function setSheetStatus(s){
-  const dot=document.getElementById('sheetDot'),lbl=document.getElementById('sheetStatus'),btn=document.getElementById('connectBtn'),syncBtn=document.getElementById('syncBtn');
-  if(s==='connected'){dot.className='sdot on';lbl.textContent='Editor mode';if(btn)btn.style.display='none';if(syncBtn)syncBtn.style.display='inline-flex';}
-  else if(s==='ready'){dot.className='sdot rdy';lbl.textContent='Click Connect to edit';}
-  else if(s==='public'){dot.className='sdot on';lbl.textContent='Viewing (read-only)';}
-  else{dot.className='sdot';lbl.textContent='Not connected';}
+  const dot=document.getElementById('sheetDot'),lbl=document.getElementById('sheetStatus');
+  const connectBtn=document.getElementById('connectBtn'),syncBtn=document.getElementById('syncBtn');
+  if(s==='connected'){
+    dot.className='sdot on';lbl.textContent='Editor mode';
+    if(connectBtn)connectBtn.style.display='none';
+    if(syncBtn)syncBtn.style.display='inline-flex';
+    setEditorMode(true);
+  } else if(s==='ready'){
+    dot.className='sdot rdy';lbl.textContent='Click Connect to edit';
+  } else if(s==='public'){
+    dot.className='sdot on';lbl.textContent='Viewing (read-only)';
+    setEditorMode(false);
+  } else {
+    dot.className='sdot';lbl.textContent='Not connected';
+  }
+}
+
+function setEditorMode(isEditor){
+  // Editor-only elements
+  const editorEls=['clearDataBtn','captureModalBtn'];
+  editorEls.forEach(id=>{ const el=document.getElementById(id); if(el)el.style.display=isEditor?'':'none'; });
+  // Checkbox column — hide for viewers
+  document.querySelectorAll('th:first-child input[type=checkbox], td:first-child input[type=checkbox]').forEach(el=>{
+    el.closest('th,td').style.display=isEditor?'':'none';
+  });
+  // Selection bar
+  const selBar=document.getElementById('selBar');
+  if(selBar&&!isEditor)selBar.style.display='none';
+  // Delete button in panel — hide for viewers
+  ST._isEditor=isEditor;
 }
 async function manualSync(){
   await loadFromSheet();
@@ -755,35 +784,29 @@ async function saveToSheet(){
 }
 
 async function loadFromSheet(){
-  if(!ST.cfg.sheetId||!ST.cfg.dbTab) return;
+  if(!ST.cfg.sheetId&&!ST.cfg.pubUrl) return;
   try{
     setSyncStatus('loading');
-    let resp, usedAuth=false;
+    let rows=[], usedAuth=false;
 
-    if(ST.auth){
-      // Authenticated read — most reliable
-      resp=await fetch(
+    if(ST.auth&&ST.cfg.sheetId){
+      // Authenticated API read
+      const resp=await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1:A200')}`,
         {headers:{'Authorization':'Bearer '+ST.auth}});
-      usedAuth=true;
-    } else {
-      // Unauthenticated — works if Sheet is set to "Anyone with link can view"
-      resp=await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(ST.cfg.dbTab+'!A1:A200')}`);
+      if(resp.ok){ const d=await resp.json(); rows=(d.values||[]).map(r=>r[0]||''); usedAuth=true; }
+    } else if(ST.cfg.pubUrl){
+      // Published CSV — works without auth, CORS-safe
+      // Add cache-bust to avoid stale data on mobile
+      const resp=await fetch(ST.cfg.pubUrl+'&cb='+Date.now());
+      if(resp.ok){
+        const text=await resp.text();
+        // CSV has one value per row, possibly quoted
+        rows=text.split('\n').map(r=>r.replace(/^"|"$/g,'').trim()).filter(Boolean);
+      }
     }
 
-    if(!resp||!resp.ok){
-      setSyncStatus('idle');
-      return;
-    }
-
-    const data=await resp.json();
-    const rows=(data.values||[]).map(r=>r[0]||'');
-    if(!rows.length||!rows[0]){
-      if(ST.auth&&ST.players.length) await saveToSheet();
-      else setSyncStatus('synced');
-      return;
-    }
+    if(!rows.length||!rows[0]){ setSyncStatus('synced'); return; }
 
     let fullJson='';
     const firstVal=rows[0].trim();
@@ -1490,7 +1513,7 @@ function renderPanel(){
           </div>`).join('')}
         </div>
       </div>`:''}
-      <button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`;
+      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}`;
   } else if(ST.panelTab==='metrics'){
     const isN=ST.metricView==='normal';
     const metrics=isN?posConf.nm:posConf.pm;
@@ -1605,6 +1628,7 @@ function openSetupModal(){
   document.getElementById('cfgClientId').value=ST.cfg.clientId||'';
   document.getElementById('cfgSheetId').value=ST.cfg.sheetId||'';
   document.getElementById('cfgDbTab').value=ST.cfg.dbTab||'PLYRDASH_DB';
+  document.getElementById('cfgPubUrl').value=ST.cfg.pubUrl||'';
   const tabDefs=[{k:'CF',l:'CF — Centre Forwards'},{k:'WF',l:'WF — Wide Forwards'},
     {k:'MF',l:'MF — Midfielders (combined)'},{k:'DM',l:'DM — Def Mid (percentiles only)'},
     {k:'CM',l:'CM — Cen Mid (percentiles only)'},{k:'AM',l:'AM — Att Mid (percentiles only)'},
@@ -1618,6 +1642,7 @@ function saveSetup(){
   ST.cfg.clientId=document.getElementById('cfgClientId').value.trim()||ST.cfg.clientId;
   ST.cfg.sheetId=document.getElementById('cfgSheetId').value.trim();
   ST.cfg.dbTab=document.getElementById('cfgDbTab').value.trim()||'PLYRDASH_DB';
+  ST.cfg.pubUrl=document.getElementById('cfgPubUrl').value.trim();
   ['CF','WF','MF','DM','CM','AM','FB','CB','GK'].forEach(k=>{const el=document.getElementById(`cfgTab_${k}`);if(el)ST.cfg.tabs[k]=el.value.trim()||k;});
   saveState();if(ST.cfg.clientId)loadGoogleScripts();showToast('Settings saved','success');closeModal('setupModal');
 }
