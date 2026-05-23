@@ -198,6 +198,8 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   <div class="logo">PLYRDASH</div>
   <div class="tb-div"></div>
   <div class="tb-status"><div class="sdot" id="sheetDot"></div><span id="sheetStatus">Not connected</span></div>
+  <div class="tb-div"></div>
+  <span id="syncStatus" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)"></span>
   <div class="tb-right">
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
@@ -306,6 +308,10 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="fg"><div class="fl">Spreadsheet ID</div>
         <input type="text" id="cfgSheetId" placeholder="From your Sheet URL between /d/ and /edit">
         <div class="fhint">docs.google.com/spreadsheets/d/<strong>THIS_PART</strong>/edit</div>
+      </div>
+      <div class="fg"><div class="fl">Database Tab Name</div>
+        <input type="text" id="cfgDbTab" placeholder="PLYRDASH_DB">
+        <div class="fhint">A tab where PLYRDASH stores its player database. Created automatically if it doesn't exist.</div>
       </div>
     </div>
     <div class="modal-sec">
@@ -554,7 +560,7 @@ function natFlag(country){ return COUNTRY_FLAGS[country]||'🌍'; }
 // ═══════════════════════════════════
 let ST={
   players:[],
-  cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',
+  cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',dbTab:'PLYRDASH_DB',
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
@@ -563,9 +569,9 @@ let ST={
 };
 
 function loadState(){
-  try{const s=localStorage.getItem('scoutiq_v4');if(s){const p=JSON.parse(s);ST.players=p.players||[];if(p.cfg)ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})}}}}catch(e){}
+  try{const s=localStorage.getItem('scoutiq_v4');if(s){const p=JSON.parse(s);ST.players=p.players||[];if(p.cfg)ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})},dbTab:p.cfg.dbTab||ST.cfg.dbTab}}}catch(e){}
   ['filterPos','filterLeague','filterNat','filterTeam'].forEach(k=>{if(!Array.isArray(ST[k]))ST[k]=[];});
-  ST.selectedIds=new Set(); // always start with no selection
+  ST.selectedIds=new Set();
 }
 function saveState(){try{localStorage.setItem('scoutiq_v4',JSON.stringify({players:ST.players,cfg:ST.cfg}))}catch(e){}}
 
@@ -594,15 +600,16 @@ function initGapiClient(){
 async function connectGoogle(){
   if(!ST.cfg.clientId){showToast('Enter Client ID in Setup first','error');return;}
   if(!_gsiReady){loadGoogleScripts();showToast('Loading Google scripts — try again in a moment','info');return;}
-  const ok=await ensureAuth();if(ok)showToast('Connected to Google Sheets','success');
+  const ok=await ensureAuth();
+  if(ok) showToast('Connected — loading your data…','success');
 }
 async function ensureAuth(){
   if(ST.auth)return true;
   if(!_gsiReady){showToast('Google Sign-In not ready — click Connect again','error');return false;}
   return new Promise(res=>{
     try{
-      const client=google.accounts.oauth2.initTokenClient({client_id:ST.cfg.clientId,scope:'https://www.googleapis.com/auth/spreadsheets.readonly',
-        callback:resp=>{if(resp.error){showToast('Auth failed: '+resp.error,'error');res(false);return;}ST.auth=resp.access_token;setSheetStatus('connected');res(true);}});
+      const client=google.accounts.oauth2.initTokenClient({client_id:ST.cfg.clientId,scope:'https://www.googleapis.com/auth/spreadsheets',
+        callback:resp=>{if(resp.error){showToast('Auth failed: '+resp.error,'error');res(false);return;}ST.auth=resp.access_token;setSheetStatus('connected');loadFromSheet();res(true);}});
       client.requestAccessToken();
     }catch(e){showToast('Auth error: '+e.message,'error');res(false);}
   });
@@ -617,6 +624,77 @@ async function sheetsRead(tabName){
   const resp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(tabName+'!A1:ZZ')}`,{headers:{'Authorization':'Bearer '+ST.auth}});
   if(!resp.ok){const t=await resp.text();throw new Error(t);}
   return(await resp.json()).values||[];
+}
+
+async function sheetsWrite(tabName,range,values){
+  const resp=await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(tabName+'!'+range)}?valueInputOption=RAW`,
+    {method:'PUT',headers:{'Authorization':'Bearer '+ST.auth,'Content-Type':'application/json'},
+     body:JSON.stringify({range:tabName+'!'+range,majorDimension:'ROWS',values})});
+  if(!resp.ok){const t=await resp.text();throw new Error(t);}
+  return resp.json();
+}
+
+async function ensureDbTab(){
+  // Check tab exists; if not, create it
+  const metaResp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}?fields=sheets.properties.title`,
+    {headers:{'Authorization':'Bearer '+ST.auth}});
+  if(!metaResp.ok) return;
+  const meta=await metaResp.json();
+  const exists=(meta.sheets||[]).some(s=>s.properties.title===ST.cfg.dbTab);
+  if(!exists){
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}:batchUpdate`,
+      {method:'POST',headers:{'Authorization':'Bearer '+ST.auth,'Content-Type':'application/json'},
+       body:JSON.stringify({requests:[{addSheet:{properties:{title:ST.cfg.dbTab,gridProperties:{rowCount:2,columnCount:1}}}}]})});
+  }
+}
+
+async function saveToSheet(){
+  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
+  try{
+    setSyncStatus('saving');
+    await ensureDbTab();
+    const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
+    await sheetsWrite(ST.cfg.dbTab,'A1',[[payload]]);
+    setSyncStatus('saved');
+  }catch(e){
+    setSyncStatus('error');
+    console.error('saveToSheet error:',e);
+  }
+}
+
+async function loadFromSheet(){
+  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
+  try{
+    setSyncStatus('loading');
+    const rows=await sheetsRead(ST.cfg.dbTab);
+    if(rows&&rows[0]&&rows[0][0]){
+      const data=JSON.parse(rows[0][0]);
+      if(data.players&&data.players.length){
+        // Merge: Sheet data wins for existing players, keep local-only players
+        const sheetIds=new Set(data.players.map(p=>p.id));
+        const localOnly=ST.players.filter(p=>!sheetIds.has(p.id));
+        ST.players=[...data.players,...localOnly];
+        // Re-init Set
+        ST.selectedIds=new Set();
+        saveState();
+        renderAll();
+        showToast(`Loaded ${data.players.length} players from Sheet`,'success');
+      }
+    }
+    setSyncStatus('synced');
+  }catch(e){
+    setSyncStatus('idle');
+    // Tab probably doesn't exist yet — that's fine
+  }
+}
+
+function setSyncStatus(status){
+  const lbl=document.getElementById('syncStatus');
+  if(!lbl) return;
+  const map={saving:'↑ Saving…',saved:'✓ Saved',loading:'↓ Loading…',synced:'✓ Synced',error:'⚠ Sync error',idle:''};
+  lbl.textContent=map[status]||'';
+  lbl.style.color=status==='error'?'var(--red)':status==='synced'||status==='saved'?'var(--green)':'var(--muted2)';
 }
 
 // ═══════════════════════════════════
@@ -675,6 +753,7 @@ async function runCapture(){
   pf.style.width='100%';pl.textContent='Done!';
   saveState();renderAll();
   showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
+  saveToSheet();
   setTimeout(()=>{closeModal('captureModal');btn.disabled=false;pw.style.display='none';},800);
 }
 
@@ -1022,6 +1101,7 @@ function deleteSelected(){
   if(ST.panelId&&!ST.players.find(p=>p.id===ST.panelId))closePanel();
   saveState();renderAll();
   showToast(`${n} player${n!==1?'s':''} deleted`,'success');
+  saveToSheet();
 }
 
 function deleteSinglePlayer(id){
@@ -1033,6 +1113,7 @@ function deleteSinglePlayer(id){
   closePanel();
   saveState();renderAll();
   showToast(`${p.name} deleted`,'success');
+  saveToSheet();
 }
 
 // ═══════════════════════════════════
@@ -1215,6 +1296,7 @@ function toggleHist(el){const b=el.nextElementSibling;b.classList.toggle('open')
 function openSetupModal(){
   document.getElementById('cfgClientId').value=ST.cfg.clientId||'';
   document.getElementById('cfgSheetId').value=ST.cfg.sheetId||'';
+  document.getElementById('cfgDbTab').value=ST.cfg.dbTab||'PLYRDASH_DB';
   const tabDefs=[{k:'CF',l:'CF — Centre Forwards'},{k:'WF',l:'WF — Wide Forwards'},
     {k:'MF',l:'MF — Midfielders (combined)'},{k:'DM',l:'DM — Def Mid (percentiles only)'},
     {k:'CM',l:'CM — Cen Mid (percentiles only)'},{k:'AM',l:'AM — Att Mid (percentiles only)'},
@@ -1227,6 +1309,7 @@ function openSetupModal(){
 function saveSetup(){
   ST.cfg.clientId=document.getElementById('cfgClientId').value.trim()||ST.cfg.clientId;
   ST.cfg.sheetId=document.getElementById('cfgSheetId').value.trim();
+  ST.cfg.dbTab=document.getElementById('cfgDbTab').value.trim()||'PLYRDASH_DB';
   ['CF','WF','MF','DM','CM','AM','FB','CB','GK'].forEach(k=>{const el=document.getElementById(`cfgTab_${k}`);if(el)ST.cfg.tabs[k]=el.value.trim()||k;});
   saveState();if(ST.cfg.clientId)loadGoogleScripts();showToast('Settings saved','success');closeModal('setupModal');
 }
@@ -1285,7 +1368,7 @@ function exportCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`scoutiq-${new Date().toISOString().slice(0,10)}.csv`;a.click();
   showToast('Exported','success');
 }
-function clearAllData(){if(!confirm('Clear all player data?'))return;ST.players=[];saveState();renderAll();showToast('Cleared','info');}
+function clearAllData(){if(!confirm('Clear all player data?'))return;ST.players=[];saveState();renderAll();saveToSheet();showToast('Cleared','info');}
 
 // ═══════════════════════════════════
 // MODALS & TOASTS
