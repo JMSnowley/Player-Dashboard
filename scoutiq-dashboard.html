@@ -811,12 +811,11 @@ async function loadFromSheet(){
         {headers:{'Authorization':'Bearer '+ST.auth}});
       if(resp.ok){ const d=await resp.json(); rows=(d.values||[]).map(r=>r[0]||''); usedAuth=true; }
     } else if(ST.cfg.pubUrl){
-      // Published CSV — works without auth, CORS-safe
-      // Add cache-bust to avoid stale data on mobile
-      const resp=await fetch(ST.cfg.pubUrl+'&cb='+Date.now());
+      // Published CSV via CORS proxy — works on all devices including mobile
+      const proxyUrl='https://corsproxy.io/?'+encodeURIComponent(ST.cfg.pubUrl+'&cb='+Date.now());
+      const resp=await fetch(proxyUrl);
       if(resp.ok){
         const text=await resp.text();
-        // CSV has one value per row, possibly quoted
         rows=text.split('\n').map(r=>r.replace(/^"|"$/g,'').trim()).filter(Boolean);
       }
     }
