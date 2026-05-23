@@ -650,6 +650,9 @@ let ST={
 };
 
 function loadState(){
+  // Store hardcoded values before any localStorage merge
+  const hardcodedPubUrl='https://docs.google.com/spreadsheets/d/e/2PACX-1vRLn4k0FqOz292udYtMIhVFF9P6CmUldWCOah3Z6HZkILj7k2TzYLeDHctiuKuy1ehcnE40-OB8oaZd/pub?gid=157450863&single=true&output=csv';
+  const hardcodedClientId='192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com';
   try{
     const s=localStorage.getItem('scoutiq_v4');
     if(s){
@@ -657,11 +660,12 @@ function loadState(){
       ST.players=p.players||[];
       if(p.cfg){
         ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})},dbTab:p.cfg.dbTab||ST.cfg.dbTab};
-        // Never overwrite hardcoded pubUrl with empty saved value
-        if(!p.cfg.pubUrl) ST.cfg.pubUrl=ST.cfg.pubUrl;
       }
     }
   }catch(e){}
+  // Always restore hardcoded values — localStorage must never overwrite these
+  ST.cfg.pubUrl=hardcodedPubUrl;
+  ST.cfg.clientId=hardcodedClientId;
   ['filterPos','filterLeague','filterNat','filterTeam'].forEach(k=>{if(!Array.isArray(ST[k]))ST[k]=[];});
   ST.selectedIds=new Set();
 }
@@ -1732,8 +1736,8 @@ if(ST.cfg.clientId)loadGoogleScripts();
 initSliders();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
-// Auto-load from public Sheet on startup (no auth needed if sheet is public)
-if(ST.cfg.sheetId&&ST.cfg.dbTab) loadFromSheet();
+// Auto-load from public Sheet on startup — pubUrl works without auth on any device
+if(ST.cfg.pubUrl||ST.cfg.sheetId) loadFromSheet();
 // Set initial sort indicator
 setTimeout(()=>{ const th=document.querySelector(`th[data-sort="${ST.sortKey}"]`); if(th){th.classList.add('sorted');const s=document.createElement('span');s.className='sort-arrow';s.style.cssText='margin-left:3px;font-size:8px;opacity:.7';s.textContent='▼';th.appendChild(s);} },0);
 </script>
