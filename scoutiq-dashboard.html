@@ -641,7 +641,7 @@ function natFlag(country){ return COUNTRY_FLAGS[country]||'🌍'; }
 // ═══════════════════════════════════
 let ST={
   players:[],
-  cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',dbTab:'PLYRDASH_DB',pubUrl:'',
+  cfg:{clientId:'192544089586-bedgk86s4s0vm7geooag803p8ulb2h4n.apps.googleusercontent.com',sheetId:'',dbTab:'PLYRDASH_DB',pubUrl:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRLn4k0FqOz292udYtMIhVFF9P6CmUldWCOah3Z6HZkILj7k2TzYLeDHctiuKuy1ehcnE40-OB8oaZd/pub?gid=157450863&single=true&output=csv',
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
@@ -650,7 +650,18 @@ let ST={
 };
 
 function loadState(){
-  try{const s=localStorage.getItem('scoutiq_v4');if(s){const p=JSON.parse(s);ST.players=p.players||[];if(p.cfg)ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})},dbTab:p.cfg.dbTab||ST.cfg.dbTab}}}catch(e){}
+  try{
+    const s=localStorage.getItem('scoutiq_v4');
+    if(s){
+      const p=JSON.parse(s);
+      ST.players=p.players||[];
+      if(p.cfg){
+        ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})},dbTab:p.cfg.dbTab||ST.cfg.dbTab};
+        // Never overwrite hardcoded pubUrl with empty saved value
+        if(!p.cfg.pubUrl) ST.cfg.pubUrl=ST.cfg.pubUrl;
+      }
+    }
+  }catch(e){}
   ['filterPos','filterLeague','filterNat','filterTeam'].forEach(k=>{if(!Array.isArray(ST[k]))ST[k]=[];});
   ST.selectedIds=new Set();
 }
