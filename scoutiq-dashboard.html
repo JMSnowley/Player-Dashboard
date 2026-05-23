@@ -695,7 +695,12 @@ function initGapiClient(){
 }
 async function connectGoogle(){
   if(!ST.cfg.clientId){showToast('Enter Client ID in Setup first','error');return;}
-  if(!_gsiReady){loadGoogleScripts();showToast('Loading Google scripts — try again in a moment','info');return;}
+  // Load scripts now if not already loaded
+  if(!_gsiReady){
+    loadGoogleScripts();
+    showToast('Loading — please click Connect again in a moment','info');
+    return;
+  }
   const ok=await ensureAuth();
   if(ok) showToast('Connected — loading your data…','success');
 }
@@ -719,12 +724,13 @@ function setSheetStatus(s){
     if(syncBtn)syncBtn.style.display='inline-flex';
     setEditorMode(true);
   } else if(s==='ready'){
-    dot.className='sdot rdy';lbl.textContent='Click Connect to edit';
+    // Scripts loaded — don't change the visible label, just note internally
+    dot.className='sdot rdy';
   } else if(s==='public'){
     dot.className='sdot on';lbl.textContent='Viewing (read-only)';
     setEditorMode(false);
   } else {
-    dot.className='sdot';lbl.textContent='Not connected';
+    dot.className='sdot';lbl.textContent='';
   }
 }
 
@@ -811,12 +817,27 @@ async function loadFromSheet(){
         {headers:{'Authorization':'Bearer '+ST.auth}});
       if(resp.ok){ const d=await resp.json(); rows=(d.values||[]).map(r=>r[0]||''); usedAuth=true; }
     } else if(ST.cfg.pubUrl){
-      // Published CSV via CORS proxy — works on all devices including mobile
-      const proxyUrl='https://corsproxy.io/?'+encodeURIComponent(ST.cfg.pubUrl+'&cb='+Date.now());
-      const resp=await fetch(proxyUrl);
-      if(resp.ok){
-        const text=await resp.text();
+      // Try multiple CORS proxies in sequence until one works
+      const proxies=[
+        'https://corsproxy.io/?'+encodeURIComponent(ST.cfg.pubUrl),
+        'https://api.allorigins.win/raw?url='+encodeURIComponent(ST.cfg.pubUrl),
+        'https://cors-anywhere.herokuapp.com/'+ST.cfg.pubUrl,
+      ];
+      let text=null;
+      for(const proxyUrl of proxies){
+        try{
+          const r=await fetch(proxyUrl,{signal:AbortSignal.timeout(8000)});
+          if(r.ok){text=await r.text();break;}
+          console.warn('Proxy failed:',proxyUrl,r.status);
+        }catch(e){console.warn('Proxy error:',proxyUrl,e.message);}
+      }
+      if(text){
         rows=text.split('\n').map(r=>r.replace(/^"|"$/g,'').trim()).filter(Boolean);
+      } else {
+        console.error('All proxies failed for pubUrl');
+        setSyncStatus('error');
+        showToast('Could not load data — see console for details','error');
+        return;
       }
     }
 
@@ -1731,11 +1752,12 @@ function showToast(msg,type='info'){
 // INIT
 // ═══════════════════════════════════
 loadState();
-if(ST.cfg.clientId)loadGoogleScripts();
+// Don't auto-load Google scripts — only load when user explicitly clicks Connect
+// This prevents 'Click Connect to edit' appearing for viewers
 initSliders();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
-// Auto-load from public Sheet on startup — pubUrl works without auth on any device
+// Auto-load data from public CSV on startup — works on any device without auth
 if(ST.cfg.pubUrl||ST.cfg.sheetId) loadFromSheet();
 // Set initial sort indicator
 setTimeout(()=>{ const th=document.querySelector(`th[data-sort="${ST.sortKey}"]`); if(th){th.classList.add('sorted');const s=document.createElement('span');s.className='sort-arrow';s.style.cssText='margin-left:3px;font-size:8px;opacity:.7';s.textContent='▼';th.appendChild(s);} },0);
