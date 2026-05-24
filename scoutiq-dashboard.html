@@ -1165,6 +1165,11 @@ function col2(cm,name){
   const a=cm[name]||cm[(name||'').toLowerCase()]||[];
   return a.length>=2?a[1]:a.length?a[0]:-1;
 }
+// Get the Nth occurrence (0-indexed) of a header name
+function colN(cm,name,n){
+  const a=cm[name]||cm[(name||'').toLowerCase()]||[];
+  return a.length>n?a[n]:a.length?a[a.length-1]:-1;
+}
 
 function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
   const posConf=POS_CONFIG[posCode];
@@ -1173,7 +1178,14 @@ function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
         ageIdx=col1(cm,'Age'),minIdx=col1(cm,'Minutes played'),
         ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth country')||col1(cm,'Birth Country'),
         ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY'),
-        leaguePctIdx=col1(cm,'WR (wM) 0-100'),wyPosIdx=col1(cm,'Position');
+        leaguePctIdx=col1(cm,'WR (wM) 0-100');
+  const wyPosIdx=2; // Position always in column C
+  const isGK=posCode==='GK';
+  // GK: Goals Prevented & Save % appear 4x — PAdj is 3rd occurrence (idx 2), Normal is 4th (idx 3)
+  const metricCol=(m,isPAdj)=>{
+    if(isGK&&(m==='Goals Prevented'||m==='Save %')) return colN(cm,m,isPAdj?2:3);
+    return col2(cm,m);
+  };
   const snaps=[];
   rows.slice(1).forEach(row=>{
     const gv=(i)=>i>=0&&i<row.length?row[i]:null;
@@ -1181,8 +1193,8 @@ function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
     const name=(gv(nameIdx)||'').trim();if(!name)return;
     const roles={},nm={},pm={};
     posConf.roles.forEach(r=>{const v=gn(col1(cm,r));if(v!==null)roles[r]=v;});
-    posConf.nm.forEach(m=>{const v=gn(col2(cm,m));if(v!==null)nm[m]=v;});
-    posConf.pm.forEach(m=>{const v=gn(col2(cm,m));if(v!==null)pm[m]=v;});
+    posConf.nm.forEach(m=>{const v=gn(metricCol(m,false));if(v!==null)nm[m]=v;});
+    posConf.pm.forEach(m=>{const v=gn(metricCol(m,true));if(v!==null)pm[m]=v;});
     snaps.push({name,team:(gv(teamIdx)||'').trim(),pos:posCode,
       nationality:(gv(natIdx)||'').trim(),age:gn(ageIdx),minutes:gn(minIdx),
       contractExpires:gv(ctIdx)||'',rating:gn(ratingIdx),potential:gn(potIdx),ptPriority:gn(ptpIdx),leaguePct:gn(leaguePctIdx),
@@ -1199,7 +1211,8 @@ function parseMFOutput(mfRows,posTabRows,leagueTag,capturedAt){
         ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth country')||col1(cm,'Birth Country'),
         primaryPosIdx=col1(cm,'Primary Position'),
         ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY'),
-        leaguePctIdx=col1(cm,'WR (wM) 0-100'),wyPosIdx=col1(cm,'Position');
+        leaguePctIdx=col1(cm,'WR (wM) 0-100');
+  const wyPosIdx=2; // Position always in column C
   // Build lookup from each mid tab
   const posLookups={};
   for(const[posCode,rows]of Object.entries(posTabRows)){
