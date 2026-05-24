@@ -192,6 +192,13 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .toast.info{border-color:var(--accent-border);color:var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
+/* PAGINATION */
+.pagination{display:flex;align-items:center;gap:5px;padding:8px 14px;border-top:1px solid var(--border);background:var(--surface);justify-content:center;flex-wrap:wrap;flex-shrink:0}
+.page-btn{padding:4px 9px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:'JetBrains Mono',monospace;transition:all .15s;min-width:30px;text-align:center}
+.page-btn:hover{border-color:var(--accent);color:var(--accent)}
+.page-btn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);font-weight:700}
+.page-btn[disabled]{opacity:.3;cursor:not-allowed;pointer-events:none}
+.page-info{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);padding:0 4px}
 /* FONT SMOOTHING */
 *{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 
@@ -312,7 +319,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <option value="capturedAt">Capture Date</option>
       </select>
       <span class="rc" id="rowCount">0 players</span>
-      <select id="pageLimitSelect" onchange="ST.pageLimit=this.value==='all'?Infinity:parseInt(this.value);renderTable()" style="font-size:10px;padding:5px 8px">
+      <select id="pageLimitSelect" onchange="ST.pageLimit=this.value==='all'?Infinity:parseInt(this.value);ST.currentPage=0;renderTable()" style="font-size:10px;padding:5px 8px">
         <option value="20">20 rows</option>
         <option value="50" selected>50 rows</option>
         <option value="100">100 rows</option>
@@ -358,6 +365,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <div class="empty-sub">Connect your Google Sheet in Setup, then click Capture to snapshot your current Sheet data.</div>
       </div>
     </div>
+    <div class="pagination" id="paginationBar" style="display:none"></div>
   </div>
 </div>
 
@@ -656,7 +664,7 @@ let ST={
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
-  sortKey:'rating',sortDir:-1,pageLimit:50,panelId:null,panelTab:'overview',metricView:'normal',
+  sortKey:'rating',sortDir:-1,pageLimit:50,currentPage:0,panelId:null,panelTab:'overview',metricView:'normal',
   dupQueue:[],dupResolve:null,
 };
 
@@ -1179,9 +1187,12 @@ function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
         leaguePctIdx=col1(cm,'WR (wM) 0-100');
   const wyPosIdx=2; // Position always in column C
   const isGK=posCode==='GK';
-  // GK: Goals Prevented & Save % appear 4x — PAdj is 3rd occurrence (idx 2), Normal is 4th (idx 3)
+  // GK: Goals Prevented & Save % at fixed column positions (CK/CL for PAdj, CU/CV for Normal)
+  // Using absolute indices is more reliable than occurrence counting
+  const GK_PADJ_COLS={'Goals Prevented':88,'Save %':89};
+  const GK_NM_COLS={'Goals Prevented':98,'Save %':99};
   const metricCol=(m,isPAdj)=>{
-    if(isGK&&(m==='Goals Prevented'||m==='Save %')) return colN(cm,m,isPAdj?2:3);
+    if(isGK&&GK_PADJ_COLS[m]!==undefined) return isPAdj?GK_PADJ_COLS[m]:GK_NM_COLS[m];
     return col2(cm,m);
   };
   const snaps=[];
@@ -1359,11 +1370,12 @@ function getFiltered(){
     if(typeof av==='string'||typeof bv==='string')return ST.sortDir*(String(av).localeCompare(String(bv)));
     return ST.sortDir*(bv-av);
   });
-  // Apply page limit
-  const limit = ST.pageLimit || 50;
-  const total = list.length;
-  if(limit !== Infinity) list = list.slice(0, limit);
-  return {list, total};
+  const total=list.length;
+  const limit=ST.pageLimit===Infinity?total:ST.pageLimit;
+  const page=Math.min(ST.currentPage,Math.max(0,Math.ceil(total/limit)-1));
+  if(ST.currentPage!==page) ST.currentPage=page;
+  const paged=limit>=total?list:list.slice(page*limit,(page+1)*limit);
+  return {list:paged,total,page,limit};
 }
 
 function renderAll(){renderSidebar();renderStatsStrip();renderTable();}
@@ -1410,9 +1422,9 @@ function renderStatsStrip(){
 
 function renderTable(){
   renderStatsStrip();
-  const {list,total}=getFiltered();
+  const {list,total,page,limit}=getFiltered();
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
-  document.getElementById('rowCount').textContent=total>list.length?`${list.length} of ${total} players`:(`${list.length} player${list.length!==1?'s':''}`);
+  document.getElementById('rowCount').textContent='';
   const posName=ST.filterPos.length?ST.filterPos.join('/'):('ALL PLAYERS');
   const lgName=ST.filterLeague.length?ST.filterLeague.join('/\u200b'):'';
   const natName=ST.filterNat.length?ST.filterNat.join('/'):'';
@@ -1489,9 +1501,33 @@ function renderTable(){
       <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
     </tr>`;
   }).join('');
+  document.getElementById('rowCount').textContent=total>0&&limit<total?`${page*limit+1}–${Math.min((page+1)*limit,total)} of ${total} players`:`${total} player${total!==1?'s':''}`;
+  renderPagination(total,page,limit);
   updateSelBar(list);
 }
 
+function renderPagination(total,page,limit){
+  const bar=document.getElementById('paginationBar');
+  if(!bar) return;
+  if(limit>=total||limit===Infinity){bar.style.display='none';return;}
+  bar.style.display='flex';
+  const totalPages=Math.ceil(total/limit);
+  let html=`<button class='page-btn' onclick='goPage(0)' ${page===0?'disabled':''}>«</button>`;
+  html+=`<button class='page-btn' onclick='goPage(${page-1})' ${page===0?'disabled':''}>‹</button>`;
+  // Show window of pages around current
+  const start=Math.max(0,page-2),end=Math.min(totalPages-1,page+2);
+  if(start>0) html+=`<span class='page-info'>…</span>`;
+  for(let i=start;i<=end;i++){
+    html+=`<button class='page-btn ${i===page?'active':''}' onclick='goPage(${i})'>${i+1}</button>`;
+  }
+  if(end<totalPages-1) html+=`<span class='page-info'>…</span>`;
+  html+=`<button class='page-btn' onclick='goPage(${page+1})' ${page===totalPages-1?'disabled':''}>›</button>`;
+  html+=`<button class='page-btn' onclick='goPage(${totalPages-1})' ${page===totalPages-1?'disabled':''}>»</button>`;
+  html+=`<span class='page-info'>Page ${page+1} of ${totalPages}</span>`;
+  bar.innerHTML=html;
+}
+
+function goPage(p){ST.currentPage=p;renderTable();window.scrollTo&&document.querySelector('.tw')&&document.querySelector('.tw').scrollTo(0,0);}
 
 function updateSelBar(list){
   const n=ST.selectedIds.size;
@@ -1766,6 +1802,7 @@ function toggleFilter(type,rawVal){
   const arr=ST[key];
   const idx=arr.indexOf(val);
   if(idx>=0)arr.splice(idx,1);else arr.push(val);
+  ST.currentPage=0;
   // If all filters cleared, highlight All Players
   const allClear=!ST.filterPos.length&&!ST.filterLeague.length&&!ST.filterNat.length&&!ST.filterTeam.length;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -1775,6 +1812,7 @@ function toggleFilter(type,rawVal){
 function setSort(k){
   if(ST.sortKey===k) ST.sortDir*=-1;
   else{ST.sortKey=k;ST.sortDir=-1;}
+  ST.currentPage=0;
   // Sync hidden select
   const sel=document.getElementById('sortSelect');
   if(sel&&[...sel.options].some(o=>o.value===k))sel.value=k;
