@@ -745,18 +745,16 @@ function setSheetStatus(s){
 }
 
 function setEditorMode(isEditor){
-  // Editor-only elements
+  ST._isEditor=isEditor;
+  // Hide/show the entire checkbox column header
+  const cbTh=document.querySelector('thead th:first-child');
+  if(cbTh) cbTh.style.display=isEditor?'':'none';
+  // Hide/show editor-only buttons
   const editorEls=['clearDataBtn','captureModalBtn'];
   editorEls.forEach(id=>{ const el=document.getElementById(id); if(el)el.style.display=isEditor?'':'none'; });
-  // Checkbox column — hide for viewers
-  document.querySelectorAll('th:first-child input[type=checkbox], td:first-child input[type=checkbox]').forEach(el=>{
-    el.closest('th,td').style.display=isEditor?'':'none';
-  });
   // Selection bar
   const selBar=document.getElementById('selBar');
-  if(selBar&&!isEditor)selBar.style.display='none';
-  // Delete button in panel — hide for viewers
-  ST._isEditor=isEditor;
+  if(selBar&&!isEditor) selBar.style.display='none';
 }
 async function sheetsRead(tabName){
   const resp=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${ST.cfg.sheetId}/values/${encodeURIComponent(tabName+'!A1:ZZ')}`,{headers:{'Authorization':'Bearer '+ST.auth}});
@@ -1466,8 +1464,10 @@ function renderTable(){
       return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" data-tip="${role.replace(' %','')}: ${fmt(v,1)}%" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
     }).join(''):'';
     const checked=ST.selectedIds.has(p.id);
+    const cbCell=ST._isEditor===false?'':
+      `<td><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this)" style="accent-color:var(--accent);cursor:pointer"></td>`;
     return `<tr class="${checked?'row-selected':''}">
-      <td><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this)" style="accent-color:var(--accent);cursor:pointer"></td>
+      ${cbCell}
       ${rankCell}
       <td><div class="pc"><div class="av">${initials(p.name)}</div><div>
         <div class="pn">${hl(p.name)}</div>
