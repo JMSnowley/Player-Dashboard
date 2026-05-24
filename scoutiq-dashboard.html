@@ -90,6 +90,7 @@ td.r{text-align:right;font-family:'JetBrains Mono',monospace}
 .row-btn:hover{border-color:var(--accent);color:var(--accent)}
 tr.row-selected td{background:rgba(0,212,255,0.04)!important}
 tr.row-selected td:first-child{border-left:2px solid var(--accent)}
+.viewer-mode .col-check{display:none!important}
 .ds-badge{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);background:var(--surface3);padding:2px 5px;border-radius:3px;white-space:nowrap}
 .nat-flag{font-size:15px;line-height:1}
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:11px;color:var(--muted)}
@@ -333,7 +334,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       </div>
       <table>
         <thead><tr>
-          <th style="width:32px"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" style="accent-color:var(--accent);cursor:pointer"></th>
+          <th class="col-check" style="width:32px"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" style="accent-color:var(--accent);cursor:pointer"></th>
           <th data-sort="rank" onclick="setSort('rank')">#</th>
           <th data-sort="name" onclick="setSort('name')">Player</th>
           <th data-sort="nationality" onclick="setSort('nationality')">Nat.</th>
@@ -746,13 +747,12 @@ function setSheetStatus(s){
 
 function setEditorMode(isEditor){
   ST._isEditor=isEditor;
-  // Hide/show the entire checkbox column header
-  const cbTh=document.querySelector('thead th:first-child');
-  if(cbTh) cbTh.style.display=isEditor?'':'none';
-  // Hide/show editor-only buttons
-  const editorEls=['clearDataBtn','captureModalBtn'];
-  editorEls.forEach(id=>{ const el=document.getElementById(id); if(el)el.style.display=isEditor?'':'none'; });
-  // Selection bar
+  // viewer-mode CSS class hides .col-check column on both th and td — survives table re-renders
+  document.body.classList.toggle('viewer-mode',!isEditor);
+  // Editor-only buttons
+  ['clearDataBtn','captureModalBtn'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.style.display=isEditor?'':'none';
+  });
   const selBar=document.getElementById('selBar');
   if(selBar&&!isEditor) selBar.style.display='none';
 }
@@ -1464,8 +1464,7 @@ function renderTable(){
       return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" data-tip="${role.replace(' %','')}: ${fmt(v,1)}%" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
     }).join(''):'';
     const checked=ST.selectedIds.has(p.id);
-    const cbCell=ST._isEditor===false?'':
-      `<td><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this)" style="accent-color:var(--accent);cursor:pointer"></td>`;
+    const cbCell=`<td class="col-check"><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this)" style="accent-color:var(--accent);cursor:pointer"></td>`;
     return `<tr class="${checked?'row-selected':''}">
       ${cbCell}
       ${rankCell}
