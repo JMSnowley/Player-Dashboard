@@ -311,6 +311,12 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <option value="capturedAt">Capture Date</option>
       </select>
       <span class="rc" id="rowCount">0 players</span>
+      <select id="pageLimitSelect" onchange="ST.pageLimit=this.value==='all'?Infinity:parseInt(this.value);renderTable()" style="font-size:10px;padding:5px 8px">
+        <option value="20">20 rows</option>
+        <option value="50" selected>50 rows</option>
+        <option value="100">100 rows</option>
+        <option value="all">All rows</option>
+      </select>
     </div>
     <div class="ss">
       <div class="ss-block"><div class="ss-label">Players</div><div class="ss-val ac" id="ss-p">0</div></div>
@@ -338,6 +344,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="rating" onclick="setSort('rating')">Rating</th>
           <th data-sort="potential" onclick="setSort('potential')">Potential</th>
           <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Pri.</th>
+          <th data-sort="leaguePct" onclick="setSort('leaguePct')">League %ile</th>
           <th>Roles</th>
           <th data-sort="capturedAt" onclick="setSort('capturedAt')">Captured</th>
           <th></th>
@@ -648,7 +655,7 @@ let ST={
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
-  sortKey:'rating',sortDir:-1,panelId:null,panelTab:'overview',metricView:'normal',
+  sortKey:'rating',sortDir:-1,pageLimit:50,panelId:null,panelTab:'overview',metricView:'normal',
   dupQueue:[],dupResolve:null,
 };
 
@@ -1165,7 +1172,8 @@ function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
   const nameIdx=col1(cm,'Player'),teamIdx=col1(cm,'Team within selected timeframe'),
         ageIdx=col1(cm,'Age'),minIdx=col1(cm,'Minutes played'),
         ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth country')||col1(cm,'Birth Country'),
-        ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY');
+        ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY'),
+        leaguePctIdx=col1(cm,'WR (wM) 0-100'),wyPosIdx=col1(cm,'Position');
   const snaps=[];
   rows.slice(1).forEach(row=>{
     const gv=(i)=>i>=0&&i<row.length?row[i]:null;
@@ -1177,7 +1185,8 @@ function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
     posConf.pm.forEach(m=>{const v=gn(col2(cm,m));if(v!==null)pm[m]=v;});
     snaps.push({name,team:(gv(teamIdx)||'').trim(),pos:posCode,
       nationality:(gv(natIdx)||'').trim(),age:gn(ageIdx),minutes:gn(minIdx),
-      contractExpires:gv(ctIdx)||'',rating:gn(ratingIdx),potential:gn(potIdx),ptPriority:gn(ptpIdx),
+      contractExpires:gv(ctIdx)||'',rating:gn(ratingIdx),potential:gn(potIdx),ptPriority:gn(ptpIdx),leaguePct:gn(leaguePctIdx),
+      wyscoutPositions:(gv(wyPosIdx)||'').trim(),
       leagueTag,capturedAt,roles,nm,pm});
   });
   return snaps;
@@ -1189,7 +1198,8 @@ function parseMFOutput(mfRows,posTabRows,leagueTag,capturedAt){
         ageIdx=col1(cm,'Age'),minIdx=col1(cm,'Minutes played'),
         ctIdx=col1(cm,'Contract expires'),natIdx=col1(cm,'Birth country')||col1(cm,'Birth Country'),
         primaryPosIdx=col1(cm,'Primary Position'),
-        ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY');
+        ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY'),
+        leaguePctIdx=col1(cm,'WR (wM) 0-100'),wyPosIdx=col1(cm,'Position');
   // Build lookup from each mid tab
   const posLookups={};
   for(const[posCode,rows]of Object.entries(posTabRows)){
@@ -1220,7 +1230,8 @@ function parseMFOutput(mfRows,posTabRows,leagueTag,capturedAt){
     }
     snaps.push({name,team:(gv(teamIdx)||'').trim(),pos:posCode,
       nationality:(gv(natIdx)||'').trim(),age:gn(ageIdx),minutes:gn(minIdx),
-      contractExpires:gv(ctIdx)||'',rating:gn(ratingIdx),potential:gn(potIdx),ptPriority:gn(ptpIdx),
+      contractExpires:gv(ctIdx)||'',rating:gn(ratingIdx),potential:gn(potIdx),ptPriority:gn(ptpIdx),leaguePct:gn(leaguePctIdx),
+      wyscoutPositions:(gv(wyPosIdx)||'').trim(),
       leagueTag,capturedAt,roles,nm,pm});
   });
   return snaps;
@@ -1247,19 +1258,21 @@ function createPlayer(snap){
   const id=`p_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
   ST.players.push({id,name:snap.name,team:snap.team,pos:snap.pos,nationality:snap.nationality,
     age:snap.age,minutes:snap.minutes,contractExpires:snap.contractExpires,
-    rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,
+    rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
+    wyscoutPositions:snap.wyscoutPositions||'',
     leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm,
     history:[buildHistoryEntry(snap)]});
 }
 function addSnapshot(idx,snap){
   const p=ST.players[idx];
   Object.assign(p,{team:snap.team,nationality:snap.nationality,age:snap.age,minutes:snap.minutes,
-    contractExpires:snap.contractExpires,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,
+    contractExpires:snap.contractExpires,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
+    wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
     leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
   if(!p.history)p.history=[];
   p.history.push(buildHistoryEntry(snap));
 }
-function buildHistoryEntry(snap){return{capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,team:snap.team,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
+function buildHistoryEntry(snap){return{capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,team:snap.team,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
 function showDupPrompt(snap,matches){
   return new Promise(res=>{
     ST.dupResolve=res;
@@ -1335,7 +1348,11 @@ function getFiltered(){
     if(typeof av==='string'||typeof bv==='string')return ST.sortDir*(String(av).localeCompare(String(bv)));
     return ST.sortDir*(bv-av);
   });
-  return list;
+  // Apply page limit
+  const limit = ST.pageLimit || 50;
+  const total = list.length;
+  if(limit !== Infinity) list = list.slice(0, limit);
+  return {list, total};
 }
 
 function renderAll(){renderSidebar();renderStatsStrip();renderTable();}
@@ -1369,7 +1386,7 @@ function renderSidebar(){
 }
 
 function renderStatsStrip(){
-  const list=getFiltered(),rated=list.filter(p=>p.rating!=null);
+  const {list,total}=getFiltered(),rated=list.filter(p=>p.rating!=null);
   const avg=rated.length?(rated.reduce((s,p)=>s+p.rating,0)/rated.length).toFixed(1):'—';
   const top=rated.length?[...rated].sort((a,b)=>b.rating-a.rating)[0]:null;
   const lastCap=ST.players.length?[...ST.players].sort((a,b)=>new Date(b.capturedAt)-new Date(a.capturedAt))[0]:null;
@@ -1382,9 +1399,9 @@ function renderStatsStrip(){
 
 function renderTable(){
   renderStatsStrip();
-  const list=getFiltered();
+  const {list,total}=getFiltered();
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
-  document.getElementById('rowCount').textContent=`${list.length} player${list.length!==1?'s':''}`;
+  document.getElementById('rowCount').textContent=total>list.length?`${list.length} of ${total} players`:(`${list.length} player${list.length!==1?'s':''}`);
   const posName=ST.filterPos.length?ST.filterPos.join('/'):('ALL PLAYERS');
   const lgName=ST.filterLeague.length?ST.filterLeague.join('/\u200b'):'';
   const natName=ST.filterNat.length?ST.filterNat.join('/'):'';
@@ -1409,6 +1426,7 @@ function renderTable(){
   const ratedList=list.filter(p=>p.rating!=null);
   const potList=list.filter(p=>p.potential!=null);
   const ptList=list.filter(p=>p.ptPriority!=null);
+  const lgPctList=list.filter(p=>p.leaguePct!=null);
 
   const hl=(s)=>{if(!q||!s)return s||'';return s.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark>${m}</mark>`);};
   tbody.innerHTML=list.map((p,i)=>{
@@ -1417,6 +1435,7 @@ function renderTable(){
     const hCount=p.history?.length||1;
     const potColor=gradientColor(p.potential,potList,'potential');
     const ptColor=gradientColor(p.ptPriority,ptList,'ptPriority');
+    const lgPctColor=gradientColor(p.leaguePct,lgPctList,'leaguePct');
     const ratingScaleColor=gradientColor(p.rating,ratedList,'rating');
     const natF=p.nationality?natFlag(p.nationality):'—';
     // League: flag + tier number
@@ -1442,13 +1461,14 @@ function renderTable(){
         <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
       <td style="font-size:16px;text-align:center" title="${p.nationality||''}">${natF}</td>
-      <td><span class="pos-tag">${p.pos}</span></td>
+      <td><span class="pos-tag" title="${p.wyscoutPositions||p.pos}" style="cursor:default">${p.pos}</span></td>
       <td><span class="league-tag" title="${p.leagueTag||''}">${lgFlag} ${lgTier}</span></td>
       <td class="r" style="color:var(--muted2)">${p.age||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       <td>${ringCell(r,ratingScaleColor)}</td>
       <td>${ringCell(p.potential,potColor)}</td>
       <td>${ringCell(p.ptPriority,ptColor)}</td>
+      <td>${ringCell(p.leaguePct,lgPctColor)}</td>
       <td style="min-width:110px">
         <div style="font-size:10px;font-weight:600;color:var(--accent);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${topRoleLabel}">${topRoleLabel}</div>
         <div class="role-colorbar">${roleSegs}</div>
@@ -1459,6 +1479,7 @@ function renderTable(){
   }).join('');
   updateSelBar(list);
 }
+
 
 function updateSelBar(list){
   const n=ST.selectedIds.size;
@@ -1479,14 +1500,14 @@ function updateSelBar(list){
 function toggleRowSelect(id,cb){
   if(cb.checked)ST.selectedIds.add(id);
   else ST.selectedIds.delete(id);
-  const list=getFiltered();
+  const {list}=getFiltered();
   updateSelBar(list);
   // Highlight row
   cb.closest('tr').classList.toggle('row-selected',cb.checked);
 }
 
 function toggleSelectAll(cb){
-  const list=getFiltered();
+  const {list}=getFiltered();
   list.forEach(p=>{ if(cb.checked)ST.selectedIds.add(p.id); else ST.selectedIds.delete(p.id); });
   renderTable();
 }
@@ -1535,7 +1556,7 @@ function renderPanel(){
   const flag=p.nationality?natFlag(p.nationality)+' ':'';
   document.getElementById('ppAv').textContent=initials(p.name);
   document.getElementById('ppName').textContent=p.name;
-  document.getElementById('ppSub').textContent=`${flag}${p.pos} · ${p.team} · ${p.leagueTag||''}`;
+  document.getElementById('ppSub').textContent=`${flag}${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''}`;
   const body=document.getElementById('ppBody');
 
   if(ST.panelTab==='overview'){
@@ -1564,6 +1585,7 @@ function renderPanel(){
       <div class="sg">
         <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(p.potential)}</div></div>
         <div class="sg-item"><div class="sg-l">PT Priority</div><div class="sg-v" style="color:var(--gold)">${fmt(p.ptPriority)}</div></div>
+        <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
         <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
         <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
         ${p.nationality?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:13px">${natFlag(p.nationality)} ${p.nationality}</div></div>`:''}
@@ -1766,11 +1788,11 @@ function setSort(k){
 // EXPORT & CLEAR
 // ═══════════════════════════════════
 function exportCSV(){
-  const list=getFiltered();if(!list.length){showToast('No data','error');return;}
+  const {list}=getFiltered();if(!list.length){showToast('No data','error');return;}
   const posConf=ST.filterPos!=='all'?POS_CONFIG[ST.filterPos]:null;
   const roleH=posConf?posConf.roles:[];
-  const headers=['Name','Team','Nationality','Pos','League','Age','Minutes','Rating','Potential','PT Priority','Captured',...roleH];
-  const rows=list.map(p=>[p.name,p.team,p.nationality||'',p.pos,p.leagueTag,p.age,p.minutes,fmt(p.rating),fmt(p.potential),fmt(p.ptPriority),fmtDate(p.capturedAt),...roleH.map(r=>fmt(p.roles[r]||null))]);
+  const headers=['Name','Team','Nationality','Pos','League','Age','Minutes','Rating','Potential','PT Priority','League %ile','Captured',...roleH];
+  const rows=list.map(p=>[p.name,p.team,p.nationality||'',p.pos,p.leagueTag,p.age,p.minutes,fmt(p.rating),fmt(p.potential),fmt(p.ptPriority),fmt(p.leaguePct),fmtDate(p.capturedAt),...roleH.map(r=>fmt(p.roles[r]||null))]);
   const csv=[headers,...rows].map(r=>r.join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`scoutiq-${new Date().toISOString().slice(0,10)}.csv`;a.click();
   showToast('Exported','success');
