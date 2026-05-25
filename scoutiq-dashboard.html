@@ -1746,7 +1746,7 @@ function renderPanel(){
         const labelEls=lines.map((ln,li)=>
           `<text x="${lx.toFixed(1)}" y="${(baseY+li*lineHeight).toFixed(1)}"
             text-anchor="${anchor}" dominant-baseline="middle"
-            fill="rgba(255,255,255,0.75)" font-size="7.5" font-family="Archivo">${ln}</text>`
+            fill="rgba(255,255,255,0.75)" font-size="7.5" font-family="JetBrains Mono">${ln}</text>`
         ).join('');
         return `<path d="${slicePath}" fill="${d.color}" fill-opacity="0.78" stroke="var(--surface)" stroke-width="0.8"/>${labelEls}`;
       }).join('');
@@ -1955,11 +1955,14 @@ function showToast(msg,type='info'){
 }
 
 // ═══════════════════════════════════
+// ═══════════════════════════════════
 // INIT
 // ═══════════════════════════════════
 loadState();
+// Always force Rating descending on load — never read from localStorage
+ST.sortKey='rating';
+ST.sortDir=-1;
 // Don't auto-load Google scripts — only load when user explicitly clicks Connect
-// This prevents 'Click Connect to edit' appearing for viewers
 initSliders();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
