@@ -192,7 +192,22 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .toast.info{border-color:var(--accent-border);color:var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
-/* PAGINATION */
+/* COMPARE */
+.cmp-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;flex-direction:column;overflow:hidden}
+.cmp-modal.open{display:flex}
+.cmp-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.cmp-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;flex:1}
+.cmp-body{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;overflow:hidden}
+.cmp-side{overflow-y:auto;border-right:1px solid var(--border);padding:0}
+.cmp-side:last-child{border-right:none}
+.cmp-side .pp-header{position:sticky;top:0;z-index:2;background:var(--surface)}
+.cmp-win{border:2px solid var(--green)!important}
+.cmp-lose{opacity:.55}
+.cmp-metric-row{display:flex;align-items:center;gap:6px;padding:3px 10px;font-size:11px}
+.cmp-label{flex:1;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmp-bar-wrap{flex:2;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.cmp-bar{height:100%;border-radius:3px;transition:width .3s}
+.cmp-val{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;min-width:26px;text-align:right}
 .pagination{display:flex;align-items:center;gap:5px;padding:8px 14px;border-top:1px solid var(--border);background:var(--surface);justify-content:center;flex-wrap:wrap;flex-shrink:0}
 .page-btn{padding:4px 9px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:'JetBrains Mono',monospace;transition:all .15s;min-width:30px;text-align:center}
 .page-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -249,6 +264,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
+    <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
     <button class="btn btn-ghost" onclick="openSetupModal()">⚙ Setup</button>
   </div>
 </div>
@@ -380,6 +396,22 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
   <div class="pp-body" id="ppBody"></div>
+</div>
+
+<!-- COMPARE MODAL -->
+<div class="cmp-modal" id="compareModal">
+  <div class="cmp-header">
+    <span class="cmp-title">⇄ Compare Players</span>
+    <div style="display:flex;gap:6px;font-size:11px;color:var(--muted2)">
+      <div class="mtog" style="margin:0">
+        <div class="mtog-btn active" id="cmpTabOv" onclick="setCmpTab('overview',this)">Overview</div>
+        <div class="mtog-btn" id="cmpTabNm" onclick="setCmpTab('normal',this)">Normal</div>
+        <div class="mtog-btn" id="cmpTabPm" onclick="setCmpTab('padj',this)">PAdj</div>
+      </div>
+    </div>
+    <button class="btn btn-ghost" style="font-size:11px" onclick="closeCompare()">✕ Close</button>
+  </div>
+  <div class="cmp-body" id="cmpBody"></div>
 </div>
 
 <!-- SETUP MODAL -->
@@ -1115,6 +1147,29 @@ function openCaptureModal(){
 function togglePosCheck(k){const chk=document.getElementById('chk_'+k),lbl=document.getElementById('pck_'+k);chk.checked=!chk.checked;lbl.classList.toggle('selected',chk.checked);}
 function updateLeaguePreview(){const c=document.getElementById('capCountry').value,t=document.getElementById('capTier').value;document.getElementById('leaguePreview').textContent=c&&t?`${c} ${t}`:'— Select country and tier —';}
 
+// Returns appropriate capture date for a season
+// For split seasons (e.g. 24/25) = May 30 of end year; for calendar year (e.g. 2024) = Nov 30 of that year
+// If the season is current (25/26 or 2025/2026), use actual today
+function seasonCaptureDate(season){
+  const now=new Date();
+  const currentSplit='25/26', currentCal='2025';
+  if(!season||season===currentSplit||season===currentCal||season==='26/27'||season==='2026'||season==='2027')
+    return now.toISOString();
+  // Split season e.g. "24/25" -> May 30 of 2025
+  const splitMatch=season.match(/^(\d{2})\/(\d{2})$/);
+  if(splitMatch){
+    const endYear=2000+parseInt(splitMatch[2]);
+    return new Date(endYear,4,30,12,0,0).toISOString(); // May 30
+  }
+  // Calendar year e.g. "2023" -> Nov 30 of that year
+  const calMatch=season.match(/^(20\d{2})$/);
+  if(calMatch){
+    const yr=parseInt(calMatch[1]);
+    return new Date(yr,10,30,12,0,0).toISOString(); // Nov 30
+  }
+  return now.toISOString();
+}
+
 async function runCapture(){
   const selected=CAPTURE_GROUPS.map(g=>g.key).filter(k=>document.getElementById('chk_'+k)?.checked);
   if(!selected.length){showToast('Select at least one position tab','error');return;}
@@ -1126,7 +1181,7 @@ async function runCapture(){
   const btn=document.getElementById('captureBtn');btn.disabled=true;
   const pw=document.getElementById('capProgWrap'),pf=document.getElementById('capProgFill'),pl=document.getElementById('capProgLbl');
   pw.style.display='block';
-  const capturedAt=new Date().toISOString();
+  const capturedAt=seasonCaptureDate(season);
   const newSnaps=[];
   for(let i=0;i<selected.length;i++){
     const ck=selected[i],tabName=ST.cfg.tabs[ck];
@@ -1296,12 +1351,16 @@ function createPlayer(snap){
 }
 function addSnapshot(idx,snap){
   const p=ST.players[idx];
-  Object.assign(p,{team:snap.team,nationality:snap.nationality,age:snap.age,minutes:snap.minutes,
-    contractExpires:snap.contractExpires,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
-    wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
-    season:snap.season||p.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
   if(!p.history)p.history=[];
   p.history.push(buildHistoryEntry(snap));
+  // Only update main player display if this snap is newer than current
+  const snapDate=new Date(snap.capturedAt), curDate=new Date(p.capturedAt||0);
+  if(snapDate>=curDate){
+    Object.assign(p,{team:snap.team,nationality:snap.nationality,age:snap.age,minutes:snap.minutes,
+      contractExpires:snap.contractExpires,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
+      wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
+      season:snap.season||p.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
+  }
 }
 function buildHistoryEntry(snap){return{capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,season:snap.season||'',team:snap.team,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
 function showDupPrompt(snap,matches){
@@ -1391,17 +1450,32 @@ function getFiltered(){
   return {list:paged,total,page,limit};
 }
 
-function renderAll(){renderSidebar();renderStatsStrip();renderTable();}
+function renderAll(){
+  // Defensive: if no user has manually changed sort yet, always show rating descending
+  if(!ST._sortTouched){ST.sortKey='rating';ST.sortDir=-1;}
+  renderSidebar();renderStatsStrip();renderTable();
+}
 
 function renderSidebar(){
+  // Build counts from context-filtered players (exclude each dimension's own filter)
+  // so sidebar options reflect what's available given other active filters
+  function filteredExcept(skipDim){
+    return ST.players.filter(p=>{
+      if(skipDim!=='pos'    &&ST.filterPos.length    &&!ST.filterPos.includes(p.pos))       return false;
+      if(skipDim!=='league' &&ST.filterLeague.length  &&!ST.filterLeague.includes(p.leagueTag)) return false;
+      if(skipDim!=='nat'    &&ST.filterNat.length     &&!ST.filterNat.includes(p.nationality)) return false;
+      if(skipDim!=='team'   &&ST.filterTeam.length    &&!ST.filterTeam.includes(p.team))    return false;
+      if(skipDim!=='season' &&ST.filterSeason.length  &&!ST.filterSeason.includes(p.season)) return false;
+      return true;
+    });
+  }
+  const allPl=filteredExcept('_none');
   const pc={},lc={},nc={},tc={},sc={};
-  ST.players.forEach(p=>{
-    pc[p.pos]=(pc[p.pos]||0)+1;
-    lc[p.leagueTag]=(lc[p.leagueTag]||0)+1;
-    if(p.nationality)nc[p.nationality]=(nc[p.nationality]||0)+1;
-    if(p.team)tc[p.team]=(tc[p.team]||0)+1;
-    if(p.season)sc[p.season]=(sc[p.season]||0)+1;
-  });
+  filteredExcept('pos').forEach(p=>{pc[p.pos]=(pc[p.pos]||0)+1;});
+  filteredExcept('league').forEach(p=>{lc[p.leagueTag]=(lc[p.leagueTag]||0)+1;});
+  filteredExcept('nat').forEach(p=>{if(p.nationality)nc[p.nationality]=(nc[p.nationality]||0)+1;});
+  filteredExcept('team').forEach(p=>{if(p.team)tc[p.team]=(tc[p.team]||0)+1;});
+  filteredExcept('season').forEach(p=>{if(p.season)sc[p.season]=(sc[p.season]||0)+1;});
   document.getElementById('nc-all').textContent=ST.players.length;
   // Position in fixed order
   const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
@@ -1558,7 +1632,9 @@ function updateSelBar(list){
   const bar=document.getElementById('selBar');
   bar.style.display=n>0?'flex':'none';
   if(n>0) document.getElementById('selCount').textContent=`${n} player${n!==1?'s':''} selected`;
-  // Update select-all checkbox state
+  // Show compare button only when exactly 2 selected
+  const cmpBtn=document.getElementById('compareBtn');
+  if(cmpBtn) cmpBtn.style.display=n===2?'inline-flex':'none';
   const sa=document.getElementById('selectAll');
   if(sa){
     const visibleIds=list.map(p=>p.id);
@@ -1567,6 +1643,150 @@ function updateSelBar(list){
     sa.checked=allChecked;
     sa.indeterminate=someChecked&&!allChecked;
   }
+}
+
+// ═══════════════════════════════════
+// AI PLAYER OVERVIEW
+// ═══════════════════════════════════
+async function loadAIOverview(playerId,btn){
+  const p=ST.players.find(x=>x.id===playerId);if(!p)return;
+  const div=document.getElementById('aiOverview_'+playerId);
+  if(!div)return;
+  if(div.style.display!=='none'){div.style.display='none';btn.textContent='✦ AI Overview';return;}
+  btn.textContent='Loading…';btn.disabled=true;
+  div.style.display='block';div.textContent='Thinking…';
+  const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
+  const topRoles=(posConf.roles||[]).map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v).slice(0,2);
+  const nmTop=Object.entries(p.nm||{}).filter(([,v])=>v!=null).sort(([,a],[,b])=>b-a).slice(0,5);
+  const pmTop=Object.entries(p.pm||{}).filter(([,v])=>v!=null).sort(([,a],[,b])=>b-a).slice(0,5);
+  const prompt=`You are a football scout assistant. Write 3-4 sentences summarising this player for a non-technical football audience. Focus on what kind of player they are, their strengths, and where they fit in a team. Avoid jargon and stat numbers — translate the data into plain football language.
+
+Player: ${p.name}
+Position: ${posConf.label||p.pos}
+Age: ${p.age||'Unknown'}
+Club: ${p.team||'Unknown'} (${p.leagueTag||''})
+Season: ${p.season||''}
+Rating: ${p.rating!=null?p.rating.toFixed(1):'N/A'}/100
+Potential: ${p.potential!=null?p.potential.toFixed(1):'N/A'}/100
+Top roles: ${topRoles.map(r=>r.r+' ('+r.v.toFixed(0)+'%)').join(', ')||'N/A'}
+Top normal metrics (percentile): ${nmTop.map(([k,v])=>k.replace(/^PAdj\s+/i,'')+' '+Math.round(v)).join(', ')||'N/A'}
+Top PAdj metrics (percentile): ${pmTop.map(([k,v])=>k.replace(/^PAdj\s+/i,'')+' '+Math.round(v)).join(', ')||'N/A'}`;
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:300,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await resp.json();
+    const text=data.content&&data.content[0]&&data.content[0].text;
+    div.textContent=text||'Could not generate overview.';
+  }catch(e){
+    div.textContent='AI overview unavailable.';
+    console.error('AI overview error',e);
+  }
+  btn.textContent='✦ Hide AI Overview';btn.disabled=false;
+}
+// ═══════════════════════════════════
+let _cmpTab='overview';
+function setCmpTab(tab,el){
+  _cmpTab=tab;
+  document.querySelectorAll('#compareModal .mtog-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderCompare();
+}
+function openCompare(){
+  const ids=[...ST.selectedIds];
+  if(ids.length!==2){showToast('Select exactly 2 players to compare','error');return;}
+  document.getElementById('compareModal').classList.add('open');
+  _cmpTab='overview';
+  document.querySelectorAll('#compareModal .mtog-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('cmpTabOv').classList.add('active');
+  renderCompare();
+}
+function closeCompare(){
+  document.getElementById('compareModal').classList.remove('open');
+}
+function renderCompare(){
+  const ids=[...ST.selectedIds];
+  const [pA,pB]=[ST.players.find(p=>p.id===ids[0]),ST.players.find(p=>p.id===ids[1])];
+  if(!pA||!pB)return;
+  const body=document.getElementById('cmpBody');
+  body.innerHTML=`<div class="cmp-side" id="cmpSideA"></div><div class="cmp-side" id="cmpSideB"></div>`;
+  [pA,pB].forEach((p,si)=>{
+    const side=document.getElementById(si===0?'cmpSideA':'cmpSideB');
+    if(_cmpTab==='overview') side.innerHTML=buildCmpOverview(p,si===0?pB:pA);
+    else side.innerHTML=buildCmpMetrics(p,si===0?pB:pA,_cmpTab==='padj'?'pm':'nm');
+  });
+}
+function buildCmpOverview(p,opp){
+  const rc=ratingColor(p.rating);
+  const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
+  const roles=posConf.roles||[];
+  const topRole=roles.length?roles.map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v)[0]:null;
+  const fields=[
+    {l:'Rating',a:p.rating,b:opp.rating,fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'Potential',a:p.potential,b:opp.potential,fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'PT Priority',a:p.ptPriority,b:opp.ptPriority,fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'League %ile',a:p.leaguePct,b:opp.leaguePct,fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'Age',a:p.age,b:opp.age,fmt:v=>v!=null?v:'—'},
+    {l:'Minutes',a:p.minutes,b:opp.minutes,fmt:v=>v!=null?Math.round(v).toLocaleString():'—'},
+  ];
+  const rowsHtml=fields.map(f=>{
+    const av=parseFloat(f.a),bv=parseFloat(f.b);
+    const win=!isNaN(av)&&!isNaN(bv)&&av>bv,lose=!isNaN(av)&&!isNaN(bv)&&av<bv;
+    const pct=(!isNaN(av)&&!isNaN(bv)&&bv>0)?Math.round((av/Math.max(av,bv))*100):50;
+    const mc=!isNaN(av)?av>=80?'#00e599':av>=60?'#7fd97f':av>=40?'#f5c842':av>=20?'#ff8c42':'#ff4d6a':'var(--muted)';
+    return `<div class="cmp-metric-row">
+      <div class="cmp-label">${f.l}</div>
+      <div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${mc}"></div></div>
+      <div class="cmp-val ${win?'':''}"><span style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${f.fmt(f.a)}</span></div>
+    </div>`;
+  }).join('');
+  return `<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border)">
+    <div class="av" style="width:36px;height:36px;font-size:13px;margin-right:8px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+    <div style="display:inline-block">
+      <div style="font-weight:700;font-size:13px">${p.name}</div>
+      <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
+    </div>
+  </div>
+  <div style="padding:8px 0">
+    ${rowsHtml}
+    ${topRole?`<div style="padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent)">Top Role: ${topRole.r} (${topRole.v.toFixed(1)}%)</div>`:''}
+  </div>`;
+}
+function buildCmpMetrics(p,opp,mode){
+  const posConf=POS_CONFIG[p.pos];if(!posConf)return'<div style="padding:16px;color:var(--muted)">No data</div>';
+  const metrics=posConf[mode]||[];
+  const data=p[mode]||{},oppData=opp[mode]||{};
+  const skillMap=METRIC_SKILLS[p.pos]?.[mode]||{};
+  const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+  const groups={};skillOrder.forEach(s=>{groups[s]=[];});
+  metrics.forEach(m=>{const s=skillMap[m]||skillOrder[skillOrder.length-1];if(!groups[s])groups[s]=[];if(!groups[s].includes(m))groups[s].push(m);});
+  let html=`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border)">
+    <div style="font-weight:700;font-size:13px">${p.name}</div>
+    <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div>`;
+  skillOrder.filter(s=>groups[s]&&groups[s].length).forEach(skillName=>{
+    const sc=SKILL_COLORS[skillName];const color=sc?sc.color:'#8a9bb0';
+    html+=`<div style="padding:4px 10px 2px;font-size:9px;font-family:'JetBrains Mono',monospace;color:${color};text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)">${skillName}</div>`;
+    groups[skillName].forEach(m=>{
+      const v=data[m]!=null?data[m]:null;
+      const ov=oppData[m]!=null?oppData[m]:null;
+      const pct=v!=null?Math.min(100,Math.max(0,v)):0;
+      const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
+      const win=v!=null&&ov!=null&&v>ov,lose=v!=null&&ov!=null&&v<ov;
+      const label=m.replace(/^PAdj\s+/i,'');
+      html+=`<div class="cmp-metric-row">
+        <div class="cmp-label" title="${m}">${label}</div>
+        <div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div>
+        <div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div>
+      </div>`;
+    });
+  });
+  return html;
 }
 
 function toggleRowSelect(id,cb){
@@ -1681,8 +1901,11 @@ function renderPanel(){
           </div>`).join('')}
         </div>
       </div>`:''}
-      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}`;
-  } else if(ST.panelTab==='metrics'){
+      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
+      <div style="margin-top:10px">
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px" onclick="loadAIOverview('${p.id}',this)">✦ AI Overview</button>
+        <div id="aiOverview_${p.id}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;font-size:12px;line-height:1.6;color:var(--text)"></div>
+      </div>`;  } else if(ST.panelTab==='metrics'){
     const isN=ST.metricView==='normal';
     const isPizza=ST.metricChartView==='pizza';
     const metrics=isN?posConf.nm:posConf.pm;
@@ -1925,6 +2148,7 @@ function toggleFilter(type,rawVal){
   renderAll();
 }
 function setSort(k){
+  ST._sortTouched=true;
   if(ST.sortKey===k) ST.sortDir*=-1;
   else{ST.sortKey=k;ST.sortDir=-1;}
   ST.currentPage=0;
