@@ -98,7 +98,7 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .empty-title{font-family:'Archivo Black',sans-serif;font-size:14px;letter-spacing:1px;color:var(--muted2)}
 .empty-sub{font-size:11px;text-align:center;max-width:300px;line-height:1.6;color:var(--muted)}
 /* PLAYER PANEL */
-.pp{position:fixed;right:0;top:0;bottom:0;width:360px;background:var(--surface);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:200;display:flex;flex-direction:column}
+.pp{position:fixed;right:0;top:0;bottom:0;width:520px;background:var(--surface);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:200;display:flex;flex-direction:column}
 .pp.open{transform:translateX(0)}
 .pp-top{display:flex;align-items:center;gap:9px;padding:13px 15px;border-bottom:1px solid var(--border);flex-shrink:0}
 .pp-av{width:38px;height:38px;border-radius:50%;background:var(--surface3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:13px;flex-shrink:0}
@@ -1687,51 +1687,59 @@ function renderPanel(){
 
     let chartHTML='';
     if(isPizza&&allMetricData.length>0){
-      // Pizza chart — each metric is a radial slice, radius = percentile value
       const n=allMetricData.length;
-      const CX=150,CY=150,R=110,innerR=18;
+      // Scale chart to panel width
+      const SZ=460,CX=SZ/2,CY=SZ/2,R=155,innerR=22;
       const angleStep=(2*Math.PI)/n;
-      const spokes=allMetricData.map((d,i)=>{
+      // Grid circles
+      const gridCircles=[25,50,75,100].map(pct=>{
+        const gr=R*(pct/100);
+        return `<circle cx="${CX}" cy="${CY}" r="${gr}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                <text x="${CX+3}" y="${CY-gr-2}" fill="rgba(255,255,255,0.18)" font-size="8" font-family="JetBrains Mono">${pct}</text>`;
+      }).join('');
+      // Spoke lines
+      const spokeLines=allMetricData.map((_,i)=>{
+        const a=-Math.PI/2+i*angleStep;
+        return `<line x1="${(CX+innerR*Math.cos(a)).toFixed(1)}" y1="${(CY+innerR*Math.sin(a)).toFixed(1)}" x2="${(CX+R*Math.cos(a)).toFixed(1)}" y2="${(CY+R*Math.sin(a)).toFixed(1)}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`;
+      }).join('');
+      // Slices + labels
+      const slicesHTML=allMetricData.map((d,i)=>{
         const a0=-Math.PI/2+i*angleStep;
         const a1=a0+angleStep;
         const aMid=a0+angleStep/2;
         const r=R*(d.pct/100);
-        // Slice path
-        const x0=CX+innerR*Math.cos(a0),y0=CY+innerR*Math.sin(a0);
-        const x1=CX+r*Math.cos(a0),y1=CY+r*Math.sin(a0);
-        const x2=CX+r*Math.cos(a1),y2=CY+r*Math.sin(a1);
-        const x3=CX+innerR*Math.cos(a1),y3=CY+innerR*Math.sin(a1);
         const large=angleStep>Math.PI?1:0;
-        const path=d.pct>0
-          ?`M${x0},${y0} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large} 0 ${x0},${y0} Z`
-          :`M${x0},${y0} L${x3},${y3} A${innerR},${innerR} 0 ${large} 0 ${x0},${y0} Z`;
-        // Label position — just outside R
-        const labelR=R+16;
-        const lx=CX+labelR*Math.cos(aMid),ly=CY+labelR*Math.sin(aMid);
-        // Concentric circles at 25/50/75/100
-        return{path,lx,ly,aMid,...d};
-      });
-      // Grid circles
-      const gridCircles=[25,50,75,100].map(pct=>{
-        const gr=R*(pct/100);
-        return `<circle cx="${CX}" cy="${CY}" r="${gr}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-                <text x="${CX+4}" y="${CY-gr+4}" fill="rgba(255,255,255,0.2)" font-size="7" font-family="JetBrains Mono">${pct}</text>`;
+        // Slice
+        const x0=CX+innerR*Math.cos(a0), y0=CY+innerR*Math.sin(a0);
+        const x1=CX+r*Math.cos(a0),      y1=CY+r*Math.sin(a0);
+        const x2=CX+r*Math.cos(a1),      y2=CY+r*Math.sin(a1);
+        const x3=CX+innerR*Math.cos(a1), y3=CY+innerR*Math.sin(a1);
+        const slicePath=d.pct>0
+          ?`M${x0.toFixed(1)},${y0.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`
+          :`M${x0.toFixed(1)},${y0.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`;
+        // Label placement — outside R, pushed further out
+        const labelR=R+14;
+        const numR=R+26;
+        const lx=CX+labelR*Math.cos(aMid), ly=CY+labelR*Math.sin(aMid);
+        const nx=CX+numR*Math.cos(aMid),   ny=CY+numR*Math.sin(aMid);
+        // Text anchor based on horizontal position
+        const anchor=lx<CX-8?'end':lx>CX+8?'start':'middle';
+        // Metric label — truncate long names
+        const label=d.displayLabel.length>14?d.displayLabel.slice(0,13)+'…':d.displayLabel;
+        return `<path d="${slicePath}" fill="${d.color}" fill-opacity="0.78" stroke="var(--surface)" stroke-width="0.8"/>
+          <text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle"
+            fill="rgba(255,255,255,0.7)" font-size="8.5" font-family="Archivo">${label}</text>
+          <text x="${nx.toFixed(1)}" y="${ny.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle"
+            fill="${d.mc}" font-size="9" font-family="JetBrains Mono" font-weight="600">${d.v!=null?Math.round(d.v):'—'}</text>`;
       }).join('');
-      // Spoke lines to full radius
-      const spokeLines=allMetricData.map((_,i)=>{
-        const a=-Math.PI/2+i*angleStep;
-        return `<line x1="${CX+innerR*Math.cos(a)}" y1="${CY+innerR*Math.sin(a)}" x2="${CX+R*Math.cos(a)}" y2="${CY+R*Math.sin(a)}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
-      }).join('');
-      chartHTML=`<svg width="300" height="300" viewBox="0 0 300 300" style="display:block;margin:0 auto">
+      chartHTML=`<svg width="${SZ}" height="${SZ}" viewBox="0 0 ${SZ} ${SZ}" style="display:block;width:100%;max-width:${SZ}px;margin:0 auto;overflow:visible">
         ${gridCircles}
         ${spokeLines}
-        ${spokes.map(s=>`<path d="${s.path}" fill="${s.color}" fill-opacity="0.75" stroke="var(--surface)" stroke-width="0.5">
-          <title>${s.displayLabel}: ${s.v!=null?s.v.toFixed(0):'—'}</title>
-        </path>`).join('')}
+        ${slicesHTML}
         <circle cx="${CX}" cy="${CY}" r="${innerR}" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
       </svg>
-      <div style="display:flex;flex-wrap:wrap;gap:4px 10px;padding:4px 0 8px;justify-content:center">
-        ${activeSkills.map(s=>{const sc=SKILL_COLORS[s];const c=sc?sc.color:'#8a9bb0';return`<div style="display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2)"><div style="width:8px;height:8px;border-radius:2px;background:${c}"></div>${s}</div>`;}).join('')}
+      <div style="display:flex;flex-wrap:wrap;gap:4px 12px;padding:4px 0 8px;justify-content:center">
+        ${activeSkills.map(s=>{const sc=SKILL_COLORS[s];const c=sc?sc.color:'#8a9bb0';return`<div style="display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2)"><div style="width:8px;height:8px;border-radius:2px;background:${c};opacity:.85"></div>${s}</div>`;}).join('')}
       </div>`;
     } else {
       chartHTML=activeSkills.map(skillName=>{
