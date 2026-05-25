@@ -278,6 +278,10 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="sb-toggle" onclick="toggleSb('teamContent',this)"><span>Team</span><span class="sb-arrow">›</span></div>
       <div class="sb-content" id="teamContent"><div id="teamNav"></div></div>
     </div>
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('seasonContent',this)"><span>Season</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="seasonContent"><div id="seasonNav"></div></div>
+    </div>
     <!-- Rating / Potential / PT Priority sliders -->
     <div class="sb-section">
       <div class="sb-toggle" onclick="toggleSb('ratingFilters',this)"><span>Ratings</span><span class="sb-arrow">›</span></div>
@@ -310,14 +314,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="toolbar">
       <div class="tb-title" id="viewTitle">ALL PLAYERS</div>
       <div class="sw"><span class="sw-icon">⌕</span><input type="text" id="searchInput" placeholder="Search players, clubs…" oninput="renderTable()"></div>
-      <select id="sortSelect" style="display:none" onchange="renderTable()">
-        <option value="rating" selected>Rating</option>
-        <option value="potential">Potential</option>
-        <option value="ptPriority">PT Priority</option>
-        <option value="age">Age</option>
-        <option value="minutes">Minutes</option>
-        <option value="capturedAt">Capture Date</option>
-      </select>
+      <!-- sortSelect removed - column headers handle all sorting -->
       <span class="rc" id="rowCount">0 players</span>
       <select id="pageLimitSelect" onchange="ST.pageLimit=this.value==='all'?Infinity:parseInt(this.value);ST.currentPage=0;renderTable()" style="font-size:10px;padding:5px 8px">
         <option value="20">20 rows</option>
@@ -347,6 +344,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="nationality" onclick="setSort('nationality')">Nat.</th>
           <th data-sort="pos" onclick="setSort('pos')">Pos</th>
           <th data-sort="leagueTag" onclick="setSort('leagueTag')">League</th>
+          <th data-sort="season" onclick="setSort('season')">Season</th>
           <th data-sort="age" class="r" onclick="setSort('age')">Age</th>
           <th data-sort="minutes" class="r" onclick="setSort('minutes')">Mins</th>
           <th data-sort="rating" onclick="setSort('rating')">Rating</th>
@@ -433,6 +431,10 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="modal-sec">
       <div class="modal-sec-title">Position Tabs</div>
       <div class="pos-check-grid" id="posCheckGrid"></div>
+    </div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">Season</div>
+      <div class="fg"><select id="capSeason" style="width:100%"></select></div>
     </div>
     <div class="modal-sec">
       <div class="modal-sec-title">League Tag</div>
@@ -643,6 +645,7 @@ const POS_CONFIG={
     pm:['Goals Prevented','Save %','PAdj Claims','Claim Success','PAdj Sweeps','Adj Long Pass Success','Pass Success','PAdj Succ. Progressive Passes','PAdj Succ. Passes to F3rd','Pass % vs. xPass %']},
 };
 
+const SEASONS=['18/19','19/20','20/21','21/22','22/23','23/24','24/25','25/26','26/27','2019','2020','2021','2022','2023','2024','2025','2026','2027'];
 const CAPTURE_GROUPS=[
   {key:'GK',label:'Goalkeepers'},{key:'CB',label:'Centre Backs'},
   {key:'FB',label:'Full Backs'},{key:'MF',label:'Midfielders (DM/CM/AM)'},
@@ -664,7 +667,7 @@ let ST={
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
-  sortKey:'rating',sortDir:-1,pageLimit:50,currentPage:0,panelId:null,panelTab:'overview',metricView:'normal',metricChartView:'bars',
+  sortKey:'rating',sortDir:-1,pageLimit:50,currentPage:0,filterSeason:[],panelId:null,panelTab:'overview',metricView:'normal',metricChartView:'bars',
   dupQueue:[],dupResolve:null,
 };
 
@@ -685,7 +688,7 @@ function loadState(){
   // Always restore hardcoded values — localStorage must never overwrite these
   ST.cfg.pubUrl=hardcodedPubUrl;
   ST.cfg.clientId=hardcodedClientId;
-  ['filterPos','filterLeague','filterNat','filterTeam'].forEach(k=>{if(!Array.isArray(ST[k]))ST[k]=[];});
+  ['filterPos','filterLeague','filterNat','filterTeam','filterSeason'].forEach(k=>{if(!Array.isArray(ST[k]))ST[k]=[];});
   ST.selectedIds=new Set();
 }
 function saveState(){try{localStorage.setItem('scoutiq_v4',JSON.stringify({players:ST.players,cfg:ST.cfg}))}catch(e){}}
@@ -1101,7 +1104,10 @@ function openCaptureModal(){
     </label>`).join('');
   const cs=document.getElementById('capCountry');
   cs.innerHTML=COUNTRIES.map(c=>`<option value="${c}">${c}</option>`).join('');
-  cs.value='England';updateLeaguePreview();
+  cs.value='England';
+  const ss=document.getElementById('capSeason');
+  ss.innerHTML=SEASONS.map(s=>`<option value="${s}">${s}</option>`).join('');
+  ss.value='25/26';updateLeaguePreview();
   document.getElementById('capProgWrap').style.display='none';
   document.getElementById('captureBtn').disabled=false;
   document.getElementById('captureModal').classList.add('open');
@@ -1115,6 +1121,7 @@ async function runCapture(){
   if(!ST.cfg.sheetId){showToast('Enter Spreadsheet ID in Setup','error');return;}
   const leagueTag=document.getElementById('leaguePreview').textContent;
   if(leagueTag.startsWith('—')){showToast('Select a country and tier','error');return;}
+  const season=document.getElementById('capSeason').value||'';
   const ok=await ensureAuth();if(!ok)return;
   const btn=document.getElementById('captureBtn');btn.disabled=true;
   const pw=document.getElementById('capProgWrap'),pf=document.getElementById('capProgFill'),pl=document.getElementById('capProgLbl');
@@ -1134,9 +1141,9 @@ async function runCapture(){
       const dmR=await sheetsRead(ST.cfg.tabs['DM']).catch(()=>null);
       const cmR=await sheetsRead(ST.cfg.tabs['CM']).catch(()=>null);
       const amR=await sheetsRead(ST.cfg.tabs['AM']).catch(()=>null);
-      snaps=parseMFOutput(rows,{DM:dmR,CM:cmR,AM:amR},leagueTag,capturedAt);
+      snaps=parseMFOutput(rows,{DM:dmR,CM:cmR,AM:amR},leagueTag,season,capturedAt);
     }else{
-      snaps=parseSheetOutput(rows,ck,leagueTag,capturedAt);
+      snaps=parseSheetOutput(rows,ck,leagueTag,season,capturedAt);
     }
     newSnaps.push(...snaps);await sleep(80);
   }
@@ -1179,7 +1186,7 @@ function colN(cm,name,n){
   return a.length>n?a[n]:a.length?a[a.length-1]:-1;
 }
 
-function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
+function parseSheetOutput(rows,posCode,leagueTag,season,capturedAt){
   const posConf=POS_CONFIG[posCode];
   const cm=buildColMap(rows[0]);
   const nameIdx=col1(cm,'Player'),teamIdx=col1(cm,'Team within selected timeframe'),
@@ -1210,12 +1217,12 @@ function parseSheetOutput(rows,posCode,leagueTag,capturedAt){
       nationality:(gv(natIdx)||'').trim(),age:gn(ageIdx),minutes:gn(minIdx),
       contractExpires:gv(ctIdx)||'',rating:gn(ratingIdx),potential:gn(potIdx),ptPriority:gn(ptpIdx),leaguePct:gn(leaguePctIdx),
       wyscoutPositions:(gv(wyPosIdx)||'').trim(),
-      leagueTag,capturedAt,roles,nm,pm});
+      leagueTag,season,capturedAt,roles,nm,pm});
   });
   return snaps;
 }
 
-function parseMFOutput(mfRows,posTabRows,leagueTag,capturedAt){
+function parseMFOutput(mfRows,posTabRows,leagueTag,season,capturedAt){
   const cm=buildColMap(mfRows[0]);
   const nameIdx=col1(cm,'Player'),teamIdx=col1(cm,'Team within selected timeframe'),
         ageIdx=col1(cm,'Age'),minIdx=col1(cm,'Minutes played'),
@@ -1256,7 +1263,7 @@ function parseMFOutput(mfRows,posTabRows,leagueTag,capturedAt){
       nationality:(gv(natIdx)||'').trim(),age:gn(ageIdx),minutes:gn(minIdx),
       contractExpires:gv(ctIdx)||'',rating:gn(ratingIdx),potential:gn(potIdx),ptPriority:gn(ptpIdx),leaguePct:gn(leaguePctIdx),
       wyscoutPositions:(gv(wyPosIdx)||'').trim(),
-      leagueTag,capturedAt,roles,nm,pm});
+      leagueTag,season,capturedAt,roles,nm,pm});
   });
   return snaps;
 }
@@ -1284,7 +1291,7 @@ function createPlayer(snap){
     age:snap.age,minutes:snap.minutes,contractExpires:snap.contractExpires,
     rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
     wyscoutPositions:snap.wyscoutPositions||'',
-    leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm,
+    season:snap.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm,
     history:[buildHistoryEntry(snap)]});
 }
 function addSnapshot(idx,snap){
@@ -1292,11 +1299,11 @@ function addSnapshot(idx,snap){
   Object.assign(p,{team:snap.team,nationality:snap.nationality,age:snap.age,minutes:snap.minutes,
     contractExpires:snap.contractExpires,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
     wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
-    leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
+    season:snap.season||p.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
   if(!p.history)p.history=[];
   p.history.push(buildHistoryEntry(snap));
 }
-function buildHistoryEntry(snap){return{capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,team:snap.team,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
+function buildHistoryEntry(snap){return{capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,season:snap.season||'',team:snap.team,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
 function showDupPrompt(snap,matches){
   return new Promise(res=>{
     ST.dupResolve=res;
@@ -1339,6 +1346,7 @@ function getFiltered(){
   if(ST.filterLeague.length)list=list.filter(p=>ST.filterLeague.includes(p.leagueTag));
   if(ST.filterNat.length)list=list.filter(p=>ST.filterNat.includes(p.nationality));
   if(ST.filterTeam.length)list=list.filter(p=>ST.filterTeam.includes(p.team));
+  if(ST.filterSeason.length)list=list.filter(p=>ST.filterSeason.includes(p.season));
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.team||'').toLowerCase().includes(q));
   // Slider range filters
@@ -1364,8 +1372,7 @@ function getFiltered(){
       list=list.filter(p=>{ const v=(p.nm&&p.nm[key]!=null)?p.nm[key]:(p.pm&&p.pm[key]!=null)?p.pm[key]:null; return v!=null&&v>=lo&&v<=hi; });
     }
   });
-  const sk=ST.sortKey||'rating';
-  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
+  const sk=ST.sortKey||'rating';  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
     if(sk==='rank')return ST.sortDir*((parseFloat(b.rating)??-Infinity)-(parseFloat(a.rating)??-Infinity));
@@ -1387,12 +1394,13 @@ function getFiltered(){
 function renderAll(){renderSidebar();renderStatsStrip();renderTable();}
 
 function renderSidebar(){
-  const pc={},lc={},nc={},tc={};
+  const pc={},lc={},nc={},tc={},sc={};
   ST.players.forEach(p=>{
     pc[p.pos]=(pc[p.pos]||0)+1;
     lc[p.leagueTag]=(lc[p.leagueTag]||0)+1;
     if(p.nationality)nc[p.nationality]=(nc[p.nationality]||0)+1;
     if(p.team)tc[p.team]=(tc[p.team]||0)+1;
+    if(p.season)sc[p.season]=(sc[p.season]||0)+1;
   });
   document.getElementById('nc-all').textContent=ST.players.length;
   // Position in fixed order
@@ -1412,6 +1420,11 @@ function renderSidebar(){
   document.getElementById('teamNav').innerHTML=Object.keys(tc).sort().map(t=>`
     <div class="nav-item ${ST.filterTeam.includes(t)?'active':''}" onclick="toggleFilter('team','${encodeURIComponent(t)}')">
       <span class="nav-icon" style="font-size:11px">◈</span>${t}<span class="nav-count">${tc[t]}</span></div>`).join('');
+  // Season — sorted by SEASONS order
+  const seasonNav=document.getElementById('seasonNav');
+  if(seasonNav) seasonNav.innerHTML=SEASONS.filter(s=>sc[s]).map(s=>`
+    <div class="nav-item ${ST.filterSeason.includes(s)?'active':''}" onclick="toggleFilter('season','${encodeURIComponent(s)}')">
+      <span class="nav-icon" style="font-size:11px">◈</span>${s}<span class="nav-count">${sc[s]}</span></div>`).join('');
 }
 
 function renderStatsStrip(){
@@ -1493,6 +1506,7 @@ function renderTable(){
       <td style="font-size:16px;text-align:center" title="${p.nationality||''}">${natF}</td>
       <td><span class="pos-tag" title="${p.wyscoutPositions||p.pos}" style="cursor:default">${p.pos}</span></td>
       <td><span class="league-tag" title="${p.leagueTag||''}">${lgFlag} ${lgTier}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)">${p.season||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.age||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       <td>${ringCell(r,ratingScaleColor)}</td>
@@ -1615,7 +1629,7 @@ function renderPanel(){
   const flag=p.nationality?natFlag(p.nationality)+' ':'';
   document.getElementById('ppAv').textContent=initials(p.name);
   document.getElementById('ppName').textContent=p.name;
-  document.getElementById('ppSub').textContent=`${flag}${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''}`;
+  document.getElementById('ppSub').textContent=`${flag}${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''}${p.season?' · '+p.season:''}`;
   const body=document.getElementById('ppBody');
 
   if(ST.panelTab==='overview'){
@@ -1895,17 +1909,17 @@ function saveSetup(){
 // ═══════════════════════════════════
 // NAV & FILTERS
 // ═══════════════════════════════════
-function setNavAll(el){ST.filterPos=[];ST.filterLeague=[];ST.filterNat=[];ST.filterTeam=[];document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');renderAll();}
+function setNavAll(el){ST.filterPos=[];ST.filterLeague=[];ST.filterNat=[];ST.filterTeam=[];ST.filterSeason=[];document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');renderAll();}
 function toggleFilter(type,rawVal){
   const val=decodeURIComponent(rawVal);
-  const map={pos:'filterPos',league:'filterLeague',nat:'filterNat',team:'filterTeam'};
+  const map={pos:'filterPos',league:'filterLeague',nat:'filterNat',team:'filterTeam',season:'filterSeason'};
   const key=map[type];if(!key)return;
   const arr=ST[key];
   const idx=arr.indexOf(val);
   if(idx>=0)arr.splice(idx,1);else arr.push(val);
   ST.currentPage=0;
   // If all filters cleared, highlight All Players
-  const allClear=!ST.filterPos.length&&!ST.filterLeague.length&&!ST.filterNat.length&&!ST.filterTeam.length;
+  const allClear=!ST.filterPos.length&&!ST.filterLeague.length&&!ST.filterNat.length&&!ST.filterTeam.length&&!ST.filterSeason.length;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   if(allClear)document.getElementById('nav-all').classList.add('active');
   renderAll();
@@ -1914,24 +1928,6 @@ function setSort(k){
   if(ST.sortKey===k) ST.sortDir*=-1;
   else{ST.sortKey=k;ST.sortDir=-1;}
   ST.currentPage=0;
-  // Sync hidden select
-  const sel=document.getElementById('sortSelect');
-  if(sel&&[...sel.options].some(o=>o.value===k))sel.value=k;
-  // Update header indicators
-  document.querySelectorAll('th').forEach(th=>{
-    th.classList.remove('sorted');
-    const arrow=th.querySelector('.sort-arrow');
-    if(arrow)arrow.remove();
-  });
-  // Find the clicked th by data-sort
-  document.querySelectorAll(`th[data-sort="${k}"]`).forEach(th=>{
-    th.classList.add('sorted');
-    const span=document.createElement('span');
-    span.className='sort-arrow';
-    span.style.cssText='margin-left:3px;font-size:8px;opacity:.7';
-    span.textContent=ST.sortDir<0?'▼':'▲';
-    th.appendChild(span);
-  });
   renderTable();
 }
 
