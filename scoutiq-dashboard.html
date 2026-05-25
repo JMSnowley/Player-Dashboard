@@ -664,7 +664,7 @@ let ST={
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
-  sortKey:'rating',sortDir:-1,pageLimit:50,currentPage:0,panelId:null,panelTab:'overview',metricView:'normal',
+  sortKey:'rating',sortDir:-1,pageLimit:50,currentPage:0,panelId:null,panelTab:'overview',metricView:'normal',metricChartView:'bars',
   dupQueue:[],dupResolve:null,
 };
 
@@ -1596,6 +1596,7 @@ function openPanel(id){ST.panelId=id;ST.panelTab='overview';ST.metricView='norma
 function closePanel(){document.getElementById('playerPanel').classList.remove('open');ST.panelId=null;}
 function setPPTab(tab,el){ST.panelTab=tab;document.querySelectorAll('.pp-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderPanel();}
 function setMV(v){ST.metricView=v;renderPanel();}
+function setMCV(v){ST.metricChartView=v;renderPanel();}
 
 function renderPanel(){
   const p=ST.players.find(x=>x.id===ST.panelId);if(!p)return;
@@ -1659,36 +1660,105 @@ function renderPanel(){
       ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}`;
   } else if(ST.panelTab==='metrics'){
     const isN=ST.metricView==='normal';
+    const isPizza=ST.metricChartView==='pizza';
     const metrics=isN?posConf.nm:posConf.pm;
     const data=isN?p.nm:p.pm;
     const skillMap=METRIC_SKILLS[p.pos]?.[isN?'nm':'pm']||{};
     const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
-    // Group metrics by skill in display order
+    // Group metrics by skill
     const groups={};
     skillOrder.forEach(s=>{groups[s]=[];});
-    metrics.forEach(m=>{const s=skillMap[m]||skillOrder[skillOrder.length-1];if(!groups[s])groups[s]=[];groups[s].push(m);});
-    body.innerHTML=`
-      <div class="mtog">
-        <div class="mtog-btn ${isN?'active':''}" onclick="setMV('normal')">Normal</div>
-        <div class="mtog-btn ${!isN?'active':''}" onclick="setMV('padj')">PAdj</div>
-      </div>
-      ${skillOrder.filter(s=>groups[s]&&groups[s].length).map(skillName=>{
+    metrics.forEach(m=>{const s=skillMap[m]||skillOrder[skillOrder.length-1];if(!groups[s])groups[s]=[];if(!groups[s].includes(m))groups[s].push(m);});
+    const activeSkills=skillOrder.filter(s=>groups[s]&&groups[s].length);
+
+    // Build flat ordered list of (metric, skill, color, value)
+    const allMetricData=[];
+    activeSkills.forEach(skillName=>{
+      const sc=SKILL_COLORS[skillName];
+      const color=sc?sc.color:'#8a9bb0';
+      groups[skillName].forEach(m=>{
+        const v=data&&data[m]!=null?data[m]:null;
+        const pct=v!=null?Math.min(100,Math.max(0,v)):0;
+        const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
+        const displayLabel=m.replace(/^PAdj\s+/i,'');
+        allMetricData.push({m,displayLabel,skill:skillName,color,v,pct,mc});
+      });
+    });
+
+    let chartHTML='';
+    if(isPizza&&allMetricData.length>0){
+      // Pizza chart — each metric is a radial slice, radius = percentile value
+      const n=allMetricData.length;
+      const CX=150,CY=150,R=110,innerR=18;
+      const angleStep=(2*Math.PI)/n;
+      const spokes=allMetricData.map((d,i)=>{
+        const a0=-Math.PI/2+i*angleStep;
+        const a1=a0+angleStep;
+        const aMid=a0+angleStep/2;
+        const r=R*(d.pct/100);
+        // Slice path
+        const x0=CX+innerR*Math.cos(a0),y0=CY+innerR*Math.sin(a0);
+        const x1=CX+r*Math.cos(a0),y1=CY+r*Math.sin(a0);
+        const x2=CX+r*Math.cos(a1),y2=CY+r*Math.sin(a1);
+        const x3=CX+innerR*Math.cos(a1),y3=CY+innerR*Math.sin(a1);
+        const large=angleStep>Math.PI?1:0;
+        const path=d.pct>0
+          ?`M${x0},${y0} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large} 0 ${x0},${y0} Z`
+          :`M${x0},${y0} L${x3},${y3} A${innerR},${innerR} 0 ${large} 0 ${x0},${y0} Z`;
+        // Label position — just outside R
+        const labelR=R+16;
+        const lx=CX+labelR*Math.cos(aMid),ly=CY+labelR*Math.sin(aMid);
+        // Concentric circles at 25/50/75/100
+        return{path,lx,ly,aMid,...d};
+      });
+      // Grid circles
+      const gridCircles=[25,50,75,100].map(pct=>{
+        const gr=R*(pct/100);
+        return `<circle cx="${CX}" cy="${CY}" r="${gr}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                <text x="${CX+4}" y="${CY-gr+4}" fill="rgba(255,255,255,0.2)" font-size="7" font-family="JetBrains Mono">${pct}</text>`;
+      }).join('');
+      // Spoke lines to full radius
+      const spokeLines=allMetricData.map((_,i)=>{
+        const a=-Math.PI/2+i*angleStep;
+        return `<line x1="${CX+innerR*Math.cos(a)}" y1="${CY+innerR*Math.sin(a)}" x2="${CX+R*Math.cos(a)}" y2="${CY+R*Math.sin(a)}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
+      }).join('');
+      chartHTML=`<svg width="300" height="300" viewBox="0 0 300 300" style="display:block;margin:0 auto">
+        ${gridCircles}
+        ${spokeLines}
+        ${spokes.map(s=>`<path d="${s.path}" fill="${s.color}" fill-opacity="0.75" stroke="var(--surface)" stroke-width="0.5">
+          <title>${s.displayLabel}: ${s.v!=null?s.v.toFixed(0):'—'}</title>
+        </path>`).join('')}
+        <circle cx="${CX}" cy="${CY}" r="${innerR}" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
+      </svg>
+      <div style="display:flex;flex-wrap:wrap;gap:4px 10px;padding:4px 0 8px;justify-content:center">
+        ${activeSkills.map(s=>{const sc=SKILL_COLORS[s];const c=sc?sc.color:'#8a9bb0';return`<div style="display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2)"><div style="width:8px;height:8px;border-radius:2px;background:${c}"></div>${s}</div>`;}).join('')}
+      </div>`;
+    } else {
+      chartHTML=activeSkills.map(skillName=>{
         const sc=SKILL_COLORS[skillName];
         const color=sc?sc.color:'#8a9bb0';
+        const mData=allMetricData.filter(d=>d.skill===skillName);
         return `<div class="skill-group">
           <div class="skill-group-title"><div class="skill-dot" style="background:${color}"></div>${skillName}</div>
-          ${groups[skillName].map(m=>{
-            const v=data&&data[m]!=null?data[m]:null;
-            const pct=v!=null?Math.min(100,Math.max(0,v)):0;
-            const displayLabel=m.replace(/^PAdj\s+/i,'');
-            // Quintile colour based on 0-100 percentile value
-            const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
-            return `<div class="mrow"><div class="ml" title="${m}">${displayLabel}</div>
-              <div class="mt"><div class="mf" style="width:${pct}%;background:${color}"></div></div>
-              <div class="mp" style="color:${mc}">${v!=null?fmt(v,0):'—'}</div></div>`;
-          }).join('')}
+          ${mData.map(({m,displayLabel,pct,v,mc})=>`<div class="mrow"><div class="ml" title="${m}">${displayLabel}</div>
+            <div class="mt"><div class="mf" style="width:${pct}%;background:${color}"></div></div>
+            <div class="mp" style="color:${mc}">${v!=null?fmt(v,0):'—'}</div></div>`).join('')}
         </div>`;
-      }).join('')}`;
+      }).join('');
+    }
+
+    body.innerHTML=`
+      <div style="display:flex;gap:4px;margin-bottom:8px">
+        <div class="mtog" style="flex:1">
+          <div class="mtog-btn ${isN?'active':''}" onclick="setMV('normal')">Normal</div>
+          <div class="mtog-btn ${!isN?'active':''}" onclick="setMV('padj')">PAdj</div>
+        </div>
+        <div class="mtog" style="flex:1">
+          <div class="mtog-btn ${!isPizza?'active':''}" onclick="setMCV('bars')">Bars</div>
+          <div class="mtog-btn ${isPizza?'active':''}" onclick="setMCV('pizza')">Pizza</div>
+        </div>
+      </div>
+      ${chartHTML}`;
 
   } else if(ST.panelTab==='history'){
     const hist=[...(p.history||[])].sort((a,b)=>new Date(a.capturedAt)-new Date(b.capturedAt));
