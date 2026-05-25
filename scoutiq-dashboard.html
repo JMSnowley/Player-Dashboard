@@ -820,6 +820,8 @@ async function loadFromGitHub(){
     if(data.players && data.players.length){
       ST.players = data.players;
       ST.selectedIds = new Set();
+      // Ensure sort stays Rating descending after load
+      ST.sortKey='rating'; ST.sortDir=-1;
       saveState(); renderAll();
       showToast('Loaded ' + data.players.length + ' players', 'success');
     }
@@ -1363,12 +1365,16 @@ function getFiltered(){
     }
   });
   const sk=ST.sortKey||'rating';
+  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
-    if(sk==='rank')return ST.sortDir*((b.rating??-Infinity)-(a.rating??-Infinity));
-    const av=a[sk]??-Infinity,bv=b[sk]??-Infinity;
-    if(typeof av==='string'||typeof bv==='string')return ST.sortDir*(String(av).localeCompare(String(bv)));
-    return ST.sortDir*(bv-av);
+    if(sk==='rank')return ST.sortDir*((parseFloat(b.rating)??-Infinity)-(parseFloat(a.rating)??-Infinity));
+    if(NUMERIC_FIELDS.has(sk)){
+      const av=parseFloat(a[sk]??-Infinity), bv=parseFloat(b[sk]??-Infinity);
+      return ST.sortDir*(bv-av);
+    }
+    const av=a[sk]??'', bv=b[sk]??'';
+    return ST.sortDir*(String(av).localeCompare(String(bv)));
   });
   const total=list.length;
   const limit=ST.pageLimit===Infinity?total:ST.pageLimit;
@@ -1494,7 +1500,7 @@ function renderTable(){
       <td>${ringCell(p.ptPriority,ptColor)}</td>
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
       <td style="min-width:110px">
-        <div style="font-size:10px;font-weight:600;color:var(--accent);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${topRoleLabel}">${topRoleLabel}</div>
+        <div style="font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${topRoleLabel}">${topRoleLabel}</div>
         <div class="role-colorbar">${roleSegs}</div>
       </td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
