@@ -90,7 +90,7 @@ td.r{text-align:right;font-family:'JetBrains Mono',monospace}
 .row-btn:hover{border-color:var(--accent);color:var(--accent)}
 tr.row-selected td{background:rgba(0,212,255,0.04)!important}
 tr.row-selected td:first-child{border-left:2px solid var(--accent)}
-.viewer-mode .col-check{display:none!important}
+/* viewer-mode allows checkboxes for compare - only editor actions are hidden */
 .ds-badge{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);background:var(--surface3);padding:2px 5px;border-radius:3px;white-space:nowrap}
 .nat-flag{font-size:15px;line-height:1}
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:11px;color:var(--muted)}
@@ -193,7 +193,7 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
 /* COMPARE */
-.cmp-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;flex-direction:column;overflow:hidden}
+.cmp-modal{position:fixed;inset:0;background:rgba(8,10,13,0.97);z-index:300;display:none;flex-direction:column;overflow:hidden}
 .cmp-modal.open{display:flex}
 .cmp-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
 .cmp-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;flex:1}
@@ -392,6 +392,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   </div>
   <div class="pp-tabs">
     <div class="pp-tab active" onclick="setPPTab('overview',this)">Overview</div>
+    <div class="pp-tab" onclick="setPPTab('roles',this)">Roles</div>
     <div class="pp-tab" onclick="setPPTab('metrics',this)">Metrics</div>
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
@@ -699,7 +700,7 @@ let ST={
     tabs:{CF:'CF',WF:'WF',MF:'MF',DM:'DM',CM:'CM',AM:'AM',FB:'FB',CB:'CB',GK:'GK'}},
   auth:null,filterPos:[],filterLeague:[],filterNat:[],filterTeam:[],
   selectedIds:new Set(),
-  sortKey:'rating',sortDir:-1,pageLimit:50,currentPage:0,filterSeason:[],panelId:null,panelTab:'overview',metricView:'normal',metricChartView:'bars',
+  sortKey:'name',sortDir:1,pageLimit:50,currentPage:0,filterSeason:[],panelId:null,panelTab:'overview',metricView:'normal',metricChartView:'bars',
   dupQueue:[],dupResolve:null,
 };
 
@@ -856,7 +857,7 @@ async function loadFromGitHub(){
       ST.players = data.players;
       ST.selectedIds = new Set();
       // Ensure sort stays Rating descending after load
-      ST.sortKey='rating'; ST.sortDir=-1;
+      ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
       showToast('Loaded ' + data.players.length + ' players', 'success');
     }
@@ -1034,21 +1035,25 @@ function initSliders(){
 
   // Metric sliders — split into Normal and PAdj, each grouped by skill
   const allSkills=[...SKILL_ORDER,'Shot Stopping','Claims & Sweeping','Distribution'];
+  const GK_DIST_NM=['Adj Long Pass Success','Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd','Pass % vs. xPass %'];
+  const GK_DIST_PM=['Adj Long Pass Success','Pass Success','PAdj Succ. Progressive Passes','PAdj Succ. Passes to F3rd','Pass % vs. xPass %'];
   const mc=document.getElementById('metricSliders');
   if(mc){
-    // Collect unique metrics per (mode, skill)
     const nmBySkill={}, pmBySkill={};
     allSkills.forEach(s=>{nmBySkill[s]=[];pmBySkill[s]=[];});
-
+    // GK Distribution hardcoded — separate from non-GK Passing
+    GK_DIST_NM.forEach(m=>{if(!nmBySkill['Distribution'].includes(m))nmBySkill['Distribution'].push(m);});
+    GK_DIST_PM.forEach(m=>{if(!pmBySkill['Distribution'].includes(m))pmBySkill['Distribution'].push(m);});
     Object.entries(POS_CONFIG).forEach(([pos,conf])=>{
+      if(pos==='GK') return; // GK metrics handled via Distribution above
       const skillMap=METRIC_SKILLS[pos]||{};
       conf.nm.forEach(m=>{
         const skill=skillMap.nm&&skillMap.nm[m]?skillMap.nm[m]:null;
-        if(skill&&nmBySkill[skill]&&!nmBySkill[skill].includes(m))nmBySkill[skill].push(m);
+        if(skill&&skill!=='Distribution'&&nmBySkill[skill]&&!nmBySkill[skill].includes(m))nmBySkill[skill].push(m);
       });
       conf.pm.forEach(m=>{
         const skill=skillMap.pm&&skillMap.pm[m]?skillMap.pm[m]:null;
-        if(skill&&pmBySkill[skill]&&!pmBySkill[skill].includes(m))pmBySkill[skill].push(m);
+        if(skill&&skill!=='Distribution'&&pmBySkill[skill]&&!pmBySkill[skill].includes(m))pmBySkill[skill].push(m);
       });
     });
 
@@ -1418,16 +1423,27 @@ function getFiltered(){
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
     if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[role]!=null?p.roles[role]:null;return v!=null&&v>=lo&&v<=hi;});
   });
+  const _GK_DIST_NM=new Set(['Adj Long Pass Success','Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd','Pass % vs. xPass %']);
+  const _GK_DIST_PM=new Set(['Adj Long Pass Success','Pass Success','PAdj Succ. Progressive Passes','PAdj Succ. Passes to F3rd','Pass % vs. xPass %']);
   Object.entries(SLIDER_STATE.metrics).forEach(([key,[lo,hi]])=>{
     if(lo===0&&hi===100) return;
     if(key.startsWith('nm::')){
       const m=key.slice(4);
-      list=list.filter(p=>{ const v=p.nm&&p.nm[m]!=null?p.nm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+      if(_GK_DIST_NM.has(m)){
+        // Distribution metric — only filter GKs
+        list=list.filter(p=>{ if(p.pos!=='GK')return true; const v=p.nm&&p.nm[m]!=null?p.nm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+      } else {
+        // Passing/other — skip GKs
+        list=list.filter(p=>{ if(p.pos==='GK')return true; const v=p.nm&&p.nm[m]!=null?p.nm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+      }
     } else if(key.startsWith('pm::')){
       const m=key.slice(4);
-      list=list.filter(p=>{ const v=p.pm&&p.pm[m]!=null?p.pm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+      if(_GK_DIST_PM.has(m)){
+        list=list.filter(p=>{ if(p.pos!=='GK')return true; const v=p.pm&&p.pm[m]!=null?p.pm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+      } else {
+        list=list.filter(p=>{ if(p.pos==='GK')return true; const v=p.pm&&p.pm[m]!=null?p.pm[m]:null; return v!=null&&v>=lo&&v<=hi; });
+      }
     } else {
-      // legacy fallback
       list=list.filter(p=>{ const v=(p.nm&&p.nm[key]!=null)?p.nm[key]:(p.pm&&p.pm[key]!=null)?p.pm[key]:null; return v!=null&&v>=lo&&v<=hi; });
     }
   });
@@ -1451,8 +1467,8 @@ function getFiltered(){
 }
 
 function renderAll(){
-  // Defensive: if no user has manually changed sort yet, always show rating descending
-  if(!ST._sortTouched){ST.sortKey='rating';ST.sortDir=-1;}
+  // Default: name alphabetical until user sorts
+  if(!ST._sortTouched){ST.sortKey='name';ST.sortDir=1;}
   renderSidebar();renderStatsStrip();renderTable();
 }
 
@@ -1674,7 +1690,11 @@ Top PAdj metrics (percentile): ${pmTop.map(([k,v])=>k.replace(/^PAdj\s+/i,'')+' 
   try{
     const resp=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:300,
@@ -1718,11 +1738,12 @@ function renderCompare(){
   body.innerHTML=`<div class="cmp-side" id="cmpSideA"></div><div class="cmp-side" id="cmpSideB"></div>`;
   [pA,pB].forEach((p,si)=>{
     const side=document.getElementById(si===0?'cmpSideA':'cmpSideB');
-    if(_cmpTab==='overview') side.innerHTML=buildCmpOverview(p,si===0?pB:pA);
-    else side.innerHTML=buildCmpMetrics(p,si===0?pB:pA,_cmpTab==='padj'?'pm':'nm');
+    const flip=si===1;
+    if(_cmpTab==='overview') side.innerHTML=buildCmpOverview(p,si===0?pB:pA,flip);
+    else side.innerHTML=buildCmpMetrics(p,si===0?pB:pA,_cmpTab==='padj'?'pm':'nm',flip);
   });
 }
-function buildCmpOverview(p,opp){
+function buildCmpOverview(p,opp,flip=false){
   const rc=ratingColor(p.rating);
   const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
   const roles=posConf.roles||[];
@@ -1758,7 +1779,7 @@ function buildCmpOverview(p,opp){
     ${topRole?`<div style="padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent)">Top Role: ${topRole.r} (${topRole.v.toFixed(1)}%)</div>`:''}
   </div>`;
 }
-function buildCmpMetrics(p,opp,mode){
+function buildCmpMetrics(p,opp,mode,flip=false){
   const posConf=POS_CONFIG[p.pos];if(!posConf)return'<div style="padding:16px;color:var(--muted)">No data</div>';
   const metrics=posConf[mode]||[];
   const data=p[mode]||{},oppData=opp[mode]||{};
@@ -1779,11 +1800,9 @@ function buildCmpMetrics(p,opp,mode){
       const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
       const win=v!=null&&ov!=null&&v>ov,lose=v!=null&&ov!=null&&v<ov;
       const label=m.replace(/^PAdj\s+/i,'');
-      html+=`<div class="cmp-metric-row">
-        <div class="cmp-label" title="${m}">${label}</div>
-        <div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div>
-        <div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div>
-      </div>`;
+      html+=flip
+        ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div><div class="cmp-label" title="${m}" style="text-align:right">${label}</div></div>`
+        :`<div class="cmp-metric-row"><div class="cmp-label" title="${m}">${label}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div></div>`;
     });
   });
   return html;
@@ -1853,7 +1872,24 @@ function renderPanel(){
   const body=document.getElementById('ppBody');
 
   if(ST.panelTab==='overview'){
-    // Build pie chart for roles
+    body.innerHTML=`
+      <div style="margin-bottom:10px">
+        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px" onclick="loadAIOverview('${p.id}',this)">✦ AI Overview</button>
+        <div id="aiOverview_${p.id}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;font-size:12px;line-height:1.6;color:var(--text)"></div>
+      </div>
+      <div class="big-r"><div class="big-num" style="color:${rc}">${r!=null?fmt(r):'—'}</div><div class="big-lbl">Rating · ${fmtDate(p.capturedAt)}</div></div>
+      <div class="sg">
+        <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(p.potential)}</div></div>
+        <div class="sg-item"><div class="sg-l">PT Priority</div><div class="sg-v" style="color:var(--gold)">${fmt(p.ptPriority)}</div></div>
+        <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
+        <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
+        <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
+        ${p.nationality?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:13px">${natFlag(p.nationality)} ${p.nationality}</div></div>`:''}
+        ${p.contractExpires?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Contract</div><div class="sg-v" style="font-size:13px">${p.contractExpires}</div></div>`:''}
+      </div>
+      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}`;
+
+  } else if(ST.panelTab==='roles'){
     const roles=posConf.roles;
     const vals=roles.map(r=>({label:r.replace(' %',''),val:p.roles&&p.roles[r]!=null?p.roles[r]:0}));
     const total=vals.reduce((s,v)=>s+v.val,0)||1;
@@ -1873,18 +1909,7 @@ function renderPanel(){
       return{path,color:pieColors[i%pieColors.length],label:v.label,val:v.val};
     });
     const topRole=vals.reduce((a,b)=>b.val>a.val?b:a,{val:0,label:'—'});
-    body.innerHTML=`
-      <div class="big-r"><div class="big-num" style="color:${rc}">${r!=null?fmt(r):'—'}</div><div class="big-lbl">Rating · ${fmtDate(p.capturedAt)}</div></div>
-      <div class="sg">
-        <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(p.potential)}</div></div>
-        <div class="sg-item"><div class="sg-l">PT Priority</div><div class="sg-v" style="color:var(--gold)">${fmt(p.ptPriority)}</div></div>
-        <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
-        <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
-        <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
-        ${p.nationality?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:13px">${natFlag(p.nationality)} ${p.nationality}</div></div>`:''}
-        ${p.contractExpires?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Contract</div><div class="sg-v" style="font-size:13px">${p.contractExpires}</div></div>`:''}
-      </div>
-      ${vals.some(v=>v.val>0)?`
+    body.innerHTML=vals.some(v=>v.val>0)?`
       <div class="pst" style="margin-top:4px">Role Profile</div>
       <div class="pie-wrap">
         <svg width="260" height="180" viewBox="0 0 260 180">
@@ -1900,12 +1925,7 @@ function renderPanel(){
             <div class="pie-legend-val">${fmt(s.val,1)}%</div>
           </div>`).join('')}
         </div>
-      </div>`:''}
-      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
-      <div style="margin-top:10px">
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px" onclick="loadAIOverview('${p.id}',this)">✦ AI Overview</button>
-        <div id="aiOverview_${p.id}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;font-size:12px;line-height:1.6;color:var(--text)"></div>
-      </div>`;  } else if(ST.panelTab==='metrics'){
+      </div>`:'<div style="padding:16px;color:var(--muted)">No role data available</div>';  } else if(ST.panelTab==='metrics'){
     const isN=ST.metricView==='normal';
     const isPizza=ST.metricChartView==='pizza';
     const metrics=isN?posConf.nm:posConf.pm;
@@ -2186,8 +2206,8 @@ function showToast(msg,type='info'){
 // ═══════════════════════════════════
 loadState();
 // Always force Rating descending on load — never read from localStorage
-ST.sortKey='rating';
-ST.sortDir=-1;
+ST.sortKey='name';
+ST.sortDir=1;
 // Don't auto-load Google scripts — only load when user explicitly clicks Connect
 initSliders();
 renderAll();
