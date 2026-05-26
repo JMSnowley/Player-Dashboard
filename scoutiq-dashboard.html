@@ -1699,48 +1699,87 @@ function updateSelBar(list){
 // FOOTBALL PITCH VISUAL
 // ═══════════════════════════════════
 function buildPitchSVG(posStr){
+  // Horizontal pitch: GK on left, CF on right
+  // Coordinates as [x%, y%] where x=0 is GK end, x=100 is CF end, y=50 is centre
   const PMAP={
-    'GK':  [[50,90]],
-    'CB':  [[50,75]],'LCB':[[35,75]],'RCB':[[65,75]],
-    'LB':  [[18,72]],'RB': [[82,72]],
-    'LWB': [[15,60]],'RWB':[[85,60]],
-    'DMF': [[50,60]],'LDMF':[[35,60]],'RDMF':[[65,60]],
-    'CMF': [[50,47]],'LCMF':[[32,47]],'RCMF':[[68,47]],
-    'AMF': [[50,33]],
-    'LAMF':[[15,28]],  // same position as LWF
-    'RAMF':[[85,28]],  // same position as RWF
-    'LWF': [[15,28]],'RWF':[[85,28]],
-    'LM':  [[15,47]],'RM': [[85,47]],
-    'CF':  [[50,18]],'SS': [[50,26]],
+    // Goalkeeper
+    'GK':   {coords:[[8,50]],  label:'GK'},
+    // Defenders
+    'CB':   {coords:[[22,50]], label:'CB'},
+    'LCB':  {coords:[[22,35]], label:'LCB'},
+    'RCB':  {coords:[[22,65]], label:'RCB'},
+    'LB':   {coords:[[22,20]], label:'LB'},
+    'RB':   {coords:[[22,80]], label:'RB'},
+    // Grouped: LWB + LM → LWB
+    'LWB':  {coords:[[33,18]], label:'LWB'},
+    'LM':   {coords:[[33,18]], label:'LWB'},
+    // Grouped: RWB + RM → RWB
+    'RWB':  {coords:[[33,82]], label:'RWB'},
+    'RM':   {coords:[[33,82]], label:'RWB'},
+    // Defensive mids
+    'DMF':  {coords:[[40,50]], label:'DMF'},
+    'LDMF': {coords:[[40,33]], label:'LDMF'},
+    'RDMF': {coords:[[40,67]], label:'RDMF'},
+    // Central mids
+    'CMF':  {coords:[[52,50]], label:'CMF'},
+    'LCMF': {coords:[[52,33]], label:'LCMF'},
+    'RCMF': {coords:[[52,67]], label:'RCMF'},
+    // Attacking mid
+    'AMF':  {coords:[[64,50]], label:'AMF'},
+    // Grouped: LAMF + LWF + LW → LW
+    'LAMF': {coords:[[68,18]], label:'LW'},
+    'LWF':  {coords:[[68,18]], label:'LW'},
+    'LW':   {coords:[[68,18]], label:'LW'},
+    // Grouped: RAMF + RWF + RW → RW
+    'RAMF': {coords:[[68,82]], label:'RW'},
+    'RWF':  {coords:[[68,82]], label:'RW'},
+    'RW':   {coords:[[68,82]], label:'RW'},
+    // Forwards
+    'SS':   {coords:[[80,38]], label:'SS'},
+    'CF':   {coords:[[90,50]], label:'CF'},
   };
+
   const positions=posStr.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
-  const W=280,H=380;
+  const W=440,H=260;
   const seen=new Set();
   const dots=[];
   positions.forEach(pos=>{
-    const coords=PMAP[pos];
-    if(!coords) return;
-    coords.forEach(([xp,yp])=>{
+    const entry=PMAP[pos];
+    if(!entry) return;
+    entry.coords.forEach(([xp,yp])=>{
       const key=`${xp},${yp}`;
-      if(!seen.has(key)){seen.add(key);dots.push({x:W*xp/100,y:H*yp/100,label:pos});}
+      if(!seen.has(key)){seen.add(key);dots.push({x:W*xp/100,y:H*yp/100,label:entry.label});}
     });
   });
   if(!dots.length) return '';
+
   const W2=W/2,H2=H/2;
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;margin:6px auto 0;border-radius:6px;overflow:hidden">
-    ${[0,1,2,3,4,5,6].map(i=>`<rect x="0" y="${(i*H/7).toFixed(0)}" width="${W}" height="${(H/7).toFixed(0)}" fill="${i%2===0?'#2d5a27':'#315f2b'}"/>`).join('')}
-    <rect x="12" y="12" width="${W-24}" height="${H-24}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
-    <line x1="12" y1="${H2}" x2="${W-12}" y2="${H2}" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <circle cx="${W2}" cy="${H2}" r="32" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+  // Penalty area dimensions
+  const paW=W*0.16, paH=H*0.55, sxW=W*0.07, sxH=H*0.30;
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;margin:8px auto 0;border-radius:6px;max-width:${W}px">
+    ${[0,1,2,3,4,5].map(i=>`<rect x="${(i*W/6).toFixed(0)}" y="0" width="${(W/6).toFixed(0)}" height="${H}" fill="${i%2===0?'#2d5a27':'#315f2b'}"/>`).join('')}
+    <!-- Boundary -->
+    <rect x="10" y="10" width="${W-20}" height="${H-20}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <!-- Halfway line -->
+    <line x1="${W2}" y1="10" x2="${W2}" y2="${H-10}" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <!-- Centre circle -->
+    <circle cx="${W2}" cy="${H2}" r="${H*0.18}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
     <circle cx="${W2}" cy="${H2}" r="2" fill="rgba(255,255,255,.5)"/>
-    <rect x="${W*.22}" y="12" width="${W*.56}" height="${H*.19}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <rect x="${W*.36}" y="12" width="${W*.28}" height="${H*.075}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <rect x="${W*.38}" y="8" width="${W*.24}" height="8" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
-    <rect x="${W*.22}" y="${H-12-H*.19}" width="${W*.56}" height="${H*.19}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <rect x="${W*.36}" y="${H-12-H*.075}" width="${W*.28}" height="${H*.075}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <rect x="${W*.38}" y="${H-16}" width="${W*.24}" height="8" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
-    <circle cx="${W2}" cy="${12+H*.14}" r="2" fill="rgba(255,255,255,.45)"/>
-    <circle cx="${W2}" cy="${H-12-H*.14}" r="2" fill="rgba(255,255,255,.45)"/>
+    <!-- Left penalty area -->
+    <rect x="10" y="${((H-paH)/2).toFixed(1)}" width="${paW.toFixed(1)}" height="${paH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="10" y="${((H-sxH)/2).toFixed(1)}" width="${sxW.toFixed(1)}" height="${sxH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <!-- Left goal -->
+    <rect x="6" y="${((H-H*0.22)/2).toFixed(1)}" width="6" height="${(H*0.22).toFixed(1)}" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+    <!-- Left penalty spot -->
+    <circle cx="${(10+paW*0.75).toFixed(1)}" cy="${H2}" r="2" fill="rgba(255,255,255,.45)"/>
+    <!-- Right penalty area -->
+    <rect x="${(W-10-paW).toFixed(1)}" y="${((H-paH)/2).toFixed(1)}" width="${paW.toFixed(1)}" height="${paH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="${(W-10-sxW).toFixed(1)}" y="${((H-sxH)/2).toFixed(1)}" width="${sxW.toFixed(1)}" height="${sxH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <!-- Right goal -->
+    <rect x="${(W-12).toFixed(1)}" y="${((H-H*0.22)/2).toFixed(1)}" width="6" height="${(H*0.22).toFixed(1)}" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+    <!-- Right penalty spot -->
+    <circle cx="${(W-10-paW*0.75).toFixed(1)}" cy="${H2}" r="2" fill="rgba(255,255,255,.45)"/>
+    <!-- Position dots -->
     ${dots.map(d=>`<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="14" fill="var(--accent)" fill-opacity=".88" stroke="white" stroke-width="1.5"/>
       <text x="${d.x.toFixed(1)}" y="${(d.y+4).toFixed(1)}" text-anchor="middle" fill="white" font-size="8" font-family="JetBrains Mono" font-weight="700">${d.label}</text>`).join('')}
   </svg>`;
