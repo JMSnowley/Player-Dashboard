@@ -681,7 +681,7 @@ const POS_CONFIG={
     pm:['Goals Prevented','Save %','PAdj Claims','Claim Success','PAdj Sweeps','Adj Long Pass Success','Pass Success','PAdj Succ. Progressive Passes','PAdj Succ. Passes to F3rd','Pass % vs. xPass %']},
 };
 
-const SEASONS=['18/19','19/20','20/21','21/22','22/23','23/24','24/25','25/26','26/27','2019','2020','2021','2022','2023','2024','2025','2026','2027'];
+const SEASONS=['18/19','19/20','20/21','21/22','22/23','23/24','24/25','25/26','26/27','27/28','28/29','29/30','2019','2020','2021','2022','2023','2024','2025','2026','2027','2028','2029','2030'];
 const CAPTURE_GROUPS=[
   {key:'GK',label:'Goalkeepers'},{key:'CB',label:'Centre Backs'},
   {key:'FB',label:'Full Backs'},{key:'MF',label:'Midfielders (DM/CM/AM)'},
@@ -1159,19 +1159,20 @@ function updateLeaguePreview(){const c=document.getElementById('capCountry').val
 // If the season is current (25/26 or 2025/2026), use actual today
 function seasonCaptureDate(season){
   const now=new Date();
-  const currentSplit='25/26', currentCal='2025';
-  if(!season||season===currentSplit||season===currentCal||season==='26/27'||season==='2026'||season==='2027')
-    return now.toISOString();
-  // Split season e.g. "24/25" -> May 30 of 2025
-  const splitMatch=season.match(/^(\d{2})\/(\d{2})$/);
+  const nowYear=now.getFullYear();
+  // Current or future seasons: use today's date
+  // Split season e.g. "24/25" → May 30 of end year
+  const splitMatch=season&&season.match(/^(\d{2})\/(\d{2})$/);
   if(splitMatch){
     const endYear=2000+parseInt(splitMatch[2]);
+    if(endYear>=nowYear) return now.toISOString(); // current or future
     return new Date(endYear,4,30,12,0,0).toISOString(); // May 30
   }
-  // Calendar year e.g. "2023" -> Nov 30 of that year
-  const calMatch=season.match(/^(20\d{2})$/);
+  // Calendar year e.g. "2023" → Nov 30 of that year
+  const calMatch=season&&season.match(/^(20\d{2})$/);
   if(calMatch){
     const yr=parseInt(calMatch[1]);
+    if(yr>=nowYear) return now.toISOString(); // current or future
     return new Date(yr,10,30,12,0,0).toISOString(); // Nov 30
   }
   return now.toISOString();
@@ -1355,19 +1356,104 @@ function parseMFOutput(mfRows,posTabRows,leagueTag,season,capturedAt){
 }
 
 // ═══════════════════════════════════
+// ═══════════════════════════════════
 // DUPLICATE RESOLUTION
 // ═══════════════════════════════════
+
+// Check if two ages are plausible for the same player given their capture dates
+// Returns true if ages are consistent (allow ±1 per year elapsed, max ±2 tolerance)
+function ageConsistent(existingAge, existingCaptureDate, newAge, newCaptureDate){
+  if(existingAge==null||newAge==null) return true; // no age data, can't rule out
+  const msPerYear=1000*60*60*24*365.25;
+  const yearsDiff=Math.abs((new Date(newCaptureDate)-new Date(existingCaptureDate))/msPerYear);
+  // Expected age difference = years elapsed (rounded), allow ±1 tolerance
+  const expectedAgeDiff=Math.round(yearsDiff);
+  const actualAgeDiff=newAge-existingAge;
+  return actualAgeDiff>=expectedAgeDiff-1 && actualAgeDiff<=expectedAgeDiff+1;
+}
+
 async function processDupQueue(){closeModal('dupModal');for(const snap of ST.dupQueue)await resolveSnap(snap);closeModal('dupModal');}
+
 async function resolveSnap(snap){
-  const exactIdx=ST.players.findIndex(p=>norm(p.name)===norm(snap.name)&&norm(p.team)===norm(snap.team)&&p.pos===snap.pos);
-  if(exactIdx>=0){addSnapshot(exactIdx,snap);return;}
-  const nameMatches=ST.players.filter(p=>norm(p.name)===norm(snap.name));
+  const nameNorm=norm(snap.name);
+
+  // 1. Exact match: same name + same team + same pos → auto-merge if age consistent
+  const exactIdx=ST.players.findIndex(p=>
+    norm(p.name)===nameNorm && norm(p.team)===norm(snap.team) && p.pos===snap.pos
+  );
+  if(exactIdx>=0){
+    const existing=ST.players[exactIdx];
+    if(ageConsistent(existing.age,existing.capturedAt,snap.age,snap.capturedAt)){
+      addSnapshot(exactIdx,snap);
+      return;
+    } else {
+      // Same name+team but age mismatch — prompt rather than silently create
+      const action=await showDupPrompt(snap,[existing]);
+      if(action==='new') createPlayer(snap);
+      else if(action&&action.startsWith('merge:')){
+        const idx=ST.players.findIndex(p=>p.id===action.split(':')[1]);
+        if(idx>=0) addSnapshot(idx,snap);
+      }
+      return;
+    }
+  }
+
+  // 2. Same name + same team but different pos — likely same player, auto-merge if age ok
+  const sameNameTeamIdx=ST.players.findIndex(p=>
+    norm(p.name)===nameNorm && norm(p.team)===norm(snap.team)
+  );
+  if(sameNameTeamIdx>=0){
+    const existing=ST.players[sameNameTeamIdx];
+    if(ageConsistent(existing.age,existing.capturedAt,snap.age,snap.capturedAt)){
+      addSnapshot(sameNameTeamIdx,snap);
+      return;
+    } else {
+      // Same name+team but age mismatch — prompt
+      const action=await showDupPrompt(snap,[existing]);
+      if(action==='new') createPlayer(snap);
+      else if(action&&action.startsWith('merge:')){
+        const idx=ST.players.findIndex(p=>p.id===action.split(':')[1]);
+        if(idx>=0) addSnapshot(idx,snap);
+      }
+      return;
+    }
+  }
+
+  // 3. Same name, different team — check age consistency before prompting
+  const nameMatches=ST.players.filter(p=>norm(p.name)===nameNorm);
   if(nameMatches.length>0){
-    const action=await showDupPrompt(snap,nameMatches);
-    if(action==='new')createPlayer(snap);
-    else if(action&&action.startsWith('merge:')){const pid=action.split(':')[1];const idx=ST.players.findIndex(p=>p.id===pid);if(idx>=0)addSnapshot(idx,snap);}
+    // Filter to only those with consistent age
+    const ageFiltered=nameMatches.filter(p=>
+      ageConsistent(p.age,p.capturedAt,snap.age,snap.capturedAt)
+    );
+    if(ageFiltered.length===0){
+      // No existing player has a consistent age — must be a new player
+      createPlayer(snap);
+      return;
+    }
+    if(ageFiltered.length===1){
+      // Only one plausible match — prompt (they may have transferred)
+      const action=await showDupPrompt(snap,ageFiltered);
+      if(action==='new') createPlayer(snap);
+      else if(action&&action.startsWith('merge:')){
+        const pid=action.split(':')[1];
+        const idx=ST.players.findIndex(p=>p.id===pid);
+        if(idx>=0) addSnapshot(idx,snap);
+      }
+      return;
+    }
+    // Multiple plausible age-consistent matches — prompt with all of them
+    const action=await showDupPrompt(snap,ageFiltered);
+    if(action==='new') createPlayer(snap);
+    else if(action&&action.startsWith('merge:')){
+      const pid=action.split(':')[1];
+      const idx=ST.players.findIndex(p=>p.id===pid);
+      if(idx>=0) addSnapshot(idx,snap);
+    }
     return;
   }
+
+  // 4. No name match at all — new player
   createPlayer(snap);
 }
 function norm(s){return(s||'').trim().toLowerCase();}
