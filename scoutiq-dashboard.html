@@ -193,11 +193,11 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
 /* COMPARE */
-.cmp-modal{position:fixed;inset:0;background:rgba(8,10,13,0.97);z-index:300;display:none;flex-direction:column;overflow:hidden}
+.cmp-modal{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:300;display:none;flex-direction:column;overflow:hidden}
 .cmp-modal.open{display:flex}
-.cmp-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.cmp-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
 .cmp-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;flex:1}
-.cmp-body{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;overflow:hidden}
+.cmp-body{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;overflow:hidden;background:var(--surface)}
 .cmp-side{overflow-y:auto;border-right:1px solid var(--border);padding:0}
 .cmp-side:last-child{border-right:none}
 .cmp-side .pp-header{position:sticky;top:0;z-index:2;background:var(--surface)}
@@ -206,7 +206,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .cmp-metric-row{display:flex;align-items:center;gap:6px;padding:3px 10px;font-size:11px}
 .cmp-label{flex:1;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cmp-bar-wrap{flex:2;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
-.cmp-bar{height:100%;border-radius:3px;transition:width .3s}
+.cmp-bar{height:100%;border-radius:3px;transition:width .3s}.cmp-bar-rtl{height:100%;border-radius:3px;transition:width .3s;margin-left:auto}
 .cmp-val{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;min-width:26px;text-align:right}
 .pagination{display:flex;align-items:center;gap:5px;padding:8px 14px;border-top:1px solid var(--border);background:var(--surface);justify-content:center;flex-wrap:wrap;flex-shrink:0}
 .page-btn{padding:4px 9px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted2);font-family:'JetBrains Mono',monospace;transition:all .15s;min-width:30px;text-align:center}
@@ -349,7 +349,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <!-- Selection action bar - hidden until rows selected -->
       <div id="selBar" style="display:none;align-items:center;gap:10px;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border2)">
         <span id="selCount" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent)"></span>
-        <button class="btn btn-danger" style="font-size:10px;padding:4px 10px" onclick="deleteSelected()">✕ Delete Selected</button>
+        <button id="deleteSelBtn" class="btn btn-danger" style="font-size:10px;padding:4px 10px;display:none" onclick="deleteSelected()">✕ Delete Selected</button>
         <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" onclick="clearSelection()">Deselect All</button>
       </div>
       <table>
@@ -794,7 +794,7 @@ function setEditorMode(isEditor){
   // viewer-mode CSS class hides .col-check column on both th and td — survives table re-renders
   document.body.classList.toggle('viewer-mode',!isEditor);
   // Editor-only buttons
-  ['clearDataBtn','captureModalBtn'].forEach(id=>{
+  ['clearDataBtn','captureModalBtn','deleteSelBtn'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.style.display=isEditor?'':'none';
   });
   const selBar=document.getElementById('selBar');
@@ -1035,27 +1035,23 @@ function initSliders(){
 
   // Metric sliders — split into Normal and PAdj, each grouped by skill
   const allSkills=[...SKILL_ORDER,'Shot Stopping','Claims & Sweeping','Distribution'];
-  const GK_DIST_NM=['Adj Long Pass Success','Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd','Pass % vs. xPass %'];
-  const GK_DIST_PM=['Adj Long Pass Success','Pass Success','PAdj Succ. Progressive Passes','PAdj Succ. Passes to F3rd','Pass % vs. xPass %'];
   const mc=document.getElementById('metricSliders');
   if(mc){
     const nmBySkill={}, pmBySkill={};
     allSkills.forEach(s=>{nmBySkill[s]=[];pmBySkill[s]=[];});
-    // GK Distribution hardcoded — separate from non-GK Passing
-    GK_DIST_NM.forEach(m=>{if(!nmBySkill['Distribution'].includes(m))nmBySkill['Distribution'].push(m);});
-    GK_DIST_PM.forEach(m=>{if(!pmBySkill['Distribution'].includes(m))pmBySkill['Distribution'].push(m);});
     Object.entries(POS_CONFIG).forEach(([pos,conf])=>{
-      if(pos==='GK') return; // GK metrics handled via Distribution above
       const skillMap=METRIC_SKILLS[pos]||{};
       conf.nm.forEach(m=>{
         const skill=skillMap.nm&&skillMap.nm[m]?skillMap.nm[m]:null;
-        if(skill&&skill!=='Distribution'&&nmBySkill[skill]&&!nmBySkill[skill].includes(m))nmBySkill[skill].push(m);
+        if(skill&&nmBySkill[skill]&&!nmBySkill[skill].includes(m))nmBySkill[skill].push(m);
       });
       conf.pm.forEach(m=>{
         const skill=skillMap.pm&&skillMap.pm[m]?skillMap.pm[m]:null;
-        if(skill&&skill!=='Distribution'&&pmBySkill[skill]&&!pmBySkill[skill].includes(m))pmBySkill[skill].push(m);
+        if(skill&&pmBySkill[skill]&&!pmBySkill[skill].includes(m))pmBySkill[skill].push(m);
       });
     });
+    // Sort each skill group alphabetically
+    allSkills.forEach(s=>{nmBySkill[s].sort();pmBySkill[s].sort();});
 
     let html='';
     // Normal
@@ -1423,26 +1419,14 @@ function getFiltered(){
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
     if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[role]!=null?p.roles[role]:null;return v!=null&&v>=lo&&v<=hi;});
   });
-  const _GK_DIST_NM=new Set(['Adj Long Pass Success','Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd','Pass % vs. xPass %']);
-  const _GK_DIST_PM=new Set(['Adj Long Pass Success','Pass Success','PAdj Succ. Progressive Passes','PAdj Succ. Passes to F3rd','Pass % vs. xPass %']);
   Object.entries(SLIDER_STATE.metrics).forEach(([key,[lo,hi]])=>{
     if(lo===0&&hi===100) return;
     if(key.startsWith('nm::')){
       const m=key.slice(4);
-      if(_GK_DIST_NM.has(m)){
-        // Distribution metric — only filter GKs
-        list=list.filter(p=>{ if(p.pos!=='GK')return true; const v=p.nm&&p.nm[m]!=null?p.nm[m]:null; return v!=null&&v>=lo&&v<=hi; });
-      } else {
-        // Passing/other — skip GKs
-        list=list.filter(p=>{ if(p.pos==='GK')return true; const v=p.nm&&p.nm[m]!=null?p.nm[m]:null; return v!=null&&v>=lo&&v<=hi; });
-      }
+      list=list.filter(p=>{ const v=p.nm&&p.nm[m]!=null?p.nm[m]:null; return v!=null&&v>=lo&&v<=hi; });
     } else if(key.startsWith('pm::')){
       const m=key.slice(4);
-      if(_GK_DIST_PM.has(m)){
-        list=list.filter(p=>{ if(p.pos!=='GK')return true; const v=p.pm&&p.pm[m]!=null?p.pm[m]:null; return v!=null&&v>=lo&&v<=hi; });
-      } else {
-        list=list.filter(p=>{ if(p.pos==='GK')return true; const v=p.pm&&p.pm[m]!=null?p.pm[m]:null; return v!=null&&v>=lo&&v<=hi; });
-      }
+      list=list.filter(p=>{ const v=p.pm&&p.pm[m]!=null?p.pm[m]:null; return v!=null&&v>=lo&&v<=hi; });
     } else {
       list=list.filter(p=>{ const v=(p.nm&&p.nm[key]!=null)?p.nm[key]:(p.pm&&p.pm[key]!=null)?p.pm[key]:null; return v!=null&&v>=lo&&v<=hi; });
     }
@@ -1702,10 +1686,16 @@ Top PAdj metrics (percentile): ${pmTop.map(([k,v])=>k.replace(/^PAdj\s+/i,'')+' 
       })
     });
     const data=await resp.json();
+    if(!resp.ok){
+      console.error('AI API error',resp.status,JSON.stringify(data));
+      div.textContent='API error '+resp.status+': '+(data.error&&data.error.message||JSON.stringify(data));
+      btn.textContent='✦ AI Overview';btn.disabled=false;
+      return;
+    }
     const text=data.content&&data.content[0]&&data.content[0].text;
-    div.textContent=text||'Could not generate overview.';
+    div.textContent=text||'No response from AI.';
   }catch(e){
-    div.textContent='AI overview unavailable.';
+    div.textContent='Error: '+e.message;
     console.error('AI overview error',e);
   }
   btn.textContent='✦ Hide AI Overview';btn.disabled=false;
@@ -1761,11 +1751,10 @@ function buildCmpOverview(p,opp,flip=false){
     const win=!isNaN(av)&&!isNaN(bv)&&av>bv,lose=!isNaN(av)&&!isNaN(bv)&&av<bv;
     const pct=(!isNaN(av)&&!isNaN(bv)&&bv>0)?Math.round((av/Math.max(av,bv))*100):50;
     const mc=!isNaN(av)?av>=80?'#00e599':av>=60?'#7fd97f':av>=40?'#f5c842':av>=20?'#ff8c42':'#ff4d6a':'var(--muted)';
-    return `<div class="cmp-metric-row">
-      <div class="cmp-label">${f.l}</div>
-      <div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${mc}"></div></div>
-      <div class="cmp-val ${win?'':''}"><span style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${f.fmt(f.a)}</span></div>
-    </div>`;
+    const valEl=`<span style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${f.fmt(f.a)}</span>`;
+    return flip
+      ?`<div class="cmp-metric-row"><div class="cmp-val">${valEl}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:${mc}"></div></div><div class="cmp-label" style="text-align:right">${f.l}</div></div>`
+      :`<div class="cmp-metric-row"><div class="cmp-label">${f.l}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${mc}"></div></div><div class="cmp-val">${valEl}</div></div>`;
   }).join('');
   return `<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border)">
     <div class="av" style="width:36px;height:36px;font-size:13px;margin-right:8px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
@@ -1801,7 +1790,7 @@ function buildCmpMetrics(p,opp,mode,flip=false){
       const win=v!=null&&ov!=null&&v>ov,lose=v!=null&&ov!=null&&v<ov;
       const label=m.replace(/^PAdj\s+/i,'');
       html+=flip
-        ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div><div class="cmp-label" title="${m}" style="text-align:right">${label}</div></div>`
+        ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:${color}"></div></div><div class="cmp-label" title="${m}" style="text-align:right">${label}</div></div>`
         :`<div class="cmp-metric-row"><div class="cmp-label" title="${m}">${label}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div></div>`;
     });
   });
