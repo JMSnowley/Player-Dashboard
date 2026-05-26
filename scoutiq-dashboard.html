@@ -1060,7 +1060,7 @@ function initSliders(){
       <div class="sb-content" id="nm_metrics">`;
     allSkills.forEach(skill=>{
       const metrics=nmBySkill[skill];if(!metrics||!metrics.length)return;
-      if(skill==='Distribution'&&!metrics.length) return; // skip empty Distribution
+      if(skill==='Distribution') return; // GK distribution shown in GK-specific sections, not sidebar
       const sid=`nm_skill_${safeId(skill)}`;
       html+=`<div><div class="sb-toggle" style="padding:4px 13px 4px 20px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${skill}</span><span class="sb-arrow">›</span></div>
         <div class="sb-content" id="${sid}">${metrics.map(m=>`<div id="nms_${safeId(m)}"></div>`).join('')}</div></div>`;
@@ -1071,7 +1071,7 @@ function initSliders(){
       <div class="sb-content" id="pm_metrics">`;
     allSkills.forEach(skill=>{
       const metrics=pmBySkill[skill];if(!metrics||!metrics.length)return;
-      if(skill==='Distribution'&&!metrics.length) return;
+      if(skill==='Distribution') return; // skip Distribution
       const sid=`pm_skill_${safeId(skill)}`;
       html+=`<div><div class="sb-toggle" style="padding:4px 13px 4px 20px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${skill}</span><span class="sb-arrow">›</span></div>
         <div class="sb-content" id="${sid}">${metrics.map(m=>`<div id="pms_${safeId(m)}"></div>`).join('')}</div></div>`;
@@ -1449,7 +1449,7 @@ function getFiltered(){
   const page=Math.min(ST.currentPage,Math.max(0,Math.ceil(total/limit)-1));
   if(ST.currentPage!==page) ST.currentPage=page;
   const paged=limit>=total?list:list.slice(page*limit,(page+1)*limit);
-  return {list:paged,total,page,limit};
+  return {list:paged,allFiltered:list,total,page,limit};
 }
 
 function renderAll(){
@@ -1504,11 +1504,10 @@ function renderSidebar(){
 }
 
 function renderStatsStrip(){
-  const {list,total}=getFiltered(),rated=list.filter(p=>p.rating!=null);
+  const {allFiltered}=getFiltered(),rated=allFiltered.filter(p=>p.rating!=null);
   const avg=rated.length?(rated.reduce((s,p)=>s+p.rating,0)/rated.length).toFixed(1):'—';
-  const top=rated.length?[...rated].sort((a,b)=>b.rating-a.rating)[0]:null;
   const lastCap=ST.players.length?[...ST.players].sort((a,b)=>new Date(b.capturedAt)-new Date(a.capturedAt))[0]:null;
-  document.getElementById('ss-p').textContent=list.length;
+  document.getElementById('ss-p').textContent=allFiltered.length;
   document.getElementById('ss-l').textContent=new Set(ST.players.map(p=>p.leagueTag)).size;
   document.getElementById('ss-r').textContent=avg;
   document.getElementById('ss-d').textContent=lastCap?fmtDate(lastCap.capturedAt):'—';
@@ -1517,7 +1516,7 @@ function renderStatsStrip(){
 
 function renderTable(){
   renderStatsStrip();
-  const {list,total,page,limit}=getFiltered();
+  const {list,allFiltered,total,page,limit}=getFiltered();
   const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
   document.getElementById('rowCount').textContent='';
   const posName=ST.filterPos.length?ST.filterPos.join('/'):('ALL PLAYERS');
@@ -1529,27 +1528,37 @@ function renderTable(){
   if(!list.length){tbody.innerHTML='';empty.style.display='flex';return;}
   empty.style.display='none';
 
-  // Compute percentile colour scale (5-step green→red)
+  // 10-step gradient green→red based on rank within the FULL filtered dataset (not just this page)
   const gradientColor=(val,arr,field)=>{
     if(val==null||!arr.length) return 'var(--muted)';
-    const vals=[...arr.map(p=>p[field])].sort((a,b)=>a-b);
+    const vals=[...arr.map(p=>p[field])].filter(v=>v!=null).sort((a,b)=>a-b);
+    if(!vals.length) return 'var(--muted)';
     const rank=vals.filter(v=>v<=val).length/vals.length;
-    if(rank>=0.8) return '#00e599';       // top quintile - green
-    if(rank>=0.6) return '#7fd97f';       // 2nd quintile - green-yellow
-    if(rank>=0.4) return '#f5c842';       // 3rd quintile - yellow
-    if(rank>=0.2) return '#ff8c42';       // 4th quintile - yellow-red
-    return '#ff4d6a';                      // bottom quintile - red
+    if(rank>=0.90) return '#00e599';
+    if(rank>=0.80) return '#3dd68c';
+    if(rank>=0.70) return '#7fd97f';
+    if(rank>=0.60) return '#aad971';
+    if(rank>=0.50) return '#d4d964';
+    if(rank>=0.40) return '#f5c842';
+    if(rank>=0.30) return '#f5a033';
+    if(rank>=0.20) return '#ff8c42';
+    if(rank>=0.10) return '#ff6b52';
+    return '#ff4d6a';
   };
 
-  const ratedList=list.filter(p=>p.rating!=null);
-  const potList=list.filter(p=>p.potential!=null);
-  const ptList=list.filter(p=>p.ptPriority!=null);
-  const lgPctList=list.filter(p=>p.leaguePct!=null);
+  // Build colour lists from the FULL filtered dataset
+  const ratedList=allFiltered.filter(p=>p.rating!=null);
+  const potList=allFiltered.filter(p=>p.potential!=null);
+  const ptList=allFiltered.filter(p=>p.ptPriority!=null);
+  const lgPctList=allFiltered.filter(p=>p.leaguePct!=null);
+
+  // Page offset for rank numbers
+  const rankOffset=page*limit;
 
   const hl=(s)=>{if(!q||!s)return s||'';return s.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark>${m}</mark>`);};
   tbody.innerHTML=list.map((p,i)=>{
     const r=p.rating, rc=ratingColor(r);
-    const rankCell=`<td class="rank-cell">${i+1}</td>`;
+    const rankCell=`<td class="rank-cell">${rankOffset+i+1}</td>`;
     const hCount=p.history?.length||1;
     const potColor=gradientColor(p.potential,potList,'potential');
     const ptColor=gradientColor(p.ptPriority,ptList,'ptPriority');
