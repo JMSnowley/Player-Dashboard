@@ -439,7 +439,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       </div>
       <div class="fg"><div class="fl">GitHub Personal Access Token (editor only)</div>
         <input type="password" id="cfgGhToken" placeholder="ghp_…">
-        <div class="fhint">Stored only in this browser — never saved to the file or repo. Required to capture/save data. Viewers don't need this.</div>
+        <div class="fhint">Stored only in this browser. Required to capture/save data.</div>
       </div>
         <input type="text" id="cfgPubUrl" placeholder="https://docs.google.com/spreadsheets/d/…/pub?gid=…&single=true&output=csv">
         <div class="fhint">File → Share → Publish to web → select PLYRDASH_DB tab → CSV → copy URL. Enables viewing without login.</div>
@@ -1060,6 +1060,7 @@ function initSliders(){
       <div class="sb-content" id="nm_metrics">`;
     allSkills.forEach(skill=>{
       const metrics=nmBySkill[skill];if(!metrics||!metrics.length)return;
+      if(skill==='Distribution'&&!metrics.length) return; // skip empty Distribution
       const sid=`nm_skill_${safeId(skill)}`;
       html+=`<div><div class="sb-toggle" style="padding:4px 13px 4px 20px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${skill}</span><span class="sb-arrow">›</span></div>
         <div class="sb-content" id="${sid}">${metrics.map(m=>`<div id="nms_${safeId(m)}"></div>`).join('')}</div></div>`;
@@ -1070,6 +1071,7 @@ function initSliders(){
       <div class="sb-content" id="pm_metrics">`;
     allSkills.forEach(skill=>{
       const metrics=pmBySkill[skill];if(!metrics||!metrics.length)return;
+      if(skill==='Distribution'&&!metrics.length) return;
       const sid=`pm_skill_${safeId(skill)}`;
       html+=`<div><div class="sb-toggle" style="padding:4px 13px 4px 20px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${skill}</span><span class="sb-arrow">›</span></div>
         <div class="sb-content" id="${sid}">${metrics.map(m=>`<div id="pms_${safeId(m)}"></div>`).join('')}</div></div>`;
@@ -1646,61 +1648,6 @@ function updateSelBar(list){
 }
 
 // ═══════════════════════════════════
-// AI PLAYER OVERVIEW
-// ═══════════════════════════════════
-async function loadAIOverview(playerId,btn){
-  const p=ST.players.find(x=>x.id===playerId);if(!p)return;
-  const div=document.getElementById('aiOverview_'+playerId);
-  if(!div)return;
-  if(div.style.display!=='none'){div.style.display='none';btn.textContent='✦ AI Overview';return;}
-  btn.textContent='Loading…';btn.disabled=true;
-  div.style.display='block';div.textContent='Thinking…';
-  const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
-  const topRoles=(posConf.roles||[]).map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v).slice(0,2);
-  const nmTop=Object.entries(p.nm||{}).filter(([,v])=>v!=null).sort(([,a],[,b])=>b-a).slice(0,5);
-  const pmTop=Object.entries(p.pm||{}).filter(([,v])=>v!=null).sort(([,a],[,b])=>b-a).slice(0,5);
-  const prompt=`You are a football scout assistant. Write 3-4 sentences summarising this player for a non-technical football audience. Focus on what kind of player they are, their strengths, and where they fit in a team. Avoid jargon and stat numbers — translate the data into plain football language.
-
-Player: ${p.name}
-Position: ${posConf.label||p.pos}
-Age: ${p.age||'Unknown'}
-Club: ${p.team||'Unknown'} (${p.leagueTag||''})
-Season: ${p.season||''}
-Rating: ${p.rating!=null?p.rating.toFixed(1):'N/A'}/100
-Potential: ${p.potential!=null?p.potential.toFixed(1):'N/A'}/100
-Top roles: ${topRoles.map(r=>r.r+' ('+r.v.toFixed(0)+'%)').join(', ')||'N/A'}
-Top normal metrics (percentile): ${nmTop.map(([k,v])=>k.replace(/^PAdj\s+/i,'')+' '+Math.round(v)).join(', ')||'N/A'}
-Top PAdj metrics (percentile): ${pmTop.map(([k,v])=>k.replace(/^PAdj\s+/i,'')+' '+Math.round(v)).join(', ')||'N/A'}`;
-  try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true',
-      },
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:300,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-    const data=await resp.json();
-    if(!resp.ok){
-      console.error('AI API error',resp.status,JSON.stringify(data));
-      div.textContent='API error '+resp.status+': '+(data.error&&data.error.message||JSON.stringify(data));
-      btn.textContent='✦ AI Overview';btn.disabled=false;
-      return;
-    }
-    const text=data.content&&data.content[0]&&data.content[0].text;
-    div.textContent=text||'No response from AI.';
-  }catch(e){
-    div.textContent='Error: '+e.message;
-    console.error('AI overview error',e);
-  }
-  btn.textContent='✦ Hide AI Overview';btn.disabled=false;
-}
-// ═══════════════════════════════════
 let _cmpTab='overview';
 function setCmpTab(tab,el){
   _cmpTab=tab;
@@ -1738,34 +1685,46 @@ function buildCmpOverview(p,opp,flip=false){
   const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
   const roles=posConf.roles||[];
   const topRole=roles.length?roles.map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v)[0]:null;
+  // Max minutes = highest in database among players in same league+season as this comparison
+  const maxMins=Math.max(...ST.players
+    .filter(x=>(x.leagueTag===p.leagueTag||x.leagueTag===opp.leagueTag)&&(x.season===p.season||x.season===opp.season))
+    .map(x=>x.minutes||0), 1000);
   const fields=[
-    {l:'Rating',a:p.rating,b:opp.rating,fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'Potential',a:p.potential,b:opp.potential,fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'PT Priority',a:p.ptPriority,b:opp.ptPriority,fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'League %ile',a:p.leaguePct,b:opp.leaguePct,fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'Age',a:p.age,b:opp.age,fmt:v=>v!=null?v:'—'},
-    {l:'Minutes',a:p.minutes,b:opp.minutes,fmt:v=>v!=null?Math.round(v).toLocaleString():'—'},
+    {l:'Rating',    a:p.rating,    b:opp.rating,    mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'Potential', a:p.potential, b:opp.potential, mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'PT Priority',a:p.ptPriority,b:opp.ptPriority,mn:0,mx:100,fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'League %ile',a:p.leaguePct, b:opp.leaguePct, mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'Age',       a:p.age,       b:opp.age,       mn:15,mx:45,  fmt:v=>v!=null?v:'—'},
+    {l:'Minutes',   a:p.minutes,   b:opp.minutes,   mn:0, mx:maxMins, fmt:v=>v!=null?Math.round(v).toLocaleString():'—'},
   ];
   const rowsHtml=fields.map(f=>{
-    const av=parseFloat(f.a),bv=parseFloat(f.b);
-    const win=!isNaN(av)&&!isNaN(bv)&&av>bv,lose=!isNaN(av)&&!isNaN(bv)&&av<bv;
-    const pct=(!isNaN(av)&&!isNaN(bv)&&bv>0)?Math.round((av/Math.max(av,bv))*100):50;
-    const mc=!isNaN(av)?av>=80?'#00e599':av>=60?'#7fd97f':av>=40?'#f5c842':av>=20?'#ff8c42':'#ff4d6a':'var(--muted)';
+    const av=parseFloat(f.a), bv=parseFloat(f.b);
+    const win=!isNaN(av)&&!isNaN(bv)&&av>bv, lose=!isNaN(av)&&!isNaN(bv)&&av<bv;
+    const pct=!isNaN(av)?Math.round(Math.min(100,Math.max(0,(av-f.mn)/(f.mx-f.mn)*100))):0;
+    const mc=!isNaN(av)&&f.mx===100?av>=80?'#00e599':av>=60?'#7fd97f':av>=40?'#f5c842':av>=20?'#ff8c42':'#ff4d6a':'var(--accent)';
     const valEl=`<span style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${f.fmt(f.a)}</span>`;
     return flip
       ?`<div class="cmp-metric-row"><div class="cmp-val">${valEl}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:${mc}"></div></div><div class="cmp-label" style="text-align:right">${f.l}</div></div>`
       :`<div class="cmp-metric-row"><div class="cmp-label">${f.l}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${mc}"></div></div><div class="cmp-val">${valEl}</div></div>`;
   }).join('');
-  return `<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border)">
-    <div class="av" style="width:36px;height:36px;font-size:13px;margin-right:8px;display:inline-flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
-    <div style="display:inline-block">
-      <div style="font-weight:700;font-size:13px">${p.name}</div>
-      <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
-    </div>
-  </div>
-  <div style="padding:8px 0">
+  const hdr=flip
+    ?`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:row-reverse;align-items:center;gap:8px">
+        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        <div style="text-align:right">
+          <div style="font-weight:700;font-size:13px">${p.name}</div>
+          <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
+        </div>
+      </div>`
+    :`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        <div>
+          <div style="font-weight:700;font-size:13px">${p.name}</div>
+          <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
+        </div>
+      </div>`;
+  return hdr+`<div style="padding:8px 0">
     ${rowsHtml}
-    ${topRole?`<div style="padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent)">Top Role: ${topRole.r} (${topRole.v.toFixed(1)}%)</div>`:''}
+    ${topRole?`<div style="padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);${flip?'text-align:right':''}">Top Role: ${topRole.r} (${topRole.v.toFixed(1)}%)</div>`:''}
   </div>`;
 }
 function buildCmpMetrics(p,opp,mode,flip=false){
@@ -1776,12 +1735,19 @@ function buildCmpMetrics(p,opp,mode,flip=false){
   const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
   const groups={};skillOrder.forEach(s=>{groups[s]=[];});
   metrics.forEach(m=>{const s=skillMap[m]||skillOrder[skillOrder.length-1];if(!groups[s])groups[s]=[];if(!groups[s].includes(m))groups[s].push(m);});
-  let html=`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border)">
-    <div style="font-weight:700;font-size:13px">${p.name}</div>
-    <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div>`;
+  const mHdr=flip
+    ?`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:row-reverse;align-items:center;gap:8px">
+        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        <div style="text-align:right"><div style="font-weight:700;font-size:13px">${p.name}</div>
+        <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div></div>`
+    :`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
+        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        <div><div style="font-weight:700;font-size:13px">${p.name}</div>
+        <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div></div>`;
+  let html=mHdr;
   skillOrder.filter(s=>groups[s]&&groups[s].length).forEach(skillName=>{
     const sc=SKILL_COLORS[skillName];const color=sc?sc.color:'#8a9bb0';
-    html+=`<div style="padding:4px 10px 2px;font-size:9px;font-family:'JetBrains Mono',monospace;color:${color};text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)">${skillName}</div>`;
+    html+=`<div style="padding:4px 10px 2px;font-size:9px;font-family:'JetBrains Mono',monospace;color:${color};text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);${flip?'text-align:right':''}">${skillName}</div>`;
     groups[skillName].forEach(m=>{
       const v=data[m]!=null?data[m]:null;
       const ov=oppData[m]!=null?oppData[m]:null;
@@ -1862,10 +1828,6 @@ function renderPanel(){
 
   if(ST.panelTab==='overview'){
     body.innerHTML=`
-      <div style="margin-bottom:10px">
-        <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px" onclick="loadAIOverview('${p.id}',this)">✦ AI Overview</button>
-        <div id="aiOverview_${p.id}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;font-size:12px;line-height:1.6;color:var(--text)"></div>
-      </div>
       <div class="big-r"><div class="big-num" style="color:${rc}">${r!=null?fmt(r):'—'}</div><div class="big-lbl">Rating · ${fmtDate(p.capturedAt)}</div></div>
       <div class="sg">
         <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(p.potential)}</div></div>
