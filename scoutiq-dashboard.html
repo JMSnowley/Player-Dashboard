@@ -305,6 +305,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <div class="range-group" id="ratingSlider"></div>
         <div class="range-group" id="potentialSlider"></div>
         <div class="range-group" id="ptPrioritySlider"></div>
+        <div class="range-group" id="leaguePctSlider"></div>
       </div>
     </div>
     <!-- Role sliders -->
@@ -343,6 +344,8 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="ss-block"><div class="ss-label">Players</div><div class="ss-val ac" id="ss-p">0</div></div>
       <div class="ss-block"><div class="ss-label">Leagues</div><div class="ss-val" id="ss-l">0</div></div>
       <div class="ss-block"><div class="ss-label">Avg Rating</div><div class="ss-val" id="ss-r">—</div></div>
+      <div class="ss-block"><div class="ss-label">Avg Potential</div><div class="ss-val" id="ss-pot">—</div></div>
+      <div class="ss-block"><div class="ss-label">Avg PT Pri.</div><div class="ss-val" id="ss-ptp">—</div></div>
       <div class="ss-block"><div class="ss-label">Last Capture</div><div class="ss-val" id="ss-d" style="font-size:12px;font-family:'Archivo',sans-serif;font-weight:600">—</div><div class="ss-sub" id="ss-ds"></div></div>
     </div>
     <div class="tw">
@@ -996,7 +999,7 @@ function toggleSb(contentId,toggleEl){
 // SIDEBAR FILTERS — SLIDERS
 // ═══════════════════════════════════
 let SLIDER_STATE={
-  rating:[0,100],potential:[0,100],ptPriority:[0,100],
+  rating:[0,100],potential:[0,100],ptPriority:[0,100],leaguePct:[0,100],
   roles:{},metrics:{},
 };
 
@@ -1008,6 +1011,7 @@ function initSliders(){
   renderRangeSlider('ratingSlider','Rating','rating',0,100);
   renderRangeSlider('potentialSlider','Potential','potential',0,100);
   renderRangeSlider('ptPrioritySlider','PT Priority','ptPriority',0,100);
+  renderRangeSlider('leaguePctSlider','League %ile','leaguePct',0,100);
 
   // Role sliders — grouped by position in order: GK,CB,FB,DM,CM,AM,WF,CF
   const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
@@ -1415,9 +1419,11 @@ function getFiltered(){
   const [rlo,rhi]=SLIDER_STATE.rating;
   const [plo,phi]=SLIDER_STATE.potential;
   const [tlo,thi]=SLIDER_STATE.ptPriority;
+  const [llo,lhi]=SLIDER_STATE.leaguePct||[0,100];
   if(rlo>0||rhi<100)list=list.filter(p=>p.rating!=null&&p.rating>=rlo&&p.rating<=rhi);
   if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
   if(tlo>0||thi<100)list=list.filter(p=>p.ptPriority!=null&&p.ptPriority>=tlo&&p.ptPriority<=thi);
+  if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
     if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[role]!=null?p.roles[role]:null;return v!=null&&v>=lo&&v<=hi;});
   });
@@ -1504,12 +1510,20 @@ function renderSidebar(){
 }
 
 function renderStatsStrip(){
-  const {allFiltered}=getFiltered(),rated=allFiltered.filter(p=>p.rating!=null);
+  // Always use full filtered dataset (never paged)
+  const {allFiltered}=getFiltered();
+  const rated=allFiltered.filter(p=>p.rating!=null);
+  const potted=allFiltered.filter(p=>p.potential!=null);
+  const ptped=allFiltered.filter(p=>p.ptPriority!=null);
   const avg=rated.length?(rated.reduce((s,p)=>s+p.rating,0)/rated.length).toFixed(1):'—';
+  const avgPot=potted.length?(potted.reduce((s,p)=>s+p.potential,0)/potted.length).toFixed(1):'—';
+  const avgPtp=ptped.length?(ptped.reduce((s,p)=>s+p.ptPriority,0)/ptped.length).toFixed(1):'—';
   const lastCap=ST.players.length?[...ST.players].sort((a,b)=>new Date(b.capturedAt)-new Date(a.capturedAt))[0]:null;
   document.getElementById('ss-p').textContent=allFiltered.length;
-  document.getElementById('ss-l').textContent=new Set(ST.players.map(p=>p.leagueTag)).size;
+  document.getElementById('ss-l').textContent=new Set(allFiltered.map(p=>p.leagueTag)).size;
   document.getElementById('ss-r').textContent=avg;
+  document.getElementById('ss-pot').textContent=avgPot;
+  document.getElementById('ss-ptp').textContent=avgPtp;
   document.getElementById('ss-d').textContent=lastCap?fmtDate(lastCap.capturedAt):'—';
   document.getElementById('ss-ds').textContent=lastCap?lastCap.leagueTag+' · '+(lastCap.pos||''):'';
 }
