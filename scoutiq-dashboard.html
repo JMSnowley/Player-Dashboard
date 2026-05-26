@@ -1257,13 +1257,24 @@ function parseSheetOutput(rows,posCode,leagueTag,season,capturedAt){
         ratingIdx=col1(cm,'RATING'),potIdx=col1(cm,'POTENTIAL'),ptpIdx=col1(cm,'PT PRIORITY'),
         leaguePctIdx=col1(cm,'WR (wM) 0-100');
   const wyPosIdx=2; // Position always in column C
-  const isGK=posCode==='GK';
-  // GK: Goals Prevented & Save % at fixed column positions (CK/CL for PAdj, CU/CV for Normal)
-  // Using absolute indices is more reliable than occurrence counting
-  const GK_PADJ_COLS={'Goals Prevented':88,'Save %':89};
-  const GK_NM_COLS={'Goals Prevented':98,'Save %':99};
+  // Absolute column ranges per position (0-based)
+  const POS_COL_RANGES={
+    GK: {pm:[88,97],  nm:[98,107]},
+    CB: {pm:[140,158],nm:[159,177]},
+    FB: {pm:[171,192],nm:[193,214]},
+    WF: {pm:[152,172],nm:[173,193]},
+    CF: {pm:[173,194],nm:[195,216]},
+  };
+  const ranges=POS_COL_RANGES[posCode];
   const metricCol=(m,isPAdj)=>{
-    if(isGK&&GK_PADJ_COLS[m]!==undefined) return isPAdj?GK_PADJ_COLS[m]:GK_NM_COLS[m];
+    if(ranges){
+      const arr=isPAdj?posConf.pm:posConf.nm;
+      const idx=arr.indexOf(m);
+      if(idx>=0){
+        const base=isPAdj?ranges.pm[0]:ranges.nm[0];
+        return base+idx;
+      }
+    }
     return col2(cm,m);
   };
   const snaps=[];
@@ -1317,8 +1328,21 @@ function parseMFOutput(mfRows,posTabRows,leagueTag,season,capturedAt){
       const{row:pr,cm:pcm}=match;
       const pgv=(i)=>i>=0&&i<pr.length?pr[i]:null;
       const pgn=(i)=>{const v=pgv(i);return v!==null&&v!==''&&!isNaN(parseFloat(v))?parseFloat(v):null;};
-      posConf.nm.forEach(m=>{const v=pgn(col2(pcm,m));if(v!==null)nm[m]=v;});
-      posConf.pm.forEach(m=>{const v=pgn(col2(pcm,m));if(v!==null)pm[m]=v;});
+      // Use absolute column ranges for MF positions
+      const MF_COL_RANGES={
+        DM:{pm:[160,180],nm:[181,201]},
+        CM:{pm:[161,182],nm:[183,204]},
+        AM:{pm:[155,177],nm:[178,200]},
+      };
+      const mfRanges=MF_COL_RANGES[posCode];
+      posConf.nm.forEach((m,i)=>{
+        const idx=mfRanges?mfRanges.nm[0]+i:col2(pcm,m);
+        const v=pgn(idx);if(v!==null)nm[m]=v;
+      });
+      posConf.pm.forEach((m,i)=>{
+        const idx=mfRanges?mfRanges.pm[0]+i:col2(pcm,m);
+        const v=pgn(idx);if(v!==null)pm[m]=v;
+      });
       posConf.roles.forEach(r=>{const v=pgn(col1(pcm,r));if(v!==null)roles[r]=v;});
     }
     snaps.push({name,team:(gv(teamIdx)||'').trim(),pos:posCode,
@@ -1671,6 +1695,57 @@ function updateSelBar(list){
 }
 
 // ═══════════════════════════════════
+// ═══════════════════════════════════
+// FOOTBALL PITCH VISUAL
+// ═══════════════════════════════════
+function buildPitchSVG(posStr){
+  const PMAP={
+    'GK':  [[50,90]],
+    'CB':  [[50,75]],'LCB':[[35,75]],'RCB':[[65,75]],
+    'LB':  [[18,72]],'RB': [[82,72]],
+    'LWB': [[15,60]],'RWB':[[85,60]],
+    'DMF': [[50,60]],'LDMF':[[35,60]],'RDMF':[[65,60]],
+    'CMF': [[50,47]],'LCMF':[[32,47]],'RCMF':[[68,47]],
+    'AMF': [[50,33]],
+    'LAMF':[[15,28]],  // same position as LWF
+    'RAMF':[[85,28]],  // same position as RWF
+    'LWF': [[15,28]],'RWF':[[85,28]],
+    'LM':  [[15,47]],'RM': [[85,47]],
+    'CF':  [[50,18]],'SS': [[50,26]],
+  };
+  const positions=posStr.split(',').map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const W=280,H=380;
+  const seen=new Set();
+  const dots=[];
+  positions.forEach(pos=>{
+    const coords=PMAP[pos];
+    if(!coords) return;
+    coords.forEach(([xp,yp])=>{
+      const key=`${xp},${yp}`;
+      if(!seen.has(key)){seen.add(key);dots.push({x:W*xp/100,y:H*yp/100,label:pos});}
+    });
+  });
+  if(!dots.length) return '';
+  const W2=W/2,H2=H/2;
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;margin:6px auto 0;border-radius:6px;overflow:hidden">
+    ${[0,1,2,3,4,5,6].map(i=>`<rect x="0" y="${(i*H/7).toFixed(0)}" width="${W}" height="${(H/7).toFixed(0)}" fill="${i%2===0?'#2d5a27':'#315f2b'}"/>`).join('')}
+    <rect x="12" y="12" width="${W-24}" height="${H-24}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <line x1="12" y1="${H2}" x2="${W-12}" y2="${H2}" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <circle cx="${W2}" cy="${H2}" r="32" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <circle cx="${W2}" cy="${H2}" r="2" fill="rgba(255,255,255,.5)"/>
+    <rect x="${W*.22}" y="12" width="${W*.56}" height="${H*.19}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="${W*.36}" y="12" width="${W*.28}" height="${H*.075}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="${W*.38}" y="8" width="${W*.24}" height="8" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+    <rect x="${W*.22}" y="${H-12-H*.19}" width="${W*.56}" height="${H*.19}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="${W*.36}" y="${H-12-H*.075}" width="${W*.28}" height="${H*.075}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="${W*.38}" y="${H-16}" width="${W*.24}" height="8" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+    <circle cx="${W2}" cy="${12+H*.14}" r="2" fill="rgba(255,255,255,.45)"/>
+    <circle cx="${W2}" cy="${H-12-H*.14}" r="2" fill="rgba(255,255,255,.45)"/>
+    ${dots.map(d=>`<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="14" fill="var(--accent)" fill-opacity=".88" stroke="white" stroke-width="1.5"/>
+      <text x="${d.x.toFixed(1)}" y="${(d.y+4).toFixed(1)}" text-anchor="middle" fill="white" font-size="8" font-family="JetBrains Mono" font-weight="700">${d.label}</text>`).join('')}
+  </svg>`;
+}
+
 let _cmpTab='overview';
 function setCmpTab(tab,el){
   _cmpTab=tab;
@@ -1861,7 +1936,8 @@ function renderPanel(){
         ${p.nationality?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:13px">${natFlag(p.nationality)} ${p.nationality}</div></div>`:''}
         ${p.contractExpires?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Contract</div><div class="sg-v" style="font-size:13px">${p.contractExpires}</div></div>`:''}
       </div>
-      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}`;
+      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
+      ${p.wyscoutPositions?`<div class="pst" style="margin-top:12px">Positions</div>${buildPitchSVG(p.wyscoutPositions)}`:''}`;
 
   } else if(ST.panelTab==='roles'){
     const roles=posConf.roles;
