@@ -1843,28 +1843,31 @@ function buildPitchSVG(posStr){
   // Penalty area dimensions
   const paW=W*0.16, paH=H*0.55, sxW=W*0.07, sxH=H*0.30;
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;margin:8px auto 0;border-radius:6px;max-width:${W}px">
-    ${[0,1,2,3,4,5].map(i=>`<rect x="${(i*W/6).toFixed(0)}" y="0" width="${(W/6).toFixed(0)}" height="${H}" fill="${i%2===0?'#2d5a27':'#315f2b'}"/>`).join('')}
+    <!-- Dark background -->
+    <rect width="${W}" height="${H}" fill="var(--surface2)" rx="6"/>
+    <!-- Subtle stripes -->
+    ${[0,1,2,3,4,5].map(i=>`<rect x="${(i*W/6).toFixed(0)}" y="0" width="${(W/6).toFixed(0)}" height="${H}" fill="${i%2===0?'rgba(255,255,255,0.0)':'rgba(255,255,255,0.025)'}"/>`).join('')}
     <!-- Boundary -->
-    <rect x="10" y="10" width="${W-20}" height="${H-20}" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="1.5"/>
+    <rect x="10" y="10" width="${W-20}" height="${H-20}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.5"/>
     <!-- Halfway line -->
-    <line x1="${W2}" y1="10" x2="${W2}" y2="${H-10}" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <line x1="${W2}" y1="10" x2="${W2}" y2="${H-10}" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>
     <!-- Centre circle -->
-    <circle cx="${W2}" cy="${H2}" r="${H*0.18}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <circle cx="${W2}" cy="${H2}" r="2" fill="rgba(255,255,255,.5)"/>
+    <circle cx="${W2}" cy="${H2}" r="${H*0.18}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>
+    <circle cx="${W2}" cy="${H2}" r="2" fill="rgba(255,255,255,.3)"/>
     <!-- Left penalty area -->
-    <rect x="10" y="${((H-paH)/2).toFixed(1)}" width="${paW.toFixed(1)}" height="${paH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <rect x="10" y="${((H-sxH)/2).toFixed(1)}" width="${sxW.toFixed(1)}" height="${sxH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="10" y="${((H-paH)/2).toFixed(1)}" width="${paW.toFixed(1)}" height="${paH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>
+    <rect x="10" y="${((H-sxH)/2).toFixed(1)}" width="${sxW.toFixed(1)}" height="${sxH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>
     <!-- Left goal -->
-    <rect x="6" y="${((H-H*0.22)/2).toFixed(1)}" width="6" height="${(H*0.22).toFixed(1)}" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+    <rect x="6" y="${((H-H*0.22)/2).toFixed(1)}" width="6" height="${(H*0.22).toFixed(1)}" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
     <!-- Left penalty spot -->
-    <circle cx="${(10+paW*0.75).toFixed(1)}" cy="${H2}" r="2" fill="rgba(255,255,255,.45)"/>
+    <circle cx="${(10+paW*0.75).toFixed(1)}" cy="${H2}" r="2" fill="rgba(255,255,255,.25)"/>
     <!-- Right penalty area -->
-    <rect x="${(W-10-paW).toFixed(1)}" y="${((H-paH)/2).toFixed(1)}" width="${paW.toFixed(1)}" height="${paH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
-    <rect x="${(W-10-sxW).toFixed(1)}" y="${((H-sxH)/2).toFixed(1)}" width="${sxW.toFixed(1)}" height="${sxH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.2"/>
+    <rect x="${(W-10-paW).toFixed(1)}" y="${((H-paH)/2).toFixed(1)}" width="${paW.toFixed(1)}" height="${paH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>
+    <rect x="${(W-10-sxW).toFixed(1)}" y="${((H-sxH)/2).toFixed(1)}" width="${sxW.toFixed(1)}" height="${sxH.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.2"/>
     <!-- Right goal -->
-    <rect x="${(W-12).toFixed(1)}" y="${((H-H*0.22)/2).toFixed(1)}" width="6" height="${(H*0.22).toFixed(1)}" fill="rgba(255,255,255,.12)" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+    <rect x="${(W-12).toFixed(1)}" y="${((H-H*0.22)/2).toFixed(1)}" width="6" height="${(H*0.22).toFixed(1)}" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.25)" stroke-width="1"/>
     <!-- Right penalty spot -->
-    <circle cx="${(W-10-paW*0.75).toFixed(1)}" cy="${H2}" r="2" fill="rgba(255,255,255,.45)"/>
+    <circle cx="${(W-10-paW*0.75).toFixed(1)}" cy="${H2}" r="2" fill="rgba(255,255,255,.25)"/>
     <!-- Position dots -->
     ${dots.map(d=>`<circle cx="${d.x.toFixed(1)}" cy="${d.y.toFixed(1)}" r="14" fill="var(--accent)" fill-opacity=".88" stroke="white" stroke-width="1.5"/>
       <text x="${d.x.toFixed(1)}" y="${(d.y+4).toFixed(1)}" text-anchor="middle" fill="white" font-size="8" font-family="JetBrains Mono" font-weight="700">${d.label}</text>`).join('')}
