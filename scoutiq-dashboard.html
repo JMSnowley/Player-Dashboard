@@ -1966,7 +1966,7 @@ function renderXIPitch(xi,scoreKey){
     const x=W*xp/100;
     const n=slots.length;
     // Wider spread for DEF (4 players) to avoid overlap
-    const totalSpread=row==='DEF'?H*0.92:H*0.82;
+    const totalSpread=row==='DEF'?H*0.78:H*0.72;
     const topMargin=(H-totalSpread)/2;
     const spacing=n>1?totalSpread/(n-1):0;
     slots.forEach(({p,label},si)=>{
