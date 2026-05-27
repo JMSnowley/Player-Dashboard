@@ -2147,13 +2147,14 @@ function renderPanel(){
       const n=allMetricData.length;
       const SZ=420,CX=SZ/2,CY=SZ/2,R=130,innerR=22,labelR=R+8;
       const angleStep=(2*Math.PI)/n;
-      // Grid circles
-      const gridCircles=[25,50,75,100].map(pct=>{
-        const _il=document.body.classList.contains('light-mode');
+      // Light mode colour vars — declared here so all code below can use them
+      const _il=document.body.classList.contains('light-mode');
       const _gc=_il?'rgba(0,0,0,0.1)':'rgba(255,255,255,0.05)';
       const _gt=_il?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.15)';
       const _sc=_il?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.05)';
-      const gr=R*(pct/100);
+      // Grid circles
+      const gridCircles=[25,50,75,100].map(pct=>{
+        const gr=R*(pct/100);
         return `<circle cx="${CX}" cy="${CY}" r="${gr}" fill="none" stroke="${_gc}" stroke-width="1"/>
                 <text x="${(CX+3).toFixed(0)}" y="${(CY-gr-2).toFixed(0)}" fill="${_gt}" font-size="7" font-family="JetBrains Mono">${pct}</text>`;
       }).join('');
@@ -2163,21 +2164,15 @@ function renderPanel(){
       }).join('');
 
       // Helper: split label into max 2 lines at word boundaries
-      function splitLabel(str){
+      const splitLabel=str=>{
         const words=str.split(' ');
         if(str.length<=11) return[str];
-        // Try to split roughly in half
-        let best=0,bestDiff=999;
-        let cum=0;
-        words.forEach((w,i)=>{
-          cum+=w.length+(i?1:0);
-          const diff=Math.abs(cum-str.length/2);
-          if(diff<bestDiff){bestDiff=diff;best=i;}
-        });
+        let best=0,bestDiff=999,cum=0;
+        words.forEach((w,i)=>{cum+=w.length+(i?1:0);const diff=Math.abs(cum-str.length/2);if(diff<bestDiff){bestDiff=diff;best=i;}});
         const line1=words.slice(0,best+1).join(' ');
         const line2=words.slice(best+1).join(' ');
         return line2?[line1,line2]:[line1];
-      }
+      };
 
       // Slices + external labels
       const slicesHTML=allMetricData.map((d,i)=>{
