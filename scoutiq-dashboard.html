@@ -211,7 +211,19 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .toast.info{border-color:var(--accent-border);color:var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
-/* COMPARE */
+/* XI MODAL */
+.xi-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;align-items:center;justify-content:center}
+.xi-modal.open{display:flex}
+.xi-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px;max-width:620px;width:100%;max-height:90vh;overflow-y:auto}
+.xi-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.xi-player-node{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+.xi-player-node:hover .xi-circle{border-color:var(--gold)}
+.xi-circle{width:44px;height:44px;border-radius:50%;background:var(--surface3);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:var(--text);text-align:center;line-height:1.2;padding:2px}
+.xi-name{font-size:9px;font-weight:600;color:var(--text);text-align:center;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xi-meta{font-size:8px;color:var(--muted2);text-align:center;font-family:'JetBrains Mono',monospace}
+.xi-pos-label{font-size:7px;font-family:'JetBrains Mono',monospace;color:var(--accent);text-transform:uppercase;letter-spacing:1px}
+.xi-empty .xi-circle{border-color:var(--border2);background:transparent}
+.xi-empty .xi-name{color:var(--muted)}
 .cmp-modal{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:300;display:none;flex-direction:column;overflow:hidden}
 .cmp-modal.open{display:flex}
 .cmp-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
@@ -284,6 +296,8 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
+    <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:11px">⚽ Best XI</button>
+    <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:11px">⚽ Best Potential XI</button>
     <button id="setupBtn" class="btn btn-ghost" onclick="openSetupModal()">⚙ Setup</button>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="tt-icon" id="themeIcon">☀</span></button>
   </div>
@@ -421,6 +435,17 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
   <div class="pp-body" id="ppBody"></div>
+</div>
+
+<!-- XI MODAL -->
+<div class="xi-modal" id="xiModal">
+  <div class="xi-panel">
+    <div class="xi-title">
+      <span id="xiTitle">Best XI</span>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="closeXI()">✕ Close</button>
+    </div>
+    <div id="xiPitch"></div>
+  </div>
 </div>
 
 <!-- COMPARE MODAL -->
@@ -1885,6 +1910,94 @@ function buildPitchSVG(posStr){
   </svg>`;
 }
 
+
+// ═══════════════════════════════════
+// BEST XI / BEST POTENTIAL XI
+// ═══════════════════════════════════
+function openXI(mode){
+  const {allFiltered}=getFiltered();
+  document.getElementById('xiTitle').textContent=mode==='best'?'Best XI (4-3-3)':'Best Potential XI (4-3-3)';
+  const scoreKey=mode==='best'?'rating':'potential';
+  const ranked=[...allFiltered].filter(p=>p[scoreKey]!=null).sort((a,b)=>b[scoreKey]-a[scoreKey]);
+  const hasPos=(p,...abbrs)=>{
+    const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());
+    return abbrs.some(a=>wp.includes(a));
+  };
+  const pools={
+    GK: ranked.filter(p=>p.pos==='GK'),
+    CB: ranked.filter(p=>p.pos==='CB'),
+    LB: ranked.filter(p=>p.pos==='FB'&&hasPos(p,'LB','LWB')),
+    RB: ranked.filter(p=>p.pos==='FB'&&hasPos(p,'RB','RWB')),
+    MF: ranked.filter(p=>['DM','CM','AM'].includes(p.pos)),
+    LW: ranked.filter(p=>p.pos==='WF'&&hasPos(p,'LAMF','LW','LWF')),
+    RW: ranked.filter(p=>p.pos==='WF'&&hasPos(p,'RAMF','RW','RWF')),
+    CF: ranked.filter(p=>p.pos==='CF'),
+  };
+  const used=new Set();
+  const pick=(pool,n=1)=>{
+    const out=[];
+    for(const p of pool){if(used.has(p.id))continue;used.add(p.id);out.push(p);if(out.length===n)break;}
+    while(out.length<n)out.push(null);
+    return out;
+  };
+  const gk=pick(pools.GK,1),lb=pick(pools.LB,1),rb=pick(pools.RB,1);
+  const cbs=pick(pools.CB,2),mfs=pick(pools.MF,3);
+  const lw=pick(pools.LW,1),rw=pick(pools.RW,1),cf=pick(pools.CF,1);
+  const xi=[
+    {row:'FWD',slots:[{p:lw[0],label:'LW',xp:15},{p:cf[0],label:'CF',xp:50},{p:rw[0],label:'RW',xp:85}]},
+    {row:'MID',slots:[{p:mfs[0],label:'MF',xp:22},{p:mfs[1],label:'MF',xp:50},{p:mfs[2],label:'MF',xp:78}]},
+    {row:'DEF',slots:[{p:lb[0],label:'LB',xp:12},{p:cbs[0],label:'CB',xp:35},{p:cbs[1],label:'CB',xp:65},{p:rb[0],label:'RB',xp:88}]},
+    {row:'GK', slots:[{p:gk[0],label:'GK',xp:50}]},
+  ];
+  document.getElementById('xiPitch').innerHTML=renderXIPitch(xi,scoreKey);
+  document.getElementById('xiModal').classList.add('open');
+}
+function closeXI(){document.getElementById('xiModal').classList.remove('open');}
+function renderXIPitch(xi,scoreKey){
+  const isLight=document.body.classList.contains('light-mode');
+  const pitchBg=isLight?'#263545':'var(--surface2)';
+  const la=isLight?'0.5':'0.2',lf=isLight?'0.35':'0.18';
+  const W=540,H=390;
+  const rowYs={FWD:58,MID:160,DEF:268,GK:338};
+  let nodes='';
+  xi.forEach(({row,slots})=>{
+    const y=rowYs[row];
+    slots.forEach(({p,label,xp})=>{
+      const x=W*xp/100;
+      const isEmpty=!p;
+      const ini=p?(p.name.split(' ').map(w=>w[0]).join('').slice(0,3)):'?';
+      const score=p&&p[scoreKey]!=null?parseFloat(p[scoreKey]).toFixed(0):'—';
+      const sc=p&&p[scoreKey]!=null?parseFloat(p[scoreKey]):0;
+      const scColor=sc>=80?'#00e599':sc>=60?'#7fd97f':sc>=40?'#f5c842':sc>=20?'#ff8c42':sc>0?'#ff4d6a':'#566880';
+      const shortName=p?p.name.split(' ').slice(-1)[0]:'—';
+      const age=p&&p.age?p.age:'';
+      const team=p&&p.team?(p.team.length>10?p.team.slice(0,9)+'…':p.team):'';
+      const R=22,circ=2*Math.PI*R;
+      const dash=p?circ*(sc/100):0;
+      nodes+=`<g transform="translate(${x.toFixed(0)},${y})" ${p?`onclick="closeXI();openPanel('${p.id}')" style="cursor:pointer"`:''}">
+        <circle r="${R}" fill="${isEmpty?'rgba(255,255,255,0.04)':'var(--surface3)'}" stroke="${isEmpty?'rgba(255,255,255,0.15)':'var(--border2)'}" stroke-width="1.5"/>
+        ${p?`<circle r="${R}" fill="none" stroke="${scColor}" stroke-width="2.5" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90)" opacity="0.8"/>`:''}
+        <text text-anchor="middle" dominant-baseline="middle" fill="${isEmpty?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.9)'}" font-size="${ini.length>2?'8':'9'}" font-family="JetBrains Mono" font-weight="700">${ini}</text>
+        <text text-anchor="middle" fill="var(--accent)" font-size="7" font-family="JetBrains Mono" font-weight="600" y="-28">${label}</text>
+        <text text-anchor="middle" fill="${isEmpty?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.88)'}" font-size="9" font-family="Archivo" font-weight="600" y="32">${shortName}</text>
+        <text text-anchor="middle" fill="${scColor}" font-size="8" font-family="JetBrains Mono" font-weight="700" y="43">${score}</text>
+        ${age||team?`<text text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="7" font-family="JetBrains Mono" y="53">${[age,team].filter(Boolean).join(' · ')}</text>`:''}
+      </g>`;
+    });
+  });
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;border-radius:8px;max-width:${W}px;margin:0 auto">
+    <rect width="${W}" height="${H}" fill="${pitchBg}" rx="8"/>
+    ${[0,1,2,3,4,5].map(i=>`<rect x="${(i*W/6).toFixed(0)}" y="0" width="${(W/6).toFixed(0)}" height="${H}" fill="rgba(255,255,255,${i%2===0?'0':'0.025'})"/>`).join('')}
+    <rect x="10" y="10" width="${W-20}" height="${H-20}" fill="none" stroke="rgba(255,255,255,${la})" stroke-width="1.5"/>
+    <line x1="${W/2}" y1="10" x2="${W/2}" y2="${H-10}" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
+    <circle cx="${W/2}" cy="${H/2}" r="${(H*0.13).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
+    <circle cx="${W/2}" cy="${H/2}" r="2" fill="rgba(255,255,255,0.3)"/>
+    <line x1="20" y1="108" x2="${W-20}" y2="108" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,4"/>
+    <line x1="20" y1="213" x2="${W-20}" y2="213" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,4"/>
+    <line x1="20" y1="305" x2="${W-20}" y2="305" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,4"/>
+    ${nodes}
+  </svg>`;
+}
 
 let _cmpTab='overview';
 function setCmpTab(tab,el){
