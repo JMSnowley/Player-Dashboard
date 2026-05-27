@@ -214,7 +214,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 /* XI MODAL */
 .xi-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;align-items:center;justify-content:center}
 .xi-modal.open{display:flex}
-.xi-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px;max-width:860px;width:100%;max-height:90vh;overflow-y:auto}
+.xi-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px;max-width:880px;width:100%;max-height:95vh;overflow-y:auto}
 .xi-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
 .xi-player-node{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
 .xi-player-node:hover .xi-circle{border-color:var(--gold)}
@@ -1957,60 +1957,54 @@ function renderXIPitch(xi,scoreKey){
   const isLight=document.body.classList.contains('light-mode');
   const pitchBg=isLight?'#263545':'var(--surface2)';
   const la=isLight?'0.5':'0.2',lf=isLight?'0.35':'0.18';
-  // Horizontal pitch: GK left → CF right
-  const W=820,H=440;
-  // X positions per row (% of width): GK=7%, DEF=24%, MID=50%, FWD=76%
+  const W=820,H=480;
+  // X positions per column (% of width)
   const rowXs={GK:7,DEF:24,MID:50,FWD:76};
   let nodes='';
   xi.forEach(({row,slots})=>{
     const xp=rowXs[row];
     const x=W*xp/100;
-    // Distribute slots vertically
     const n=slots.length;
+    // Wider spread for DEF (4 players) to avoid overlap
+    const totalSpread=row==='DEF'?H*0.92:H*0.82;
+    const topMargin=(H-totalSpread)/2;
+    const spacing=n>1?totalSpread/(n-1):0;
     slots.forEach(({p,label},si)=>{
-      // Spread evenly: centre at H/2, spacing based on count
-      const spacing=H/(n+1);
-      const y=spacing*(si+1);
+      const y=n===1?H/2:topMargin+si*spacing;
       const isEmpty=!p;
-      const ini=p?(p.name.split(' ').map(w=>w[0]).join('').slice(0,3)):'?';
       const score=p&&p[scoreKey]!=null?parseFloat(p[scoreKey]).toFixed(0):'—';
       const sc=p&&p[scoreKey]!=null?parseFloat(p[scoreKey]):0;
-      const scColor=sc>=80?'#00e599':sc>=60?'#7fd97f':sc>=40?'#f5c842':sc>=20?'#ff8c42':sc>0?'#ff4d6a':'#566880';
-      const shortName=p?p.name.split(' ').slice(-1)[0]:'—';
-      const age=p&&p.age?p.age:'';
-      const team=p&&p.team?(p.team.length>11?p.team.slice(0,10)+'…':p.team):'';
-      const R=23,circ=2*Math.PI*R;
-      const dash=p?circ*(sc/100):0;
+      const scColor=sc>=80?'#00e599':sc>=60?'#7fd97f':sc>=40?'#f5c842':sc>=20?'#ff8c42':sc>0?'#ff4d6a':'rgba(255,255,255,0.3)';
+      const fullName=p?p.name:'—';
+      const age=p&&p.age?String(p.age):'';
+      const team=p&&p.team?(p.team.length>14?p.team.slice(0,13)+'…':p.team):'';
+      const R=22;
       nodes+=`<g transform="translate(${x.toFixed(0)},${y.toFixed(0)})" ${p?`onclick="closeXI();openPanel('${p.id}')" style="cursor:pointer"`:''}">
+        <!-- Full name above -->
+        <text text-anchor="middle" fill="${isEmpty?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.9)'}" font-size="9" font-family="Archivo" font-weight="600" y="-32">${fullName}</text>
+        <!-- Circle -->
         <circle r="${R}" fill="${isEmpty?'rgba(255,255,255,0.04)':'var(--surface3)'}" stroke="${isEmpty?'rgba(255,255,255,0.15)':'var(--border2)'}" stroke-width="1.5"/>
-        ${p?`<circle r="${R}" fill="none" stroke="${scColor}" stroke-width="2.5" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90)" opacity="0.85"/>`:''}
-        <text text-anchor="middle" dominant-baseline="middle" fill="${isEmpty?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.9)'}" font-size="${ini.length>2?'8':'9'}" font-family="JetBrains Mono" font-weight="700">${ini}</text>
-        <text text-anchor="middle" fill="var(--accent)" font-size="7" font-family="JetBrains Mono" font-weight="600" y="-29">${label}</text>
-        <text text-anchor="middle" fill="${isEmpty?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.9)'}" font-size="9.5" font-family="Archivo" font-weight="600" y="33">${shortName}</text>
-        <text text-anchor="middle" fill="${scColor}" font-size="8.5" font-family="JetBrains Mono" font-weight="700" y="45">${score}</text>
-        ${age||team?`<text text-anchor="middle" fill="rgba(255,255,255,0.45)" font-size="7.5" font-family="JetBrains Mono" y="56">${[age,team].filter(Boolean).join(' · ')}</text>`:''}
+        <!-- Score inside circle -->
+        <text text-anchor="middle" dominant-baseline="middle" fill="${scColor}" font-size="11" font-family="JetBrains Mono" font-weight="700" y="0">${score}</text>
+        <!-- Age below circle -->
+        <text text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="8" font-family="JetBrains Mono" y="${R+13}">${age}</text>
+        <!-- Club below age -->
+        <text text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="7.5" font-family="JetBrains Mono" y="${R+24}">${team}</text>
       </g>`;
     });
   });
-  // Vertical dividers between rows
   const divXs=[15.5,37,62.5,87].map(p=>W*p/100);
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;border-radius:8px;max-width:${W}px;margin:0 auto">
     <rect width="${W}" height="${H}" fill="${pitchBg}" rx="8"/>
     ${[0,1,2,3,4,5,6].map(i=>`<rect x="${(i*W/7).toFixed(0)}" y="0" width="${(W/7).toFixed(0)}" height="${H}" fill="rgba(255,255,255,${i%2===0?'0':'0.025'})"/>`).join('')}
-    <!-- Pitch border -->
     <rect x="10" y="10" width="${W-20}" height="${H-20}" fill="none" stroke="rgba(255,255,255,${la})" stroke-width="1.5"/>
-    <!-- Halfway line (vertical centre) -->
     <line x1="${W/2}" y1="10" x2="${W/2}" y2="${H-10}" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
-    <!-- Centre circle -->
     <circle cx="${W/2}" cy="${H/2}" r="${(H*0.16).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
     <circle cx="${W/2}" cy="${H/2}" r="2" fill="rgba(255,255,255,0.3)"/>
-    <!-- Left penalty area -->
     <rect x="10" y="${(H*0.22).toFixed(0)}" width="${(W*0.14).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
     <rect x="6" y="${(H*0.39).toFixed(0)}" width="8" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
-    <!-- Right penalty area -->
     <rect x="${(W-10-W*0.14).toFixed(0)}" y="${(H*0.22).toFixed(0)}" width="${(W*0.14).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
     <rect x="${(W-14).toFixed(0)}" y="${(H*0.39).toFixed(0)}" width="8" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
-    <!-- Row dividers -->
     ${divXs.map(x=>`<line x1="${x.toFixed(0)}" y1="15" x2="${x.toFixed(0)}" y2="${H-15}" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,4"/>`).join('')}
     ${nodes}
   </svg>`;
