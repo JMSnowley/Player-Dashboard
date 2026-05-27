@@ -7,6 +7,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#080a0d;--surface:#0e1117;--surface2:#151921;--surface3:#1c2230;--border:#1e2736;--border2:#263044;--text:#dce4f0;--muted:#566880;--muted2:#8a9bb0;--accent:#00d4ff;--accent-dim:rgba(0,212,255,0.07);--accent-border:rgba(0,212,255,0.18);--gold:#f5c842;--gold-dim:rgba(245,200,66,0.08);--green:#00e599;--green-dim:rgba(0,229,153,0.08);--red:#ff4d6a;--red-dim:rgba(255,77,106,0.08);--orange:#ff8c42;--neon:#39ff14;--neon-dim:rgba(57,255,20,0.07);--neon-glow:rgba(57,255,20,0.4);
+/* Theme toggle */
+.theme-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;padding:5px 8px;border-radius:6px;border:1px solid var(--border2);background:transparent;transition:all .2s;font-size:11px;color:var(--muted2);font-family:'JetBrains Mono',monospace}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+.tt-icon{font-size:13px;transition:transform .3s}
+/* Light mode overrides */
+body.light-mode{--bg:#f0f2f5;--surface:#ffffff;--surface2:#f5f7fa;--surface3:#e8ecf1;--border:#d1d9e0;--border2:#b8c4ce;--text:#1a2332;--muted:#6b7a8d;--muted2:#4a5568;--accent:#0086b3;--accent-dim:rgba(0,134,179,0.08);--accent-border:rgba(0,134,179,0.2);--gold:#c49a00;--gold-dim:rgba(196,154,0,0.08);--green:#1a8a57;--green-dim:rgba(26,138,87,0.08);--red:#c0392b;--red-dim:rgba(192,57,43,0.08);--orange:#d4680a;--neon:#2ea84a;--neon-dim:rgba(46,168,74,0.07);--neon-glow:rgba(46,168,74,0.3);--surface-pitch:#e4e8ed}
+body.light-mode .logo{color:var(--neon);text-shadow:0 0 8px var(--neon-glow)}
+body.light-mode th{background:var(--surface2);color:var(--muted)}
+body.light-mode .av{background:var(--surface3)}
+body.light-mode .pos-tag{background:var(--surface3);color:var(--muted)}
+body.light-mode .nav-item:hover{background:var(--surface3)}
+body.light-mode .nav-item.active{background:var(--accent-dim);border-left-color:var(--accent)}
 --sk-pass:#7c6fcd;--sk-drib:#00d4ff;--sk-goal:#f5c842;--sk-aer:#ff8c42;--sk-def:#00e599;
 --sk-stop:#f5c842;--sk-claim:#00d4ff;--sk-gkpass:#7c6fcd}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -266,6 +278,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
     <button class="btn btn-ghost" onclick="openSetupModal()">⚙ Setup</button>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="tt-icon" id="themeIcon">☀</span></button>
   </div>
 </div>
 <div class="app-body">
@@ -306,6 +319,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <div class="range-group" id="potentialSlider"></div>
         <div class="range-group" id="ptPrioritySlider"></div>
         <div class="range-group" id="leaguePctSlider"></div>
+        <div class="range-group" id="ageSlider"></div>
       </div>
     </div>
     <!-- Role sliders -->
@@ -999,7 +1013,7 @@ function toggleSb(contentId,toggleEl){
 // SIDEBAR FILTERS — SLIDERS
 // ═══════════════════════════════════
 let SLIDER_STATE={
-  rating:[0,100],potential:[0,100],ptPriority:[0,100],leaguePct:[0,100],
+  rating:[0,100],potential:[0,100],ptPriority:[0,100],leaguePct:[0,100],age:[15,45],
   roles:{},metrics:{},
 };
 
@@ -1012,6 +1026,7 @@ function initSliders(){
   renderRangeSlider('potentialSlider','Potential','potential',0,100);
   renderRangeSlider('ptPrioritySlider','PT Priority','ptPriority',0,100);
   renderRangeSlider('leaguePctSlider','League %ile','leaguePct',0,100);
+  renderRangeSlider('ageSlider','Age','age',15,45);
 
   // Role sliders — grouped by position in order: GK,CB,FB,DM,CM,AM,WF,CF
   const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
@@ -1530,10 +1545,12 @@ function getFiltered(){
   const [plo,phi]=SLIDER_STATE.potential;
   const [tlo,thi]=SLIDER_STATE.ptPriority;
   const [llo,lhi]=SLIDER_STATE.leaguePct||[0,100];
+  const [alo,ahi]=SLIDER_STATE.age||[15,45];
   if(rlo>0||rhi<100)list=list.filter(p=>p.rating!=null&&p.rating>=rlo&&p.rating<=rhi);
   if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
   if(tlo>0||thi<100)list=list.filter(p=>p.ptPriority!=null&&p.ptPriority>=tlo&&p.ptPriority<=thi);
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
+  if(alo>15||ahi<45)list=list.filter(p=>p.age!=null&&p.age>=alo&&p.age<=ahi);
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
     if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[role]!=null?p.roles[role]:null;return v!=null&&v>=lo&&v<=hi;});
   });
@@ -2331,6 +2348,19 @@ function saveSetup(){
 // NAV & FILTERS
 // ═══════════════════════════════════
 function setNavAll(el){ST.filterPos=[];ST.filterLeague=[];ST.filterNat=[];ST.filterTeam=[];ST.filterSeason=[];document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active');renderAll();}
+function toggleTheme(){
+  const isLight=document.body.classList.toggle('light-mode');
+  const icon=document.getElementById('themeIcon');
+  if(icon) icon.textContent=isLight?'🌙':'☀';
+  localStorage.setItem('plyrdash_theme',isLight?'light':'dark');
+}
+function applyStoredTheme(){
+  if(localStorage.getItem('plyrdash_theme')==='light'){
+    document.body.classList.add('light-mode');
+    const icon=document.getElementById('themeIcon');
+    if(icon) icon.textContent='🌙';
+  }
+}
 function toggleFilter(type,rawVal){
   const val=decodeURIComponent(rawVal);
   const map={pos:'filterPos',league:'filterLeague',nat:'filterNat',team:'filterTeam',season:'filterSeason'};
@@ -2383,9 +2413,9 @@ function showToast(msg,type='info'){
 // INIT
 // ═══════════════════════════════════
 loadState();
-// Always force Rating descending on load — never read from localStorage
 ST.sortKey='name';
 ST.sortDir=1;
+applyStoredTheme();
 // Don't auto-load Google scripts — only load when user explicitly clicks Connect
 initSliders();
 renderAll();
