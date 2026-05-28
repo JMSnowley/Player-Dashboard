@@ -214,7 +214,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 /* XI MODAL */
 .xi-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;align-items:center;justify-content:center}
 .xi-modal.open{display:flex}
-.xi-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px;max-width:880px;width:100%;max-height:95vh;overflow-y:auto}
+.xi-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px;max-width:1000px;width:100%;max-height:95vh;overflow-y:auto}
 .xi-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
 .xi-player-node{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
 .xi-player-node:hover .xi-circle{border-color:var(--gold)}
@@ -2087,7 +2087,7 @@ function renderXIPitch(xi,scoreKey){
   const isLight=document.body.classList.contains('light-mode');
   const pitchBg=isLight?'#263545':'var(--surface2)';
   const la=isLight?'0.5':'0.2',lf=isLight?'0.35':'0.18';
-  const W=820,H=480;
+  const W=960,H=500;
   // Fixed x% per column: GK=8%, DEF=26%, MID=52%, FWD=78%
   const colXPct=[8,26,52,78];
   let nodes='';
@@ -2121,14 +2121,14 @@ function renderXIPitch(xi,scoreKey){
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;border-radius:8px;max-width:${W}px;margin:0 auto">
     <rect width="${W}" height="${H}" fill="${pitchBg}" rx="8"/>
     ${[0,1,2,3,4,5,6].map(i=>`<rect x="${(i*W/7).toFixed(0)}" y="0" width="${(W/7).toFixed(0)}" height="${H}" fill="rgba(255,255,255,${i%2===0?'0':'0.025'})"/>`).join('')}
-    <rect x="10" y="10" width="${W-20}" height="${H-20}" fill="none" stroke="rgba(255,255,255,${la})" stroke-width="1.5"/>
-    <line x1="${W/2}" y1="10" x2="${W/2}" y2="${H-10}" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
+    <rect x="24" y="24" width="${W-48}" height="${H-48}" fill="none" stroke="rgba(255,255,255,${la})" stroke-width="1.5"/>
+    <line x1="${W/2}" y1="24" x2="${W/2}" y2="${H-24}" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
     <circle cx="${W/2}" cy="${H/2}" r="${(H*0.16).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
     <circle cx="${W/2}" cy="${H/2}" r="2" fill="rgba(255,255,255,0.3)"/>
-    <rect x="10" y="${(H*0.22).toFixed(0)}" width="${(W*0.14).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
-    <rect x="6" y="${(H*0.39).toFixed(0)}" width="8" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
-    <rect x="${(W-10-W*0.14).toFixed(0)}" y="${(H*0.22).toFixed(0)}" width="${(W*0.14).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
-    <rect x="${(W-14).toFixed(0)}" y="${(H*0.39).toFixed(0)}" width="8" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
+    <rect x="24" y="${(H*0.22).toFixed(0)}" width="${(W*0.13).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
+    <rect x="20" y="${(H*0.39).toFixed(0)}" width="10" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
+    <rect x="${(W-24-W*0.13).toFixed(0)}" y="${(H*0.22).toFixed(0)}" width="${(W*0.13).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
+    <rect x="${(W-30).toFixed(0)}" y="${(H*0.39).toFixed(0)}" width="10" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
     ${divs}
     ${nodes}
   </svg>`;
