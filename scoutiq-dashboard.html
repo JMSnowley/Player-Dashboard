@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PLYRDASH</title>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&family=Black+Ops+One&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#080a0d;--surface:#0e1117;--surface2:#151921;--surface3:#1c2230;--border:#1e2736;--border2:#263044;--text:#dce4f0;--muted:#566880;--muted2:#8a9bb0;--accent:#00d4ff;--accent-dim:rgba(0,212,255,0.07);--accent-border:rgba(0,212,255,0.18);--gold:#f5c842;--gold-dim:rgba(245,200,66,0.08);--green:#00e599;--green-dim:rgba(0,229,153,0.08);--red:#ff4d6a;--red-dim:rgba(255,77,106,0.08);--orange:#ff8c42;--neon:#39ff14;--neon-dim:rgba(57,255,20,0.07);--neon-glow:rgba(57,255,20,0.4);
 /* Theme toggle */
@@ -33,7 +33,7 @@ html,body{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:'Archivo',sans-serif;font-size:13px;display:flex;flex-direction:column}
 body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:1000;opacity:.4}
 .topbar{display:flex;align-items:center;gap:14px;padding:0 20px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100}
-.logo{font-family:'Archivo',sans-serif;font-weight:300;font-size:17px;letter-spacing:6px;color:var(--neon);text-shadow:0 0 8px var(--neon-glow),0 0 20px var(--neon-glow);white-space:nowrap;user-select:none}
+.logo{font-family:'Black Ops One',sans-serif;font-weight:400;font-size:17px;letter-spacing:5px;color:var(--neon);text-shadow:0 0 8px var(--neon-glow),0 0 20px var(--neon-glow);white-space:nowrap;user-select:none}
 .logo em{color:var(--accent);font-style:normal}
 .tb-div{width:1px;height:24px;background:var(--border2)}
 .tb-status{display:flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)}
@@ -2078,8 +2078,8 @@ function runHypTransfer(pid){
     const isSubject=p.id===player.id;
     const isSamePos=!isSubject&&p.pos===player.pos;
     let rowStyle='';
-    if(isSubject) rowStyle='background:rgba(245,200,66,0.07)';
-    else if(isSamePos) rowStyle='background:rgba(0,212,255,0.04)';
+    if(isSubject) rowStyle='background:rgba(245,200,66,0.18)';
+    else if(isSamePos) rowStyle='background:rgba(0,212,255,0.1)';
     html+=`<tr style="${rowStyle}">
       <td class="ht-rank">${i+1}</td>
       <td><div style="font-weight:600">${p.name}${isSubject?` <span style="color:var(--gold);font-size:10px">★</span>`:''}</div><div style="font-size:10px;color:var(--muted2)">${isSubject?p.team+' (current)':p.team}</div></td>
