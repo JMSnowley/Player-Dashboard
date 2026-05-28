@@ -2004,7 +2004,7 @@ function openXI(mode,keepFormation=false){
   const ranked=[...allFiltered].filter(p=>p[scoreKey]!=null).sort((a,b)=>b[scoreKey]-a[scoreKey]);
   const hasPos=(p,...abbrs)=>{const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());return abbrs.some(a=>wp.includes(a));};
   const isPrimary=(p,pos)=>p.pos===pos;
-  const slotPrimaryPos=slot=>({'GK':['GK'],'CB':['CB'],'LB':['FB'],'RB':['FB'],'LWB':['FB'],'RWB':['FB'],'MF':['DM','CM','AM'],'CM':['DM','CM','AM'],'LM':['WF','CM','AM'],'RM':['WF','CM','AM'],'LW':['WF'],'RW':['WF'],'CF':['CF'],'SS':['CF']})[slot]||[];
+  const slotPrimaryPos=slot=>({'GK':['GK'],'CB':['CB'],'LB':['FB'],'RB':['FB'],'LWB':['FB'],'RWB':['FB'],'LWB352':['FB','WF'],'RWB352':['FB','WF'],'MF':['DM','CM','AM'],'CM':['DM','CM','AM'],'LM':['WF','CM','AM'],'RM':['WF','CM','AM'],'LW':['WF'],'RW':['WF'],'CF':['CF'],'SS':['CF']})[slot]||[];
   const eligibleFor=(p,slot)=>{
     switch(slot){
       case 'GK':  return isPrimary(p,'GK');
@@ -2013,6 +2013,9 @@ function openXI(mode,keepFormation=false){
       case 'LWB': return (isPrimary(p,'FB')&&hasPos(p,'LB','LWB'))||hasPos(p,'LB','LWB');
       case 'RB':
       case 'RWB': return (isPrimary(p,'FB')&&hasPos(p,'RB','RWB'))||hasPos(p,'RB','RWB');
+      // 3-5-2 wide: best FB or WF on that flank
+      case 'LWB352': return hasPos(p,'LB','LWB','LAMF','LW','LWF');
+      case 'RWB352': return hasPos(p,'RB','RWB','RAMF','RW','RWF');
       case 'MF':
       case 'CM':  return isPrimary(p,'DM')||isPrimary(p,'CM')||isPrimary(p,'AM')||hasPos(p,'DMF','LDMF','RDMF','CMF','LCMF','RCMF','AMF','LAMF','RAMF');
       case 'LM':  return (isPrimary(p,'WF')&&hasPos(p,'LAMF','LW','LWF'))||hasPos(p,'LAMF','LW','LWF')||isPrimary(p,'CM')||isPrimary(p,'AM');
@@ -2060,7 +2063,7 @@ function openXI(mode,keepFormation=false){
     ];
   } else if(formation==='352'){
     const [gk]=pick('GK');const [cb1,cb2,cb3]=pick('CB',3);
-    const [lwb]=pick('LB');const [rwb]=pick('RB');const [cm1,cm2,cm3]=pick('CM',3);
+    const [lwb]=pick('LWB352');const [rwb]=pick('RWB352');const [cm1,cm2,cm3]=pick('CM',3);
     const [cf1,cf2]=pick('CF',2);
     xi=[
       {row:'GK', slots:[{p:gk,label:'GK'}]},
@@ -2095,7 +2098,7 @@ function renderXIPitch(xi,scoreKey){
     const x=W*colXPct[ci]/100;
     const n=slots.length;
     // Vertical spread based on player count — prevent overflow at top/bottom
-    const maxSpread=n<=2?H*0.44:n===3?H*0.70:n===4?H*0.78:H*0.88;
+    const maxSpread=n<=2?H*0.44:n===3?H*0.70:n===4?H*0.78:n===5?H*0.78:H*0.88;
     const topMargin=(H-maxSpread)/2;
     const spacing=n>1?maxSpread/(n-1):0;
     slots.forEach(({p,label},si)=>{
