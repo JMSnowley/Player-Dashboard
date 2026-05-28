@@ -2123,14 +2123,14 @@ function renderXIPitch(xi,scoreKey){
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;border-radius:8px;max-width:${W}px;margin:0 auto">
     <rect width="${W}" height="${H}" fill="${pitchBg}" rx="8"/>
     ${[0,1,2,3,4,5,6].map(i=>`<rect x="${(i*W/7).toFixed(0)}" y="0" width="${(W/7).toFixed(0)}" height="${H}" fill="rgba(255,255,255,${i%2===0?'0':'0.025'})"/>`).join('')}
-    <rect x="60" y="60" width="${W-120}" height="${H-120}" fill="none" stroke="rgba(255,255,255,${la})" stroke-width="1.5"/>
-    <line x1="${W/2}" y1="60" x2="${W/2}" y2="${H-60}" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
+    <rect x="30" y="30" width="${W-60}" height="${H-60}" fill="none" stroke="rgba(255,255,255,${la})" stroke-width="1.5"/>
+    <line x1="${W/2}" y1="30" x2="${W/2}" y2="${H-30}" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
     <circle cx="${W/2}" cy="${H/2}" r="${(H*0.16).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1.2"/>
     <circle cx="${W/2}" cy="${H/2}" r="2" fill="rgba(255,255,255,0.3)"/>
-    <rect x="60" y="${(H*0.22).toFixed(0)}" width="${(W*0.12).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
-    <rect x="55" y="${(H*0.39).toFixed(0)}" width="10" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
-    <rect x="${(W-60-W*0.12).toFixed(0)}" y="${(H*0.22).toFixed(0)}" width="${(W*0.12).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
-    <rect x="${(W-65).toFixed(0)}" y="${(H*0.39).toFixed(0)}" width="10" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
+    <rect x="30" y="${(H*0.22).toFixed(0)}" width="${(W*0.12).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
+    <rect x="25" y="${(H*0.39).toFixed(0)}" width="10" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
+    <rect x="${(W-30-W*0.12).toFixed(0)}" y="${(H*0.22).toFixed(0)}" width="${(W*0.12).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
+    <rect x="${(W-35).toFixed(0)}" y="${(H*0.39).toFixed(0)}" width="10" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
     ${nodes}
   </svg>`;
 }
