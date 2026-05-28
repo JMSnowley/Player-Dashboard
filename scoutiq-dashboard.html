@@ -918,22 +918,34 @@ async function loadFromGitHub(){
       });
       // One-off migration: apply position-based score adjustments to existing players
       const _POS_ADJ={GK:-1,CB:0,FB:-0.5,DM:0,CM:0.5,AM:1,WF:1,CF:1.5};
+      const _POS_PTP_ADJ={GK:-2,CB:0,FB:-1,DM:0,CM:1,AM:2,WF:2,CF:3};
+      // v1 used same delta for PT Priority as Rating — these are the deltas that were already applied
+      const _POS_PTP_ADJ_V1={GK:-1,CB:0,FB:-0.5,DM:0,CM:0.5,AM:1,WF:1,CF:1.5};
+      const _cap=v=>v!=null?Math.min(100,Math.round(v*10)/10):v;
       ST.players.forEach(p=>{
         if(!p.scoreAdjusted){
-          const adj=_POS_ADJ[p.pos]||0;
-          if(adj!==0){
-            if(p.rating!=null)    p.rating   =Math.round((p.rating   +adj)*10)/10;
-            if(p.potential!=null) p.potential=Math.round((p.potential+adj)*10)/10;
-            if(p.ptPriority!=null)p.ptPriority=Math.round((p.ptPriority+adj)*10)/10;
-            // Also apply to history entries
+          // Never adjusted — apply full adjustment
+          const adj=_POS_ADJ[p.pos]||0, ptAdj=_POS_PTP_ADJ[p.pos]||0;
+          p.rating   =_cap(p.rating!=null?p.rating+adj:null);
+          p.potential=_cap(p.potential!=null?p.potential+adj:null);
+          p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+ptAdj:null);
+          (p.history||[]).forEach(h=>{
+            h.rating   =_cap(h.rating!=null?h.rating+adj:null);
+            h.potential=_cap(h.potential!=null?h.potential+adj:null);
+            h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority+ptAdj:null);
+          });
+          p.scoreAdjusted=2; migrated=true;
+        } else if(p.scoreAdjusted<2){
+          // v1 adjusted — only apply PT Priority delta (new minus old) + cap all
+          const ptDelta=(_POS_PTP_ADJ[p.pos]||0)-(_POS_PTP_ADJ_V1[p.pos]||0);
+          if(ptDelta!==0){
+            p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+ptDelta:null);
             (p.history||[]).forEach(h=>{
-              if(h.rating!=null)    h.rating   =Math.round((h.rating   +adj)*10)/10;
-              if(h.potential!=null) h.potential=Math.round((h.potential+adj)*10)/10;
-              if(h.ptPriority!=null)h.ptPriority=Math.round((h.ptPriority+adj)*10)/10;
+              h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority+ptDelta:null);
             });
           }
-          p.scoreAdjusted=true;
-          migrated=true;
+          p.rating=_cap(p.rating); p.potential=_cap(p.potential); p.ptPriority=_cap(p.ptPriority);
+          p.scoreAdjusted=2; migrated=true;
         }
       });
       // Ensure sort stays name alphabetical after load
@@ -1292,14 +1304,15 @@ async function runCapture(){
   pf.style.width='85%';pl.textContent=`Resolving ${newSnaps.length} players…`;
   // Apply position-based score adjustments
   const POS_SCORE_ADJ={GK:-1,CB:0,FB:-0.5,DM:0,CM:0.5,AM:1,WF:1,CF:1.5};
+  const POS_PTP_ADJ={GK:-2,CB:0,FB:-1,DM:0,CM:1,AM:2,WF:2,CF:3};
+  const cap100=v=>v!=null?Math.min(100,Math.round(v*10)/10):v;
   newSnaps.forEach(snap=>{
     const adj=POS_SCORE_ADJ[snap.pos]||0;
-    if(adj!==0){
-      if(snap.rating!=null)    snap.rating   =Math.round((snap.rating   +adj)*10)/10;
-      if(snap.potential!=null) snap.potential=Math.round((snap.potential+adj)*10)/10;
-      if(snap.ptPriority!=null)snap.ptPriority=Math.round((snap.ptPriority+adj)*10)/10;
-    }
-    snap.scoreAdjusted=true;
+    const ptAdj=POS_PTP_ADJ[snap.pos]||0;
+    snap.rating   =cap100(snap.rating!=null?snap.rating+adj:null);
+    snap.potential=cap100(snap.potential!=null?snap.potential+adj:null);
+    snap.ptPriority=cap100(snap.ptPriority!=null?snap.ptPriority+ptAdj:null);
+    snap.scoreAdjusted=2;
   });
   ST.dupQueue=[...newSnaps];
   await processDupQueue();
@@ -1547,11 +1560,12 @@ async function resolveSnap(snap){
   createPlayer(snap);
 }
 function norm(s){return(s||'').trim().toLowerCase();}
+function capScore(v){return v!=null?Math.min(100,v):v;}
 function createPlayer(snap){
   const id=`p_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
   ST.players.push({id,name:snap.name,team:snap.team,pos:snap.pos,nationalities:snap.nationalities||[],
     age:snap.age,minutes:snap.minutes,contractExpires:snap.contractExpires,
-    rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
+    rating:capScore(snap.rating),potential:capScore(snap.potential),ptPriority:capScore(snap.ptPriority),leaguePct:snap.leaguePct,
     wyscoutPositions:snap.wyscoutPositions||'',
     season:snap.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm,
     history:[buildHistoryEntry(snap)]});
@@ -1564,7 +1578,7 @@ function addSnapshot(idx,snap){
   const snapDate=new Date(snap.capturedAt), curDate=new Date(p.capturedAt||0);
   if(snapDate>=curDate){
     Object.assign(p,{team:snap.team,nationalities:snap.nationalities||p.nationalities||[],age:snap.age,minutes:snap.minutes,
-      contractExpires:snap.contractExpires,rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,
+      contractExpires:snap.contractExpires,rating:capScore(snap.rating),potential:capScore(snap.potential),ptPriority:capScore(snap.ptPriority),leaguePct:snap.leaguePct,
       wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
       season:snap.season||p.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
   }
