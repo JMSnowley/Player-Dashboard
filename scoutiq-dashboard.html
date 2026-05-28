@@ -849,7 +849,7 @@ async function ensureAuth(){
   return new Promise(res=>{
     try{
       const client=google.accounts.oauth2.initTokenClient({client_id:ST.cfg.clientId,scope:'https://www.googleapis.com/auth/spreadsheets',
-        callback:resp=>{if(resp.error){showToast('Auth failed: '+resp.error,'error');res(false);return;}ST.auth=resp.access_token;setSheetStatus('connected');loadFromSheet();res(true);}});
+        callback:resp=>{if(resp.error){showToast('Auth failed: '+resp.error,'error');res(false);return;}ST.auth=resp.access_token;setSheetStatus('connected');res(true);}});
       client.requestAccessToken();
     }catch(e){showToast('Auth error: '+e.message,'error');res(false);}
   });
@@ -1080,7 +1080,7 @@ async function loadFromSheet(){
 
 async function saveData(){
   await saveToGitHub();
-  saveToSheet();
+  await saveToSheet();
 }
 
 async function manualSync(){
