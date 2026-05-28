@@ -736,7 +736,7 @@ const CAPTURE_GROUPS=[
 
 const COUNTRIES=['Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahrain','Bangladesh','Belarus','Belgium','Bolivia','Bosnia & Herzegovina','Brazil','Bulgaria','Burkina Faso','Cameroon','Canada','Chile','China','Colombia','Costa Rica','Croatia','Czech Republic','Denmark','DR Congo','Ecuador','Egypt','England','Estonia','Ethiopia','Finland','France','Georgia','Germany','Ghana','Greece','Guatemala','Honduras','Hungary','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kosovo','Latvia','Lebanon','Libya','Lithuania','Malaysia','Mali','Mexico','Moldova','Montenegro','Morocco','Netherlands','New Zealand','Nigeria','Northern Ireland','North Macedonia','Norway','Panama','Paraguay','Peru','Philippines','Poland','Portugal','Romania','Russia','Saudi Arabia','Scotland','Senegal','Serbia','Slovakia','Slovenia','South Africa','South Korea','Spain','Sweden','Switzerland','Syria','Tanzania','Tunisia','Turkey','Uganda','Ukraine','United Arab Emirates','Uruguay','USA','Uzbekistan','Venezuela','Vietnam','Wales','Zambia','Zimbabwe'];
 
-const COUNTRY_FLAGS={'Afghanistan':'🇦🇫','Albania':'🇦🇱','Algeria':'🇩🇿','Angola':'🇦🇴','Argentina':'🇦🇷','Armenia':'🇦🇲','Australia':'🇦🇺','Austria':'🇦🇹','Azerbaijan':'🇦🇿','Bahrain':'🇧🇭','Bangladesh':'🇧🇩','Belarus':'🇧🇾','Belgium':'🇧🇪','Bolivia':'🇧🇴','Bosnia & Herzegovina':'🇧🇦','Bosnia and Herzegovina':'🇧🇦','Bosnia-Herzegovina':'🇧🇦','Brazil':'🇧🇷','Bulgaria':'🇧🇬','Burkina Faso':'🇧🇫','Burundi':'🇧🇮','Cameroon':'🇨🇲','Canada':'🇨🇦','Cape Verde':'🇨🇻','Chile':'🇨🇱','China':'🇨🇳','PR China':'🇨🇳','Colombia':'🇨🇴','Congo':'🇨🇬','Congo DR':'🇨🇩','DR Congo':'🇨🇩','Democratic Republic of the Congo':'🇨🇩','Costa Rica':'🇨🇷','Croatia':'🇭🇷','Cuba':'🇨🇺','Cyprus':'🇨🇾','Czech Republic':'🇨🇿','Czechia':'🇨🇿','Denmark':'🇩🇰','Ecuador':'🇪🇨','Egypt':'🇪🇬','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Estonia':'🇪🇪','Ethiopia':'🇪🇹','Finland':'🇫🇮','France':'🇫🇷','Gabon':'🇬🇦','Gambia':'🇬🇲','Georgia':'🇬🇪','Germany':'🇩🇪','Ghana':'🇬🇭','Greece':'🇬🇷','Guatemala':'🇬🇹','Guinea':'🇬🇳','Guinea-Bissau':'🇬🇼','Haiti':'🇭🇹','Honduras':'🇭🇳','Hungary':'🇭🇺','Iceland':'🇮🇸','India':'🇮🇳','Indonesia':'🇮🇩','Iran':'🇮🇷','Iraq':'🇮🇶','Ireland':'🇮🇪','Republic of Ireland':'🇮🇪','Israel':'🇮🇱','Italy':'🇮🇹','Ivory Coast':'🇨🇮',"Côte d'Ivoire":'🇨🇮','Cote d Ivoire':'🇨🇮','Jamaica':'🇯🇲','Japan':'🇯🇵','Jordan':'🇯🇴','Kazakhstan':'🇰🇿','Kenya':'🇰🇪','Kosovo':'🇽🇰','Latvia':'🇱🇻','Lebanon':'🇱🇧','Liberia':'🇱🇷','Libya':'🇱🇾','Lithuania':'🇱🇹','Luxembourg':'🇱🇺','Madagascar':'🇲🇬','Malaysia':'🇲🇾','Mali':'🇲🇱','Malta':'🇲🇹','Mauritania':'🇲🇷','Mauritius':'🇲🇺','Mexico':'🇲🇽','Moldova':'🇲🇩','Montenegro':'🇲🇪','Morocco':'🇲🇦','Mozambique':'🇲🇿','Namibia':'🇳🇦','Netherlands':'🇳🇱','New Zealand':'🇳🇿','Nicaragua':'🇳🇮','Niger':'🇳🇪','Nigeria':'🇳🇬','North Korea':'🇰🇵','North Macedonia':'🇲🇰','Macedonia':'🇲🇰','Northern Ireland':'🇬🇧','Norway':'🇳🇴','Oman':'🇴🇲','Pakistan':'🇵🇰','Palestine':'🇵🇸','Panama':'🇵🇦','Paraguay':'🇵🇾','Peru':'🇵🇪','Philippines':'🇵🇭','Poland':'🇵🇱','Portugal':'🇵🇹','Romania':'🇷🇴','Russia':'🇷🇺','Rwanda':'🇷🇼','Saudi Arabia':'🇸🇦','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Senegal':'🇸🇳','Serbia':'🇷🇸','Sierra Leone':'🇸🇱','Slovakia':'🇸🇰','Slovenia':'🇸🇮','Somalia':'🇸🇴','South Africa':'🇿🇦','South Korea':'🇰🇷','Korea Republic':'🇰🇷','Spain':'🇪🇸','Sudan':'🇸🇩','Sweden':'🇸🇪','Switzerland':'🇨🇭','Syria':'🇸🇾','Tanzania':'🇹🇿','Togo':'🇹🇬','Trinidad and Tobago':'🇹🇹','Trinidad & Tobago':'🇹🇹','Tunisia':'🇹🇳','Turkey':'🇹🇷','Türkiye':'🇹🇷','Uganda':'🇺🇬','Ukraine':'🇺🇦','United Arab Emirates':'🇦🇪','UAE':'🇦🇪','United States':'🇺🇸','United States of America':'🇺🇸','USA':'🇺🇸','Uruguay':'🇺🇾','Uzbekistan':'🇺🇿','Venezuela':'🇻🇪','Vietnam':'🇻🇳','Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Zambia':'🇿🇲','Zimbabwe':'🇿🇼','Aruba':'🇦🇼','Barbados':'🇧🇧','Belize':'🇧🇿','Benin':'🇧🇯','Bermuda':'🇧🇲','Cape Verde Islands':'🇨🇻','Central African Republic':'🇨🇫','Chad':'🇹🇩','Comoros':'🇰🇲','Curaçao':'🇨🇼','Curacao':'🇨🇼','Dominica':'🇩🇲','Equatorial Guinea':'🇬🇶','Faroe Islands':'🇫🇴','French Guiana':'🇬🇫','Grenada':'🇬🇩','Guadeloupe':'🇬🇵','Guernsey':'🇬🇬','Guyana':'🇬🇾','Hong Kong':'🇭🇰','Isle of Man':'🇮🇲','Jersey':'🇯🇪','Malawi':'🇲🇼','Monaco':'🇲🇨','Montserrat':'🇲🇸','Singapore':'🇸🇬','Suriname':'🇸🇷'};
+const COUNTRY_FLAGS={'Afghanistan':'🇦🇫','Albania':'🇦🇱','Algeria':'🇩🇿','Angola':'🇦🇴','Argentina':'🇦🇷','Armenia':'🇦🇲','Australia':'🇦🇺','Austria':'🇦🇹','Azerbaijan':'🇦🇿','Bahrain':'🇧🇭','Bangladesh':'🇧🇩','Belarus':'🇧🇾','Belgium':'🇧🇪','Bolivia':'🇧🇴','Bosnia & Herzegovina':'🇧🇦','Bosnia and Herzegovina':'🇧🇦','Bosnia-Herzegovina':'🇧🇦','Brazil':'🇧🇷','Bulgaria':'🇧🇬','Burkina Faso':'🇧🇫','Burundi':'🇧🇮','Cameroon':'🇨🇲','Canada':'🇨🇦','Cape Verde':'🇨🇻','Chile':'🇨🇱','China':'🇨🇳','PR China':'🇨🇳','Colombia':'🇨🇴','Congo':'🇨🇬','Congo DR':'🇨🇩','DR Congo':'🇨🇩','Democratic Republic of the Congo':'🇨🇩','Costa Rica':'🇨🇷','Croatia':'🇭🇷','Cuba':'🇨🇺','Cyprus':'🇨🇾','Czech Republic':'🇨🇿','Czechia':'🇨🇿','Denmark':'🇩🇰','Ecuador':'🇪🇨','Egypt':'🇪🇬','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Estonia':'🇪🇪','Ethiopia':'🇪🇹','Finland':'🇫🇮','France':'🇫🇷','Gabon':'🇬🇦','Gambia':'🇬🇲','Georgia':'🇬🇪','Germany':'🇩🇪','Ghana':'🇬🇭','Greece':'🇬🇷','Guatemala':'🇬🇹','Guinea':'🇬🇳','Guinea-Bissau':'🇬🇼','Haiti':'🇭🇹','Honduras':'🇭🇳','Hungary':'🇭🇺','Iceland':'🇮🇸','India':'🇮🇳','Indonesia':'🇮🇩','Iran':'🇮🇷','Iraq':'🇮🇶','Ireland':'🇮🇪','Republic of Ireland':'🇮🇪','Israel':'🇮🇱','Italy':'🇮🇹','Ivory Coast':'🇨🇮',"Côte d'Ivoire":'🇨🇮','Cote d Ivoire':'🇨🇮','Jamaica':'🇯🇲','Japan':'🇯🇵','Jordan':'🇯🇴','Kazakhstan':'🇰🇿','Kenya':'🇰🇪','Kosovo':'🇽🇰','Latvia':'🇱🇻','Lebanon':'🇱🇧','Liberia':'🇱🇷','Libya':'🇱🇾','Lithuania':'🇱🇹','Luxembourg':'🇱🇺','Madagascar':'🇲🇬','Malaysia':'🇲🇾','Mali':'🇲🇱','Malta':'🇲🇹','Mauritania':'🇲🇷','Mauritius':'🇲🇺','Mexico':'🇲🇽','Moldova':'🇲🇩','Montenegro':'🇲🇪','Morocco':'🇲🇦','Mozambique':'🇲🇿','Namibia':'🇳🇦','Netherlands':'🇳🇱','New Zealand':'🇳🇿','Nicaragua':'🇳🇮','Niger':'🇳🇪','Nigeria':'🇳🇬','North Korea':'🇰🇵','North Macedonia':'🇲🇰','Macedonia':'🇲🇰','Northern Ireland':'🇬🇧','Norway':'🇳🇴','Oman':'🇴🇲','Pakistan':'🇵🇰','Palestine':'🇵🇸','Panama':'🇵🇦','Paraguay':'🇵🇾','Peru':'🇵🇪','Philippines':'🇵🇭','Poland':'🇵🇱','Portugal':'🇵🇹','Romania':'🇷🇴','Russia':'🇷🇺','Rwanda':'🇷🇼','Saudi Arabia':'🇸🇦','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Senegal':'🇸🇳','Serbia':'🇷🇸','Sierra Leone':'🇸🇱','Slovakia':'🇸🇰','Slovenia':'🇸🇮','Somalia':'🇸🇴','South Africa':'🇿🇦','South Korea':'🇰🇷','Korea Republic':'🇰🇷','Spain':'🇪🇸','Sudan':'🇸🇩','Sweden':'🇸🇪','Switzerland':'🇨🇭','Syria':'🇸🇾','Tanzania':'🇹🇿','Togo':'🇹🇬','Trinidad and Tobago':'🇹🇹','Trinidad & Tobago':'🇹🇹','Tunisia':'🇹🇳','Turkey':'🇹🇷','Türkiye':'🇹🇷','Uganda':'🇺🇬','Ukraine':'🇺🇦','United Arab Emirates':'🇦🇪','UAE':'🇦🇪','United States':'🇺🇸','United States of America':'🇺🇸','USA':'🇺🇸','Uruguay':'🇺🇾','Uzbekistan':'🇺🇿','Venezuela':'🇻🇪','Vietnam':'🇻🇳','Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Zambia':'🇿🇲','Zimbabwe':'🇿🇼','Aruba':'🇦🇼','Barbados':'🇧🇧','Belize':'🇧🇿','Benin':'🇧🇯','Bermuda':'🇧🇲','Cape Verde Islands':'🇨🇻','Central African Republic':'🇨🇫','Chad':'🇹🇩','Comoros':'🇰🇲','Curaçao':'🇨🇼','Curacao':'🇨🇼','Dominica':'🇩🇲','Equatorial Guinea':'🇬🇶','Faroe Islands':'🇫🇴','French Guiana':'🇬🇫','Grenada':'🇬🇩','Guadeloupe':'🇬🇵','Guernsey':'🇬🇬','Guyana':'🇬🇾','Hong Kong':'🇭🇰','Isle of Man':'🇮🇲','Jersey':'🇯🇪','Malawi':'🇲🇼','Monaco':'🇲🇨','Montserrat':'🇲🇸','Singapore':'🇸🇬','Suriname':'🇸🇷','Dominican Republic':'🇩🇴','Eritrea':'🇪🇷','St. Kitts and Nevis':'🇰🇳','Saint Kitts and Nevis':'🇰🇳','St Kitts and Nevis':'🇰🇳','St. Lucia':'🇱🇨','Saint Lucia':'🇱🇨','St Lucia':'🇱🇨','Martinique':'🇲🇶'};
 function natFlag(country){
   if(!country) return '🌍';
   const t=country.trim();
@@ -913,6 +913,26 @@ async function loadFromGitHub(){
       ST.players.forEach(p=>{
         if(!p.nationalities||!p.nationalities.length){
           p.nationalities=p.nationality?[p.nationality]:[];
+          migrated=true;
+        }
+      });
+      // One-off migration: apply position-based score adjustments to existing players
+      const _POS_ADJ={GK:-1,CB:0,FB:-0.5,DM:0,CM:0.5,AM:1,WF:1,CF:1.5};
+      ST.players.forEach(p=>{
+        if(!p.scoreAdjusted){
+          const adj=_POS_ADJ[p.pos]||0;
+          if(adj!==0){
+            if(p.rating!=null)    p.rating   =Math.round((p.rating   +adj)*10)/10;
+            if(p.potential!=null) p.potential=Math.round((p.potential+adj)*10)/10;
+            if(p.ptPriority!=null)p.ptPriority=Math.round((p.ptPriority+adj)*10)/10;
+            // Also apply to history entries
+            (p.history||[]).forEach(h=>{
+              if(h.rating!=null)    h.rating   =Math.round((h.rating   +adj)*10)/10;
+              if(h.potential!=null) h.potential=Math.round((h.potential+adj)*10)/10;
+              if(h.ptPriority!=null)h.ptPriority=Math.round((h.ptPriority+adj)*10)/10;
+            });
+          }
+          p.scoreAdjusted=true;
           migrated=true;
         }
       });
@@ -1270,6 +1290,17 @@ async function runCapture(){
     newSnaps.push(...snaps);await sleep(80);
   }
   pf.style.width='85%';pl.textContent=`Resolving ${newSnaps.length} players…`;
+  // Apply position-based score adjustments
+  const POS_SCORE_ADJ={GK:-1,CB:0,FB:-0.5,DM:0,CM:0.5,AM:1,WF:1,CF:1.5};
+  newSnaps.forEach(snap=>{
+    const adj=POS_SCORE_ADJ[snap.pos]||0;
+    if(adj!==0){
+      if(snap.rating!=null)    snap.rating   =Math.round((snap.rating   +adj)*10)/10;
+      if(snap.potential!=null) snap.potential=Math.round((snap.potential+adj)*10)/10;
+      if(snap.ptPriority!=null)snap.ptPriority=Math.round((snap.ptPriority+adj)*10)/10;
+    }
+    snap.scoreAdjusted=true;
+  });
   ST.dupQueue=[...newSnaps];
   await processDupQueue();
   pf.style.width='100%';pl.textContent='Done!';
