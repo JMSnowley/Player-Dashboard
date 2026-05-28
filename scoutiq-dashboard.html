@@ -221,8 +221,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .ht-table{width:100%;border-collapse:collapse}
 .ht-table th{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;background:var(--surface2)}
 .ht-table td{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--border);color:var(--text)}
-.ht-table tr.ht-subject td{background:rgba(245,200,66,0.08);border-left:3px solid var(--gold)}
-.ht-table tr.ht-subject td:first-child{padding-left:9px}
+.ht-table tr td{border-left:none}
 .ht-rank{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:28px}
 .ht-dropdown-item{padding:7px 10px;cursor:pointer;color:var(--text)}
 .ht-dropdown-item:hover{background:var(--accent-dim);color:var(--accent)}
@@ -2054,32 +2053,41 @@ function runHypTransfer(pid){
   const title=`${player.name} → ${team}${season?' ('+season+')':''}`;
   document.getElementById('htTitle').textContent=title;
   // Build table
-  const posConf=POS_CONFIG[player.pos]||{roles:[]};
-  const allRoles=[...new Set(combined.flatMap(p=>Object.keys(p.roles||{})))].slice(0,3);
+  const allRatings=combined.filter(p=>p.rating!=null).map(p=>p.rating);
+  const allPots=combined.filter(p=>p.potential!=null).map(p=>p.potential);
+  const htRingCell=(val,allVals)=>{
+    if(val==null)return`<td style="text-align:center">—</td>`;
+    const rank=allVals.filter(v=>v<=val).length/allVals.length;
+    const col=rank>=0.9?'#00e599':rank>=0.8?'#3dd68c':rank>=0.7?'#7fd97f':rank>=0.6?'#aad971':rank>=0.5?'#d4d964':rank>=0.4?'#f5c842':rank>=0.3?'#f5a033':rank>=0.2?'#ff8c42':rank>=0.1?'#ff6b52':'#ff4d6a';
+    const R=18,circ=2*Math.PI*R,dash=(val/100)*circ;
+    return`<td style="text-align:center;padding:6px 8px"><svg width="40" height="40" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="${R}" fill="var(--surface3)" stroke="var(--border2)" stroke-width="1.5"/>
+      <circle cx="20" cy="20" r="${R}" fill="none" stroke="${col}" stroke-width="2.5"
+        stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}"
+        stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90 20 20)" opacity="0.85"/>
+      <text x="20" y="24" text-anchor="middle" fill="${col}" font-size="10" font-family="JetBrains Mono" font-weight="700">${Math.round(val)}</text>
+    </svg></td>`;
+  };
   let html=`<table class="ht-table">
     <thead><tr>
       <th class="ht-rank">#</th>
       <th>Player</th><th>Pos</th><th>Age</th><th>Mins</th>
-      <th>Rating</th><th>Potential</th>
-      ${allRoles.map(r=>`<th>${r.replace(' %','')}</th>`).join('')}
+      <th style="text-align:center">Rating</th><th style="text-align:center">Potential</th>
     </tr></thead><tbody>`;
   combined.forEach((p,i)=>{
     const isSubject=p.id===player.id;
-    const roles=allRoles.map(r=>{
-      const v=p.roles&&p.roles[r]!=null?fmt(p.roles[r],0)+'%':'—';
-      return`<td style="font-family:'JetBrains Mono',monospace;font-size:11px">${v}</td>`;
-    }).join('');
-    const rc=ratingColor(p.rating);
-    const pc=ratingColor(p.potential);
-    html+=`<tr class="${isSubject?'ht-subject':''}">
+    const isSamePos=!isSubject&&p.pos===player.pos;
+    let rowStyle='';
+    if(isSubject) rowStyle='background:rgba(245,200,66,0.07)';
+    else if(isSamePos) rowStyle='background:rgba(0,212,255,0.04)';
+    html+=`<tr style="${rowStyle}">
       <td class="ht-rank">${i+1}</td>
-      <td><div style="font-weight:600">${p.name}</div><div style="font-size:10px;color:var(--muted2)">${isSubject?'<span style="color:var(--gold)">★ Transfer</span> · ':' '}${p.team}</div></td>
+      <td><div style="font-weight:600">${p.name}${isSubject?` <span style="color:var(--gold);font-size:10px">★</span>`:''}</div><div style="font-size:10px;color:var(--muted2)">${isSubject?p.team+' (current)':p.team}</div></td>
       <td><span class="pos-tag">${p.pos}</span></td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.age||'—'}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${rc}">${p.rating!=null?fmt(p.rating):'—'}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${pc}">${p.potential!=null?fmt(p.potential):'—'}</td>
-      ${roles}
+      ${htRingCell(p.rating,allRatings)}
+      ${htRingCell(p.potential,allPots)}
     </tr>`;
   });
   html+='</tbody></table>';
@@ -2425,8 +2433,7 @@ function renderPanel(){
         <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
         <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
         <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
-        ${(p.nationalities&&p.nationalities.length)?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:13px">${p.nationalities.map(n=>natFlag(n)+' '+n).join(', ')}</div></div>`:''}
-        ${p.contractExpires?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Contract</div><div class="sg-v" style="font-size:13px">${p.contractExpires}</div></div>`:''}
+        ${(p.nationalities&&p.nationalities.length)?`<div class="sg-item"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:12px">${p.nationalities.map(n=>natFlag(n)).join(' ')}</div></div>`:''}
       </div>
       ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
       ${p.wyscoutPositions?`<div class="pst" style="margin-top:12px">Positions</div>${buildPitchSVG(p.wyscoutPositions)}`:''}
