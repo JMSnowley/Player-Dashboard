@@ -744,7 +744,7 @@ const CAPTURE_GROUPS=[
 
 const COUNTRIES=['Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahrain','Bangladesh','Belarus','Belgium','Bolivia','Bosnia & Herzegovina','Brazil','Bulgaria','Burkina Faso','Cameroon','Canada','Chile','China','Colombia','Costa Rica','Croatia','Czech Republic','Denmark','DR Congo','Ecuador','Egypt','England','Estonia','Ethiopia','Finland','France','Georgia','Germany','Ghana','Greece','Guatemala','Honduras','Hungary','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kosovo','Latvia','Lebanon','Libya','Lithuania','Malaysia','Mali','Mexico','Moldova','Montenegro','Morocco','Netherlands','New Zealand','Nigeria','Northern Ireland','North Macedonia','Norway','Panama','Paraguay','Peru','Philippines','Poland','Portugal','Romania','Russia','Saudi Arabia','Scotland','Senegal','Serbia','Slovakia','Slovenia','South Africa','South Korea','Spain','Sweden','Switzerland','Syria','Tanzania','Tunisia','Turkey','Uganda','Ukraine','United Arab Emirates','Uruguay','USA','Uzbekistan','Venezuela','Vietnam','Wales','Zambia','Zimbabwe'];
 
-const COUNTRY_FLAGS={'Afghanistan':'🇦🇫','Albania':'🇦🇱','Algeria':'🇩🇿','Angola':'🇦🇴','Argentina':'🇦🇷','Armenia':'🇦🇲','Australia':'🇦🇺','Austria':'🇦🇹','Azerbaijan':'🇦🇿','Bahrain':'🇧🇭','Bangladesh':'🇧🇩','Belarus':'🇧🇾','Belgium':'🇧🇪','Bolivia':'🇧🇴','Bosnia & Herzegovina':'🇧🇦','Bosnia and Herzegovina':'🇧🇦','Bosnia-Herzegovina':'🇧🇦','Brazil':'🇧🇷','Bulgaria':'🇧🇬','Burkina Faso':'🇧🇫','Burundi':'🇧🇮','Cameroon':'🇨🇲','Canada':'🇨🇦','Cape Verde':'🇨🇻','Chile':'🇨🇱','China':'🇨🇳','PR China':'🇨🇳','Colombia':'🇨🇴','Congo':'🇨🇬','Congo DR':'🇨🇩','DR Congo':'🇨🇩','Democratic Republic of the Congo':'🇨🇩','Costa Rica':'🇨🇷','Croatia':'🇭🇷','Cuba':'🇨🇺','Cyprus':'🇨🇾','Czech Republic':'🇨🇿','Czechia':'🇨🇿','Denmark':'🇩🇰','Ecuador':'🇪🇨','Egypt':'🇪🇬','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Estonia':'🇪🇪','Ethiopia':'🇪🇹','Finland':'🇫🇮','France':'🇫🇷','Gabon':'🇬🇦','Gambia':'🇬🇲','Georgia':'🇬🇪','Germany':'🇩🇪','Ghana':'🇬🇭','Greece':'🇬🇷','Guatemala':'🇬🇹','Guinea':'🇬🇳','Guinea-Bissau':'🇬🇼','Haiti':'🇭🇹','Honduras':'🇭🇳','Hungary':'🇭🇺','Iceland':'🇮🇸','India':'🇮🇳','Indonesia':'🇮🇩','Iran':'🇮🇷','Iraq':'🇮🇶','Ireland':'🇮🇪','Republic of Ireland':'🇮🇪','Israel':'🇮🇱','Italy':'🇮🇹','Ivory Coast':'🇨🇮',"Côte d'Ivoire":'🇨🇮','Cote d Ivoire':'🇨🇮','Jamaica':'🇯🇲','Japan':'🇯🇵','Jordan':'🇯🇴','Kazakhstan':'🇰🇿','Kenya':'🇰🇪','Kosovo':'🇽🇰','Latvia':'🇱🇻','Lebanon':'🇱🇧','Liberia':'🇱🇷','Libya':'🇱🇾','Lithuania':'🇱🇹','Luxembourg':'🇱🇺','Madagascar':'🇲🇬','Malaysia':'🇲🇾','Mali':'🇲🇱','Malta':'🇲🇹','Mauritania':'🇲🇷','Mauritius':'🇲🇺','Mexico':'🇲🇽','Moldova':'🇲🇩','Montenegro':'🇲🇪','Morocco':'🇲🇦','Mozambique':'🇲🇿','Namibia':'🇳🇦','Netherlands':'🇳🇱','New Zealand':'🇳🇿','Nicaragua':'🇳🇮','Niger':'🇳🇪','Nigeria':'🇳🇬','North Korea':'🇰🇵','North Macedonia':'🇲🇰','Macedonia':'🇲🇰','Northern Ireland':'🇬🇧','Norway':'🇳🇴','Oman':'🇴🇲','Pakistan':'🇵🇰','Palestine':'🇵🇸','Panama':'🇵🇦','Paraguay':'🇵🇾','Peru':'🇵🇪','Philippines':'🇵🇭','Poland':'🇵🇱','Portugal':'🇵🇹','Romania':'🇷🇴','Russia':'🇷🇺','Rwanda':'🇷🇼','Saudi Arabia':'🇸🇦','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Senegal':'🇸🇳','Serbia':'🇷🇸','Sierra Leone':'🇸🇱','Slovakia':'🇸🇰','Slovenia':'🇸🇮','Somalia':'🇸🇴','South Africa':'🇿🇦','South Korea':'🇰🇷','Korea Republic':'🇰🇷','Spain':'🇪🇸','Sudan':'🇸🇩','Sweden':'🇸🇪','Switzerland':'🇨🇭','Syria':'🇸🇾','Tanzania':'🇹🇿','Togo':'🇹🇬','Trinidad and Tobago':'🇹🇹','Trinidad & Tobago':'🇹🇹','Tunisia':'🇹🇳','Turkey':'🇹🇷','Türkiye':'🇹🇷','Uganda':'🇺🇬','Ukraine':'🇺🇦','United Arab Emirates':'🇦🇪','UAE':'🇦🇪','United States':'🇺🇸','United States of America':'🇺🇸','USA':'🇺🇸','Uruguay':'🇺🇾','Uzbekistan':'🇺🇿','Venezuela':'🇻🇪','Vietnam':'🇻🇳','Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Zambia':'🇿🇲','Zimbabwe':'🇿🇼','Aruba':'🇦🇼','Barbados':'🇧🇧','Belize':'🇧🇿','Benin':'🇧🇯','Bermuda':'🇧🇲','Cape Verde Islands':'🇨🇻','Central African Republic':'🇨🇫','Chad':'🇹🇩','Comoros':'🇰🇲','Curaçao':'🇨🇼','Curacao':'🇨🇼','Dominica':'🇩🇲','Equatorial Guinea':'🇬🇶','Faroe Islands':'🇫🇴','French Guiana':'🇬🇫','Grenada':'🇬🇩','Guadeloupe':'🇬🇵','Guernsey':'🇬🇬','Guyana':'🇬🇾','Hong Kong':'🇭🇰','Isle of Man':'🇮🇲','Jersey':'🇯🇪','Malawi':'🇲🇼','Monaco':'🇲🇨','Montserrat':'🇲🇸','Singapore':'🇸🇬','Suriname':'🇸🇷','Dominican Republic':'🇩🇴','Eritrea':'🇪🇷','St. Kitts and Nevis':'🇰🇳','Saint Kitts and Nevis':'🇰🇳','St Kitts and Nevis':'🇰🇳','St. Lucia':'🇱🇨','Saint Lucia':'🇱🇨','St Lucia':'🇱🇨','Martinique':'🇲🇶'};
+const COUNTRY_FLAGS={'Afghanistan':'🇦🇫','Albania':'🇦🇱','Algeria':'🇩🇿','Angola':'🇦🇴','Argentina':'🇦🇷','Armenia':'🇦🇲','Australia':'🇦🇺','Austria':'🇦🇹','Azerbaijan':'🇦🇿','Bahrain':'🇧🇭','Bangladesh':'🇧🇩','Belarus':'🇧🇾','Belgium':'🇧🇪','Bolivia':'🇧🇴','Bosnia & Herzegovina':'🇧🇦','Bosnia and Herzegovina':'🇧🇦','Bosnia-Herzegovina':'🇧🇦','Brazil':'🇧🇷','Bulgaria':'🇧🇬','Burkina Faso':'🇧🇫','Burundi':'🇧🇮','Cameroon':'🇨🇲','Canada':'🇨🇦','Cape Verde':'🇨🇻','Chile':'🇨🇱','China':'🇨🇳','PR China':'🇨🇳','Colombia':'🇨🇴','Congo':'🇨🇬','Congo DR':'🇨🇩','DR Congo':'🇨🇩','Democratic Republic of the Congo':'🇨🇩','Costa Rica':'🇨🇷','Croatia':'🇭🇷','Cuba':'🇨🇺','Cyprus':'🇨🇾','Czech Republic':'🇨🇿','Czechia':'🇨🇿','Denmark':'🇩🇰','Ecuador':'🇪🇨','Egypt':'🇪🇬','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Estonia':'🇪🇪','Ethiopia':'🇪🇹','Finland':'🇫🇮','France':'🇫🇷','Gabon':'🇬🇦','Gambia':'🇬🇲','Georgia':'🇬🇪','Germany':'🇩🇪','Ghana':'🇬🇭','Greece':'🇬🇷','Guatemala':'🇬🇹','Guinea':'🇬🇳','Guinea-Bissau':'🇬🇼','Haiti':'🇭🇹','Honduras':'🇭🇳','Hungary':'🇭🇺','Iceland':'🇮🇸','India':'🇮🇳','Indonesia':'🇮🇩','Iran':'🇮🇷','Iraq':'🇮🇶','Ireland':'🇮🇪','Republic of Ireland':'🇮🇪','Israel':'🇮🇱','Italy':'🇮🇹','Ivory Coast':'🇨🇮',"Côte d'Ivoire":'🇨🇮','Cote d Ivoire':'🇨🇮','Jamaica':'🇯🇲','Japan':'🇯🇵','Jordan':'🇯🇴','Kazakhstan':'🇰🇿','Kenya':'🇰🇪','Kosovo':'🇽🇰','Latvia':'🇱🇻','Lebanon':'🇱🇧','Liberia':'🇱🇷','Libya':'🇱🇾','Lithuania':'🇱🇹','Luxembourg':'🇱🇺','Madagascar':'🇲🇬','Malaysia':'🇲🇾','Mali':'🇲🇱','Malta':'🇲🇹','Mauritania':'🇲🇷','Mauritius':'🇲🇺','Mexico':'🇲🇽','Moldova':'🇲🇩','Montenegro':'🇲🇪','Morocco':'🇲🇦','Mozambique':'🇲🇿','Namibia':'🇳🇦','Netherlands':'🇳🇱','New Zealand':'🇳🇿','Nicaragua':'🇳🇮','Niger':'🇳🇪','Nigeria':'🇳🇬','North Korea':'🇰🇵','North Macedonia':'🇲🇰','Macedonia':'🇲🇰','Northern Ireland':'🇬🇧','Norway':'🇳🇴','Oman':'🇴🇲','Pakistan':'🇵🇰','Palestine':'🇵🇸','Panama':'🇵🇦','Paraguay':'🇵🇾','Peru':'🇵🇪','Philippines':'🇵🇭','Poland':'🇵🇱','Portugal':'🇵🇹','Romania':'🇷🇴','Russia':'🇷🇺','Rwanda':'🇷🇼','Saudi Arabia':'🇸🇦','Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Senegal':'🇸🇳','Serbia':'🇷🇸','Sierra Leone':'🇸🇱','Slovakia':'🇸🇰','Slovenia':'🇸🇮','Somalia':'🇸🇴','South Africa':'🇿🇦','South Korea':'🇰🇷','Korea Republic':'🇰🇷','Spain':'🇪🇸','Sudan':'🇸🇩','Sweden':'🇸🇪','Switzerland':'🇨🇭','Syria':'🇸🇾','Tanzania':'🇹🇿','Togo':'🇹🇬','Trinidad and Tobago':'🇹🇹','Trinidad & Tobago':'🇹🇹','Tunisia':'🇹🇳','Turkey':'🇹🇷','Türkiye':'🇹🇷','Uganda':'🇺🇬','Ukraine':'🇺🇦','United Arab Emirates':'🇦🇪','UAE':'🇦🇪','United States':'🇺🇸','United States of America':'🇺🇸','USA':'🇺🇸','Uruguay':'🇺🇾','Uzbekistan':'🇺🇿','Venezuela':'🇻🇪','Vietnam':'🇻🇳','Wales':'🏴󠁧󠁢󠁷󠁬󠁳󠁿','Zambia':'🇿🇲','Zimbabwe':'🇿🇼','Aruba':'🇦🇼','Barbados':'🇧🇧','Belize':'🇧🇿','Benin':'🇧🇯','Bermuda':'🇧🇲','Cape Verde Islands':'🇨🇻','Central African Republic':'🇨🇫','Chad':'🇹🇩','Comoros':'🇰🇲','Curaçao':'🇨🇼','Curacao':'🇨🇼','Dominica':'🇩🇲','Equatorial Guinea':'🇬🇶','Faroe Islands':'🇫🇴','French Guiana':'🇬🇫','Grenada':'🇬🇩','Guadeloupe':'🇬🇵','Guernsey':'🇬🇬','Guyana':'🇬🇾','Hong Kong':'🇭🇰','Isle of Man':'🇮🇲','Jersey':'🇯🇪','Malawi':'🇲🇼','Monaco':'🇲🇨','Montserrat':'🇲🇸','Singapore':'🇸🇬','Suriname':'🇸🇷','Great Britain':'🇬🇧','United Kingdom':'🇬🇧','Lesotho':'🇱🇸','Dominican Republic':'🇩🇴','Eritrea':'🇪🇷','St. Kitts and Nevis':'🇰🇳','Saint Kitts and Nevis':'🇰🇳','St Kitts and Nevis':'🇰🇳','St. Lucia':'🇱🇨','Saint Lucia':'🇱🇨','St Lucia':'🇱🇨','Martinique':'🇲🇶'};
 function natFlag(country){
   if(!country) return '🌍';
   const t=country.trim();
@@ -2534,14 +2534,20 @@ function renderPanel(){
     }
     // Snapshots list (newest first)
     const histDesc=[...hist].reverse();
+    // Map reversed index back to original history index for deletion
+    const origIdxMap=histDesc.map(h=>hist.indexOf(h));
     body.innerHTML=graphHTML+`<div class="pst">${hist.length} Snapshot${hist.length!==1?'s':''}</div>
       ${histDesc.map((h,i)=>{
         const hrc=ratingColor(h.rating);
+        const origIdx=origIdxMap[i];
+        const canDelete=ST._isEditor!==false&&hist.length>1;
         return`<div class="hist-item">
           <div class="hist-header" onclick="toggleHist(this)">
             <div><div class="hist-date">${fmtDate(h.capturedAt)}</div><div class="hist-league">${h.leagueTag||''} · ${h.team||''}</div></div>
-            <div class="hist-rating" style="color:${hrc}">${h.rating!=null?fmt(h.rating):'—'}</div>
-            <span style="color:var(--muted);font-size:11px;margin-left:6px">›</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div class="hist-rating" style="color:${hrc}">${h.rating!=null?fmt(h.rating):'—'}</div>
+              <span style="color:var(--muted);font-size:11px">›</span>
+            </div>
           </div>
           <div class="hist-body" id="hb_${i}">
             <div class="hist-grid">
@@ -2552,10 +2558,26 @@ function renderPanel(){
             </div>
             ${h.roles&&Object.keys(h.roles).length?`<div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Top Role</div>
             ${Object.entries(h.roles).sort((a,b)=>b[1]-a[1]).slice(0,1).map(([r,v])=>`<div style="font-size:11px;font-weight:600;color:var(--accent)">${r.replace(' %','')}: ${fmt(v,1)}%</div>`).join('')}`:''}
+            ${canDelete?`<button class="btn btn-danger" style="font-size:10px;padding:4px 10px;margin-top:8px;width:100%;justify-content:center" onclick="deleteSnapshot('${p.id}',${origIdx})">✕ Delete this snapshot</button>`:''}
           </div>
         </div>`;
       }).join('')}`;
   }
+}
+function deleteSnapshot(playerId,histIdx){
+  if(!confirm('Delete this snapshot? This cannot be undone.')) return;
+  const p=ST.players.find(x=>x.id===playerId);
+  if(!p||!p.history||p.history.length<=1){showToast('Cannot delete the only snapshot','error');return;}
+  p.history.splice(histIdx,1);
+  // If we deleted the most recent snapshot, update the main player record to the new most recent
+  const latest=p.history.reduce((a,b)=>new Date(a.capturedAt)>new Date(b.capturedAt)?a:b);
+  Object.assign(p,{
+    team:latest.team,leagueTag:latest.leagueTag,season:latest.season||p.season,
+    rating:latest.rating,potential:latest.potential,ptPriority:latest.ptPriority,
+    capturedAt:latest.capturedAt,roles:latest.roles,
+    age:latest.age,minutes:latest.minutes,
+  });
+  saveState();saveData();renderPanel();showToast('Snapshot deleted','success');
 }
 function toggleHist(el){const b=el.nextElementSibling;b.classList.toggle('open');el.querySelector('span:last-child').textContent=b.classList.contains('open')?'⌄':'›';}
 
