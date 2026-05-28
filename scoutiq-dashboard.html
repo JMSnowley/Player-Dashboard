@@ -442,7 +442,15 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   <div class="xi-panel">
     <div class="xi-title">
       <span id="xiTitle">Best XI</span>
-      <button class="btn btn-ghost" style="font-size:11px" onclick="closeXI()">✕ Close</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="xiFormation" onchange="redrawXI()" style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px">
+          <option value="433">4-3-3</option>
+          <option value="442">4-4-2</option>
+          <option value="352">3-5-2</option>
+          <option value="343">3-4-3</option>
+        </select>
+        <button class="btn btn-ghost" style="font-size:11px" onclick="closeXI()">✕ Close</button>
+      </div>
     </div>
     <div id="xiPitch"></div>
   </div>
@@ -1983,83 +1991,94 @@ function buildPitchSVG(posStr){
 // ═══════════════════════════════════
 // BEST XI / BEST POTENTIAL XI
 // ═══════════════════════════════════
-function openXI(mode){
+let _xiMode='best';
+function redrawXI(){openXI(_xiMode,true);}
+function openXI(mode,keepFormation=false){
+  _xiMode=mode;
+  const formation=keepFormation?(document.getElementById('xiFormation').value||'433'):'433';
+  if(!keepFormation)document.getElementById('xiFormation').value='433';
+  const fmtLabel={'433':'4-3-3','442':'4-4-2','352':'3-5-2','343':'3-4-3'}[formation]||'4-3-3';
+  document.getElementById('xiTitle').textContent=(mode==='best'?'Best XI':'Best Potential XI')+' ('+fmtLabel+')';
   const {allFiltered}=getFiltered();
-  document.getElementById('xiTitle').textContent=mode==='best'?'Best XI (4-3-3)':'Best Potential XI (4-3-3)';
   const scoreKey=mode==='best'?'rating':'potential';
   const ranked=[...allFiltered].filter(p=>p[scoreKey]!=null).sort((a,b)=>b[scoreKey]-a[scoreKey]);
-
-  const hasPos=(p,...abbrs)=>{
-    const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());
-    return abbrs.some(a=>wp.includes(a));
-  };
-
-  // Primary pos check
+  const hasPos=(p,...abbrs)=>{const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());return abbrs.some(a=>wp.includes(a));};
   const isPrimary=(p,pos)=>p.pos===pos;
-  // Cross-position eligibility: other pos groups whose wyscoutPositions suggest this slot
-  // Primary pos groups per slot
-  const slotPrimaryPos=(slot)=>({
-    GK:['GK'],CB:['CB'],LB:['FB'],RB:['FB'],MF:['DM','CM','AM'],LW:['WF'],RW:['WF'],CF:['CF']
-  })[slot]||[];
-
-  // Cross-position eligibility: other pos groups whose wyscoutPositions suggest this slot
+  const slotPrimaryPos=slot=>({'GK':['GK'],'CB':['CB'],'LB':['FB'],'RB':['FB'],'LWB':['FB'],'RWB':['FB'],'MF':['DM','CM','AM'],'CM':['DM','CM','AM'],'LM':['WF','CM','AM'],'RM':['WF','CM','AM'],'LW':['WF'],'RW':['WF'],'CF':['CF'],'SS':['CF']})[slot]||[];
   const eligibleFor=(p,slot)=>{
     switch(slot){
       case 'GK':  return isPrimary(p,'GK');
-      case 'CB':  return isPrimary(p,'CB') || hasPos(p,'CB','LCB','RCB');
-      case 'LB':  return (isPrimary(p,'FB') && hasPos(p,'LB','LWB')) || hasPos(p,'LB','LWB');
-      case 'RB':  return (isPrimary(p,'FB') && hasPos(p,'RB','RWB')) || hasPos(p,'RB','RWB');
-      case 'MF':  return isPrimary(p,'DM')||isPrimary(p,'CM')||isPrimary(p,'AM') || hasPos(p,'DMF','LDMF','RDMF','CMF','LCMF','RCMF','AMF','LAMF','RAMF');
-      case 'LW':  return (isPrimary(p,'WF') && hasPos(p,'LAMF','LW','LWF')) || hasPos(p,'LAMF','LW','LWF');
-      case 'RW':  return (isPrimary(p,'WF') && hasPos(p,'RAMF','RW','RWF')) || hasPos(p,'RAMF','RW','RWF');
-      case 'CF':  return isPrimary(p,'CF') || hasPos(p,'CF','SS');
+      case 'CB':  return isPrimary(p,'CB')||hasPos(p,'CB','LCB','RCB');
+      case 'LB':
+      case 'LWB': return (isPrimary(p,'FB')&&hasPos(p,'LB','LWB'))||hasPos(p,'LB','LWB');
+      case 'RB':
+      case 'RWB': return (isPrimary(p,'FB')&&hasPos(p,'RB','RWB'))||hasPos(p,'RB','RWB');
+      case 'MF':
+      case 'CM':  return isPrimary(p,'DM')||isPrimary(p,'CM')||isPrimary(p,'AM')||hasPos(p,'DMF','LDMF','RDMF','CMF','LCMF','RCMF','AMF','LAMF','RAMF');
+      case 'LM':  return (isPrimary(p,'WF')&&hasPos(p,'LAMF','LW','LWF'))||hasPos(p,'LAMF','LW','LWF')||isPrimary(p,'CM')||isPrimary(p,'AM');
+      case 'RM':  return (isPrimary(p,'WF')&&hasPos(p,'RAMF','RW','RWF'))||hasPos(p,'RAMF','RW','RWF')||isPrimary(p,'CM')||isPrimary(p,'AM');
+      case 'LW':  return (isPrimary(p,'WF')&&hasPos(p,'LAMF','LW','LWF'))||hasPos(p,'LAMF','LW','LWF');
+      case 'RW':  return (isPrimary(p,'WF')&&hasPos(p,'RAMF','RW','RWF'))||hasPos(p,'RAMF','RW','RWF');
+      case 'CF':
+      case 'SS':  return isPrimary(p,'CF')||hasPos(p,'CF','SS');
       default:    return false;
     }
   };
-
-  // Sort each slot pool: primary-pos players first, then cross-pos by score
-  const buildPool=(slot)=>[...ranked]
-    .filter(p=>eligibleFor(p,slot))
-    .sort((a,b)=>{
-      const ap=slotPrimaryPos(slot),aPrim=ap.includes(a.pos)?1:0,bPrim=ap.includes(b.pos)?1:0;
-      if(aPrim!==bPrim) return bPrim-aPrim;
-      return b[scoreKey]-a[scoreKey];
-    });
-
+  const buildPool=slot=>[...ranked].filter(p=>eligibleFor(p,slot)).sort((a,b)=>{
+    const ap=slotPrimaryPos(slot),aPrim=ap.includes(a.pos)?1:0,bPrim=ap.includes(b.pos)?1:0;
+    if(aPrim!==bPrim)return bPrim-aPrim;
+    return b[scoreKey]-a[scoreKey];
+  });
   const used=new Set();
-  const pickPool=(pool,n=1)=>{
-    const out=[];
+  const pick=(slot,n=1)=>{
+    const pool=buildPool(slot),out=[];
     for(const p of pool){if(used.has(p.id))continue;used.add(p.id);out.push(p);if(out.length===n)break;}
     while(out.length<n)out.push(null);
     return out;
   };
-
-  const slots={
-    GK:  buildPool('GK'),
-    CB:  buildPool('CB'),
-    LB:  buildPool('LB'),
-    RB:  buildPool('RB'),
-    MF:  buildPool('MF'),
-    LW:  buildPool('LW'),
-    RW:  buildPool('RW'),
-    CF:  buildPool('CF'),
-  };
-
-  const gk=pickPool(slots.GK,1);
-  const lb=pickPool(slots.LB,1);
-  const rb=pickPool(slots.RB,1);
-  const cbs=pickPool(slots.CB,2);
-  const mfs=pickPool(slots.MF,3);
-  const lw=pickPool(slots.LW,1);
-  const rw=pickPool(slots.RW,1);
-  const cf=pickPool(slots.CF,1);
-
-  const xi=[
-    {row:'GK',  slots:[{p:gk[0], label:'GK'}]},
-    {row:'DEF', slots:[{p:lb[0], label:'LB'},{p:cbs[0],label:'CB'},{p:cbs[1],label:'CB'},{p:rb[0], label:'RB'}]},
-    {row:'MID', slots:[{p:mfs[0],label:'MF'},{p:mfs[1],label:'MF'},{p:mfs[2],label:'MF'}]},
-    {row:'FWD', slots:[{p:lw[0], label:'LW'},{p:cf[0], label:'CF'},{p:rw[0], label:'RW'}]},
-  ];
+  let xi=[];
+  if(formation==='433'){
+    const [gk]=pick('GK');const [lb]=pick('LB');const [rb]=pick('RB');
+    const [cb1,cb2]=pick('CB',2);const [mf1,mf2,mf3]=pick('MF',3);
+    const [lw]=pick('LW');const [rw]=pick('RW');const [cf]=pick('CF');
+    xi=[
+      {row:'GK', slots:[{p:gk,label:'GK'}]},
+      {row:'DEF',slots:[{p:lb,label:'LB'},{p:cb1,label:'CB'},{p:cb2,label:'CB'},{p:rb,label:'RB'}]},
+      {row:'MID',slots:[{p:mf1,label:'MF'},{p:mf2,label:'MF'},{p:mf3,label:'MF'}]},
+      {row:'FWD',slots:[{p:lw,label:'LW'},{p:cf,label:'CF'},{p:rw,label:'RW'}]},
+    ];
+  } else if(formation==='442'){
+    const [gk]=pick('GK');const [lb]=pick('LB');const [rb]=pick('RB');
+    const [cb1,cb2]=pick('CB',2);
+    const [lm]=pick('LW');const [rm]=pick('RW');const [cm1,cm2]=pick('CM',2);
+    const [cf1,cf2]=pick('CF',2);
+    xi=[
+      {row:'GK', slots:[{p:gk,label:'GK'}]},
+      {row:'DEF',slots:[{p:lb,label:'LB'},{p:cb1,label:'CB'},{p:cb2,label:'CB'},{p:rb,label:'RB'}]},
+      {row:'MID',slots:[{p:lm,label:'LW'},{p:cm1,label:'CM'},{p:cm2,label:'CM'},{p:rm,label:'RW'}]},
+      {row:'FWD',slots:[{p:cf1,label:'CF'},{p:cf2,label:'CF'}]},
+    ];
+  } else if(formation==='352'){
+    const [gk]=pick('GK');const [cb1,cb2,cb3]=pick('CB',3);
+    const [lwb]=pick('LB');const [rwb]=pick('RB');const [cm1,cm2,cm3]=pick('CM',3);
+    const [cf1,cf2]=pick('CF',2);
+    xi=[
+      {row:'GK', slots:[{p:gk,label:'GK'}]},
+      {row:'DEF',slots:[{p:cb1,label:'CB'},{p:cb2,label:'CB'},{p:cb3,label:'CB'}]},
+      {row:'MID',slots:[{p:lwb,label:'LWB'},{p:cm1,label:'MF'},{p:cm2,label:'MF'},{p:cm3,label:'MF'},{p:rwb,label:'RWB'}]},
+      {row:'FWD',slots:[{p:cf1,label:'CF'},{p:cf2,label:'CF'}]},
+    ];
+  } else if(formation==='343'){
+    const [gk]=pick('GK');const [cb1,cb2,cb3]=pick('CB',3);
+    const [lwb]=pick('LB');const [rwb]=pick('RB');const [cm1,cm2]=pick('CM',2);
+    const [lw]=pick('LW');const [rw]=pick('RW');const [cf]=pick('CF');
+    xi=[
+      {row:'GK', slots:[{p:gk,label:'GK'}]},
+      {row:'DEF',slots:[{p:cb1,label:'CB'},{p:cb2,label:'CB'},{p:cb3,label:'CB'}]},
+      {row:'MID',slots:[{p:lwb,label:'LWB'},{p:cm1,label:'MF'},{p:cm2,label:'MF'},{p:rwb,label:'RWB'}]},
+      {row:'FWD',slots:[{p:lw,label:'LW'},{p:cf,label:'CF'},{p:rw,label:'RW'}]},
+    ];
+  }
   document.getElementById('xiPitch').innerHTML=renderXIPitch(xi,scoreKey);
   document.getElementById('xiModal').classList.add('open');
 }
@@ -2069,17 +2088,16 @@ function renderXIPitch(xi,scoreKey){
   const pitchBg=isLight?'#263545':'var(--surface2)';
   const la=isLight?'0.5':'0.2',lf=isLight?'0.35':'0.18';
   const W=820,H=480;
-  // X positions per column (% of width)
-  const rowXs={GK:7,DEF:24,MID:50,FWD:76};
+  // Fixed x% per column: GK=8%, DEF=26%, MID=52%, FWD=78%
+  const colXPct=[8,26,52,78];
   let nodes='';
-  xi.forEach(({row,slots})=>{
-    const xp=rowXs[row];
-    const x=W*xp/100;
+  xi.forEach(({row,slots},ci)=>{
+    const x=W*colXPct[ci]/100;
     const n=slots.length;
-    // Wider spread for DEF (4 players) to avoid overlap
-    const totalSpread=row==='DEF'?H*0.78:H*0.72;
-    const topMargin=(H-totalSpread)/2;
-    const spacing=n>1?totalSpread/(n-1):0;
+    // Vertical spread based on player count — prevent overflow at top/bottom
+    const maxSpread=n<=2?H*0.44:n===3?H*0.70:n===4?H*0.78:H*0.88;
+    const topMargin=(H-maxSpread)/2;
+    const spacing=n>1?maxSpread/(n-1):0;
     slots.forEach(({p,label},si)=>{
       const y=n===1?H/2:topMargin+si*spacing;
       const isEmpty=!p;
@@ -2088,23 +2106,18 @@ function renderXIPitch(xi,scoreKey){
       const scColor=sc>=80?'#00e599':sc>=60?'#7fd97f':sc>=40?'#f5c842':sc>=20?'#ff8c42':sc>0?'#ff4d6a':'rgba(255,255,255,0.3)';
       const fullName=p?p.name:'—';
       const age=p&&p.age?String(p.age):'';
-      const team=p&&p.team?(p.team.length>14?p.team.slice(0,13)+'…':p.team):'';
-      const R=22;
+      const team=p&&p.team?(p.team.length>13?p.team.slice(0,12)+'…':p.team):'';
+      const R=21;
       nodes+=`<g transform="translate(${x.toFixed(0)},${y.toFixed(0)})" ${p?`onclick="closeXI();openPanel('${p.id}')" style="cursor:pointer"`:''}">
-        <!-- Full name above -->
-        <text text-anchor="middle" fill="${isEmpty?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.9)'}" font-size="9" font-family="Archivo" font-weight="600" y="-32">${fullName}</text>
-        <!-- Circle -->
-        <circle r="${R}" fill="${isEmpty?'rgba(255,255,255,0.04)':'var(--surface3)'}" stroke="${isEmpty?'rgba(255,255,255,0.15)':'var(--border2)'}" stroke-width="1.5"/>
-        <!-- Score inside circle -->
+        <text text-anchor="middle" fill="${isEmpty?'rgba(255,255,255,0.2)':`rgba(255,255,255,0.88)`}" font-size="9" font-family="Archivo" font-weight="600" y="-30">${fullName}</text>
+        <circle r="${R}" fill="${isEmpty?'rgba(255,255,255,0.04)':`var(--surface3)`}" stroke="${isEmpty?'rgba(255,255,255,0.15)':`var(--border2)`}" stroke-width="1.5"/>
         <text text-anchor="middle" dominant-baseline="middle" fill="${scColor}" font-size="11" font-family="JetBrains Mono" font-weight="700" y="0">${score}</text>
-        <!-- Age below circle -->
-        <text text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="8" font-family="JetBrains Mono" y="${R+13}">${age}</text>
-        <!-- Club below age -->
-        <text text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="7.5" font-family="JetBrains Mono" y="${R+24}">${team}</text>
+        <text text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="8" font-family="JetBrains Mono" y="${R+12}">${age}</text>
+        <text text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="7.5" font-family="JetBrains Mono" y="${R+23}">${team}</text>
       </g>`;
     });
   });
-  const divXs=[15.5,37,62.5,87].map(p=>W*p/100);
+  const divs=[17,39,65].map(pct=>`<line x1="${(W*pct/100).toFixed(0)}" y1="15" x2="${(W*pct/100).toFixed(0)}" y2="${H-15}" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,4"/>`).join('');
   return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;border-radius:8px;max-width:${W}px;margin:0 auto">
     <rect width="${W}" height="${H}" fill="${pitchBg}" rx="8"/>
     ${[0,1,2,3,4,5,6].map(i=>`<rect x="${(i*W/7).toFixed(0)}" y="0" width="${(W/7).toFixed(0)}" height="${H}" fill="rgba(255,255,255,${i%2===0?'0':'0.025'})"/>`).join('')}
@@ -2116,7 +2129,7 @@ function renderXIPitch(xi,scoreKey){
     <rect x="6" y="${(H*0.39).toFixed(0)}" width="8" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
     <rect x="${(W-10-W*0.14).toFixed(0)}" y="${(H*0.22).toFixed(0)}" width="${(W*0.14).toFixed(0)}" height="${(H*0.56).toFixed(0)}" fill="none" stroke="rgba(255,255,255,${lf})" stroke-width="1"/>
     <rect x="${(W-14).toFixed(0)}" y="${(H*0.39).toFixed(0)}" width="8" height="${(H*0.22).toFixed(0)}" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,${la})" stroke-width="1"/>
-    ${divXs.map(x=>`<line x1="${x.toFixed(0)}" y1="15" x2="${x.toFixed(0)}" y2="${H-15}" stroke="rgba(255,255,255,0.07)" stroke-width="1" stroke-dasharray="4,4"/>`).join('')}
+    ${divs}
     ${nodes}
   </svg>`;
 }
