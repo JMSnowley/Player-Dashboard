@@ -1976,30 +1976,72 @@ function openXI(mode){
   document.getElementById('xiTitle').textContent=mode==='best'?'Best XI (4-3-3)':'Best Potential XI (4-3-3)';
   const scoreKey=mode==='best'?'rating':'potential';
   const ranked=[...allFiltered].filter(p=>p[scoreKey]!=null).sort((a,b)=>b[scoreKey]-a[scoreKey]);
+
   const hasPos=(p,...abbrs)=>{
     const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());
     return abbrs.some(a=>wp.includes(a));
   };
-  const pools={
-    GK: ranked.filter(p=>p.pos==='GK'),
-    CB: ranked.filter(p=>p.pos==='CB'),
-    LB: ranked.filter(p=>p.pos==='FB'&&hasPos(p,'LB','LWB')),
-    RB: ranked.filter(p=>p.pos==='FB'&&hasPos(p,'RB','RWB')),
-    MF: ranked.filter(p=>['DM','CM','AM'].includes(p.pos)),
-    LW: ranked.filter(p=>p.pos==='WF'&&hasPos(p,'LAMF','LW','LWF')),
-    RW: ranked.filter(p=>p.pos==='WF'&&hasPos(p,'RAMF','RW','RWF')),
-    CF: ranked.filter(p=>p.pos==='CF'),
+
+  // Primary pos check
+  const isPrimary=(p,pos)=>p.pos===pos;
+  // Cross-position eligibility: other pos groups whose wyscoutPositions suggest this slot
+  // Primary pos groups per slot
+  const slotPrimaryPos=(slot)=>({
+    GK:['GK'],CB:['CB'],LB:['FB'],RB:['FB'],MF:['DM','CM','AM'],LW:['WF'],RW:['WF'],CF:['CF']
+  })[slot]||[];
+
+  // Cross-position eligibility: other pos groups whose wyscoutPositions suggest this slot
+  const eligibleFor=(p,slot)=>{
+    switch(slot){
+      case 'GK':  return isPrimary(p,'GK');
+      case 'CB':  return isPrimary(p,'CB') || hasPos(p,'CB','LCB','RCB');
+      case 'LB':  return (isPrimary(p,'FB') && hasPos(p,'LB','LWB')) || hasPos(p,'LB','LWB');
+      case 'RB':  return (isPrimary(p,'FB') && hasPos(p,'RB','RWB')) || hasPos(p,'RB','RWB');
+      case 'MF':  return isPrimary(p,'DM')||isPrimary(p,'CM')||isPrimary(p,'AM') || hasPos(p,'DMF','LDMF','RDMF','CMF','LCMF','RCMF','AMF','LAMF','RAMF');
+      case 'LW':  return (isPrimary(p,'WF') && hasPos(p,'LAMF','LW','LWF')) || hasPos(p,'LAMF','LW','LWF');
+      case 'RW':  return (isPrimary(p,'WF') && hasPos(p,'RAMF','RW','RWF')) || hasPos(p,'RAMF','RW','RWF');
+      case 'CF':  return isPrimary(p,'CF') || hasPos(p,'CF','SS');
+      default:    return false;
+    }
   };
+
+  // Sort each slot pool: primary-pos players first, then cross-pos by score
+  const buildPool=(slot)=>[...ranked]
+    .filter(p=>eligibleFor(p,slot))
+    .sort((a,b)=>{
+      const ap=slotPrimaryPos(slot),aPrim=ap.includes(a.pos)?1:0,bPrim=ap.includes(b.pos)?1:0;
+      if(aPrim!==bPrim) return bPrim-aPrim;
+      return b[scoreKey]-a[scoreKey];
+    });
+
   const used=new Set();
-  const pick=(pool,n=1)=>{
+  const pickPool=(pool,n=1)=>{
     const out=[];
     for(const p of pool){if(used.has(p.id))continue;used.add(p.id);out.push(p);if(out.length===n)break;}
     while(out.length<n)out.push(null);
     return out;
   };
-  const gk=pick(pools.GK,1),lb=pick(pools.LB,1),rb=pick(pools.RB,1);
-  const cbs=pick(pools.CB,2),mfs=pick(pools.MF,3);
-  const lw=pick(pools.LW,1),rw=pick(pools.RW,1),cf=pick(pools.CF,1);
+
+  const slots={
+    GK:  buildPool('GK'),
+    CB:  buildPool('CB'),
+    LB:  buildPool('LB'),
+    RB:  buildPool('RB'),
+    MF:  buildPool('MF'),
+    LW:  buildPool('LW'),
+    RW:  buildPool('RW'),
+    CF:  buildPool('CF'),
+  };
+
+  const gk=pickPool(slots.GK,1);
+  const lb=pickPool(slots.LB,1);
+  const rb=pickPool(slots.RB,1);
+  const cbs=pickPool(slots.CB,2);
+  const mfs=pickPool(slots.MF,3);
+  const lw=pickPool(slots.LW,1);
+  const rw=pickPool(slots.RW,1);
+  const cf=pickPool(slots.CF,1);
+
   const xi=[
     {row:'GK',  slots:[{p:gk[0], label:'GK'}]},
     {row:'DEF', slots:[{p:lb[0], label:'LB'},{p:cbs[0],label:'CB'},{p:cbs[1],label:'CB'},{p:rb[0], label:'RB'}]},
