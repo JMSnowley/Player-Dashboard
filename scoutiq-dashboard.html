@@ -1847,7 +1847,7 @@ function renderTable(){
     const topRole=posConf?posConf.roles.map(role=>[role.replace(' %',''),p.roles[role]||0]).sort((a,b)=>b[1]-a[1])[0]:null;
     const topRoleLabel=topRole&&topRole[1]>0?topRole[0]:'—';
     // Role colorbar
-    const roleColors=['#00d4ff','#f5c842','#00e599','#ff8c42','#7c6fcd'];
+    const roleColors=['#5bb8cc','#c9a832','#3db87a','#cc7040','#7060a8'];
     const roleSegs=posConf&&posConf.roles?posConf.roles.map((role,i)=>{
       const v=p.roles[role]||0;
       const w=Math.max(1,Math.round(v));
@@ -2150,10 +2150,28 @@ function openXI(mode,keepFormation=false){
     while(out.length<n)out.push(null);
     return out;
   };
+  // pickMF: picks n midfielders but guarantees at least 1 DM or CM (not all AM)
+  const pickMF=(n)=>{
+    const pool=buildPool('MF');
+    const out=[];
+    // First, try to pick one DM or CM as anchor
+    const anchor=pool.find(p=>!used.has(p.id)&&(p.pos==='DM'||p.pos==='CM'));
+    if(anchor){used.add(anchor.id);out.push(anchor);}
+    // Fill remaining slots from the full MF pool
+    for(const p of pool){
+      if(out.length>=n)break;
+      if(used.has(p.id))continue;
+      used.add(p.id);out.push(p);
+    }
+    while(out.length<n)out.push(null);
+    // Sort filled slots by score descending for display
+    return out.sort((a,b)=>a&&b?b[scoreKey]-a[scoreKey]:0);
+  };
+
   let xi=[];
   if(formation==='433'){
     const [gk]=pick('GK');const [lb]=pick('LB');const [rb]=pick('RB');
-    const [cb1,cb2]=pick('CB',2);const [mf1,mf2,mf3]=pick('MF',3);
+    const [cb1,cb2]=pick('CB',2);const [mf1,mf2,mf3]=pickMF(3);
     const [lw]=pick('LW');const [rw]=pick('RW');const [cf]=pick('CF');
     xi=[
       {row:'GK', slots:[{p:gk,label:'GK'}]},
@@ -2164,7 +2182,7 @@ function openXI(mode,keepFormation=false){
   } else if(formation==='442'){
     const [gk]=pick('GK');const [lb]=pick('LB');const [rb]=pick('RB');
     const [cb1,cb2]=pick('CB',2);
-    const [lm]=pick('LW');const [rm]=pick('RW');const [cm1,cm2]=pick('CM',2);
+    const [lm]=pick('LW');const [rm]=pick('RW');const [cm1,cm2]=pickMF(2);
     const [cf1,cf2]=pick('CF',2);
     xi=[
       {row:'GK', slots:[{p:gk,label:'GK'}]},
@@ -2174,7 +2192,7 @@ function openXI(mode,keepFormation=false){
     ];
   } else if(formation==='352'){
     const [gk]=pick('GK');const [cb1,cb2,cb3]=pick('CB',3);
-    const [lwb]=pick('LWB352');const [rwb]=pick('RWB352');const [cm1,cm2,cm3]=pick('CM',3);
+    const [lwb]=pick('LWB352');const [rwb]=pick('RWB352');const [cm1,cm2,cm3]=pickMF(3);
     const [cf1,cf2]=pick('CF',2);
     xi=[
       {row:'GK', slots:[{p:gk,label:'GK'}]},
@@ -2184,7 +2202,7 @@ function openXI(mode,keepFormation=false){
     ];
   } else if(formation==='343'){
     const [gk]=pick('GK');const [cb1,cb2,cb3]=pick('CB',3);
-    const [lwb]=pick('LB');const [rwb]=pick('RB');const [cm1,cm2]=pick('CM',2);
+    const [lwb]=pick('LB');const [rwb]=pick('RB');const [cm1,cm2]=pickMF(2);
     const [lw]=pick('LW');const [rw]=pick('RW');const [cf]=pick('CF');
     xi=[
       {row:'GK', slots:[{p:gk,label:'GK'}]},
