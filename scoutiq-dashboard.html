@@ -211,7 +211,21 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .toast.info{border-color:var(--accent-border);color:var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
-/* XI MODAL */
+/* HYPOTHETICAL TRANSFER */
+.ht-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;display:none;align-items:center;justify-content:center}
+.ht-modal.open{display:flex}
+.ht-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:0;max-width:600px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.ht-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.ht-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
+.ht-body{overflow-y:auto;flex:1}
+.ht-table{width:100%;border-collapse:collapse}
+.ht-table th{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;background:var(--surface2)}
+.ht-table td{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--border);color:var(--text)}
+.ht-table tr.ht-subject td{background:rgba(245,200,66,0.08);border-left:3px solid var(--gold)}
+.ht-table tr.ht-subject td:first-child{padding-left:9px}
+.ht-rank{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:28px}
+.ht-dropdown-item{padding:7px 10px;cursor:pointer;color:var(--text)}
+.ht-dropdown-item:hover{background:var(--accent-dim);color:var(--accent)}
 .xi-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;display:none;align-items:center;justify-content:center}
 .xi-modal.open{display:flex}
 .xi-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:20px;max-width:1120px;width:100%;max-height:95vh;overflow-y:auto}
@@ -435,6 +449,17 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
   <div class="pp-body" id="ppBody"></div>
+</div>
+
+<!-- HYPOTHETICAL TRANSFER MODAL -->
+<div class="ht-modal" id="htModal">
+  <div class="ht-panel">
+    <div class="ht-header">
+      <span class="ht-title" id="htTitle">Hypothetical Transfer</span>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="closeHT()">✕ Close</button>
+    </div>
+    <div class="ht-body" id="htBody"></div>
+  </div>
 </div>
 
 <!-- XI MODAL -->
@@ -1989,6 +2014,84 @@ function buildPitchSVG(posStr){
 
 
 // ═══════════════════════════════════
+// HYPOTHETICAL TRANSFER
+// ═══════════════════════════════════
+let _htSelectedTeam={};
+function htFilter(pid){
+  const inp=document.getElementById('htTeamInput_'+pid);
+  const dd=document.getElementById('htDropdown_'+pid);
+  if(!inp||!dd)return;
+  const q=(inp.value||'').toLowerCase().trim();
+  // Get unique teams from all players
+  const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))].sort();
+  const matches=q?teams.filter(t=>t.toLowerCase().includes(q)):teams;
+  if(!matches.length||!q){dd.style.display='none';return;}
+  dd.style.display='block';
+  dd.innerHTML=matches.slice(0,20).map(t=>
+    `<div class="ht-dropdown-item" onclick="htSelectTeam('${pid}','${t.replace(/'/g,"\\'")}')">
+      ${t}
+    </div>`
+  ).join('');
+}
+function htSelectTeam(pid,team){
+  _htSelectedTeam[pid]=team;
+  const inp=document.getElementById('htTeamInput_'+pid);
+  const dd=document.getElementById('htDropdown_'+pid);
+  if(inp)inp.value=team;
+  if(dd)dd.style.display='none';
+}
+function runHypTransfer(pid){
+  const player=ST.players.find(p=>p.id===pid);
+  if(!player){showToast('Player not found','error');return;}
+  const team=_htSelectedTeam[pid]||(document.getElementById('htTeamInput_'+pid)||{}).value||'';
+  const season=(document.getElementById('htSeason_'+pid)||{}).value||'';
+  if(!team){showToast('Please select a club','error');return;}
+  // Get squad: players at that team (optionally filtered by season)
+  let squad=ST.players.filter(p=>p.team===team&&p.id!==pid);
+  if(season)squad=squad.filter(p=>p.season===season);
+  // Combine squad + hypothetical player (as-is, not re-assigned to team)
+  const combined=[...squad,player].sort((a,b)=>(b.rating??-Infinity)-(a.rating??-Infinity));
+  const title=`${player.name} → ${team}${season?' ('+season+')':''}`;
+  document.getElementById('htTitle').textContent=title;
+  // Build table
+  const posConf=POS_CONFIG[player.pos]||{roles:[]};
+  const allRoles=[...new Set(combined.flatMap(p=>Object.keys(p.roles||{})))].slice(0,3);
+  let html=`<table class="ht-table">
+    <thead><tr>
+      <th class="ht-rank">#</th>
+      <th>Player</th><th>Pos</th><th>Age</th><th>Mins</th>
+      <th>Rating</th><th>Potential</th>
+      ${allRoles.map(r=>`<th>${r.replace(' %','')}</th>`).join('')}
+    </tr></thead><tbody>`;
+  combined.forEach((p,i)=>{
+    const isSubject=p.id===player.id;
+    const roles=allRoles.map(r=>{
+      const v=p.roles&&p.roles[r]!=null?fmt(p.roles[r],0)+'%':'—';
+      return`<td style="font-family:'JetBrains Mono',monospace;font-size:11px">${v}</td>`;
+    }).join('');
+    const rc=ratingColor(p.rating);
+    const pc=ratingColor(p.potential);
+    html+=`<tr class="${isSubject?'ht-subject':''}">
+      <td class="ht-rank">${i+1}</td>
+      <td><div style="font-weight:600">${p.name}</div><div style="font-size:10px;color:var(--muted2)">${isSubject?'<span style="color:var(--gold)">★ Transfer</span> · ':' '}${p.team}</div></td>
+      <td><span class="pos-tag">${p.pos}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.age||'—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${rc}">${p.rating!=null?fmt(p.rating):'—'}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:${pc}">${p.potential!=null?fmt(p.potential):'—'}</td>
+      ${roles}
+    </tr>`;
+  });
+  html+='</tbody></table>';
+  if(combined.length<=1){
+    html=`<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No players found at <strong>${team}</strong>${season?' in '+season:''}.</div>`;
+  }
+  document.getElementById('htBody').innerHTML=html;
+  document.getElementById('htModal').classList.add('open');
+}
+function closeHT(){document.getElementById('htModal').classList.remove('open');}
+
+// ═══════════════════════════════════
 // BEST XI / BEST POTENTIAL XI
 // ═══════════════════════════════════
 let _xiMode='best';
@@ -2326,8 +2429,22 @@ function renderPanel(){
         ${p.contractExpires?`<div class="sg-item" style="grid-column:1/-1"><div class="sg-l">Contract</div><div class="sg-v" style="font-size:13px">${p.contractExpires}</div></div>`:''}
       </div>
       ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
-      ${p.wyscoutPositions?`<div class="pst" style="margin-top:12px">Positions</div>${buildPitchSVG(p.wyscoutPositions)}`:''}`;
-
+      ${p.wyscoutPositions?`<div class="pst" style="margin-top:12px">Positions</div>${buildPitchSVG(p.wyscoutPositions)}`:''}
+      <div class="pst" style="margin-top:14px">Hypothetical Transfer</div>
+      <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
+        <div style="position:relative">
+          <input id="htTeamInput_${p.id}" type="text" placeholder="Search club…" autocomplete="off"
+            oninput="htFilter('${p.id}')"
+            style="width:100%;font-size:11px;padding:6px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:5px;font-family:'JetBrains Mono',monospace"
+          />
+          <div id="htDropdown_${p.id}" style="display:none;position:absolute;z-index:50;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:0 0 5px 5px;max-height:140px;overflow-y:auto;font-size:11px"></div>
+        </div>
+        <select id="htSeason_${p.id}" style="width:100%;font-size:11px;padding:6px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:5px;font-family:'JetBrains Mono',monospace">
+          <option value="">Any season</option>
+          ${SEASONS.map(s=>`<option value="${s}"${s===p.season?' selected':''}>${s}</option>`).join('')}
+        </select>
+        <button class="btn btn-gold" style="width:100%;justify-content:center;font-size:11px" onclick="runHypTransfer('${p.id}')">▶ Go</button>
+      </div>`;
   } else if(ST.panelTab==='roles'){
     const roles=posConf.roles;
     const vals=roles.map(r=>({label:r.replace(' %',''),val:p.roles&&p.roles[r]!=null?p.roles[r]:0}));
