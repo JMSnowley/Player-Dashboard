@@ -2150,93 +2150,78 @@ let _htSelectedTeam={};
 // ═══════════════════════════════════
 // TEAM OVERVIEW
 // ═══════════════════════════════════
+let _toRows=[],_toSort={key:'avgRating',dir:-1};
 function openTeamOverview(){
   const {allFiltered}=getFiltered();
   const teamMap={};
-  allFiltered.forEach(p=>{
-    if(!p.team)return;
-    if(!teamMap[p.team])teamMap[p.team]=[];
-    teamMap[p.team].push(p);
-  });
-  // Minutes-weighted average helper
+  allFiltered.forEach(p=>{if(!p.team)return;if(!teamMap[p.team])teamMap[p.team]=[];teamMap[p.team].push(p);});
   const wtAvg=(players,field)=>{
-    const eligible=players.filter(p=>p[field]!=null&&p.minutes!=null&&p.minutes>0);
-    if(!eligible.length){
-      // Fallback: unweighted for players without minutes
-      const all=players.filter(p=>p[field]!=null);
-      return all.length?all.reduce((s,p)=>s+p[field],0)/all.length:null;
-    }
-    const totalMins=eligible.reduce((s,p)=>s+p.minutes,0);
-    return eligible.reduce((s,p)=>s+(p[field]*p.minutes),0)/totalMins;
+    const el=players.filter(p=>p[field]!=null&&p.minutes!=null&&p.minutes>0);
+    if(!el.length){const all=players.filter(p=>p[field]!=null);return all.length?all.reduce((s,p)=>s+p[field],0)/all.length:null;}
+    const tot=el.reduce((s,p)=>s+p.minutes,0);
+    return el.reduce((s,p)=>s+(p[field]*p.minutes),0)/tot;
   };
-  const rows=Object.entries(teamMap).map(([team,players])=>{
-    const avgRating=wtAvg(players,'rating');
-    const avgPotential=wtAvg(players,'potential');
-    const avgAge=wtAvg(players,'age');
-    const rated=players.filter(p=>p.rating!=null);
-    const sorted=[...rated].sort((a,b)=>b.rating-a.rating);
-    const potSorted=[...players.filter(p=>p.potential!=null)].sort((a,b)=>b.potential-a.potential);
-    return{team,count:players.length,avgRating,avgPotential,avgAge,top:sorted[0]||null,topPot:potSorted[0]||null};
-  }).sort((a,b)=>(b.avgRating??-Infinity)-(a.avgRating??-Infinity));
-  if(!rows.length){showToast('No team data in current filter','error');return;}
-
-  // All ratings for percentile-based ring colour
-  const allRatings=rows.flatMap(r=>[r.top].filter(Boolean).map(p=>p.rating));
-  const allPotentials=rows.flatMap(r=>[r.topPot].filter(Boolean).map(p=>p.potential));
-  const ringCell=(val)=>{
+  _toRows=Object.entries(teamMap).map(([team,players])=>{
+    const avgRating=wtAvg(players,'rating'),avgPotential=wtAvg(players,'potential'),avgAge=wtAvg(players,'age');
+    const rated=players.filter(p=>p.rating!=null).sort((a,b)=>b.rating-a.rating);
+    const potSorted=players.filter(p=>p.potential!=null).sort((a,b)=>b.potential-a.potential);
+    return{team,count:players.length,avgRating,avgPotential,avgAge,top:rated[0]||null,topPot:potSorted[0]||null};
+  });
+  if(!_toRows.length){showToast('No team data in current filter','error');return;}
+  _toSort={key:'avgRating',dir:-1};
+  document.getElementById('toTitle').textContent=`Team Overview · ${_toRows.length} Teams`;
+  document.getElementById('toModal').classList.add('open');
+  renderToTable();
+}
+function sortToTable(key){
+  if(_toSort.key===key)_toSort.dir*=-1;
+  else{_toSort.key=key;_toSort.dir=key==='team'?1:-1;}
+  renderToTable();
+}
+function renderToTable(){
+  const rows=[..._toRows].sort((a,b)=>{
+    const av=a[_toSort.key]??(_toSort.key==='team'?'':Infinity*_toSort.dir);
+    const bv=b[_toSort.key]??(_toSort.key==='team'?'':Infinity*_toSort.dir);
+    if(typeof av==='string')return _toSort.dir*String(av).localeCompare(String(bv));
+    return _toSort.dir*(bv-av);
+  });
+  const allR=rows.flatMap(r=>[r.top].filter(Boolean).map(p=>p.rating));
+  const allP=rows.flatMap(r=>[r.topPot].filter(Boolean).map(p=>p.potential));
+  const rc=(val,pool)=>{
     if(val==null)return'<td style="text-align:center">—</td>';
-    const ranked=allRatings.filter(v=>v<=val).length/allRatings.length;
-    const col=ranked>=0.9?'#00e599':ranked>=0.8?'#3dd68c':ranked>=0.7?'#7fd97f':ranked>=0.6?'#aad971':ranked>=0.5?'#d4d964':ranked>=0.4?'#f5c842':ranked>=0.3?'#f5a033':ranked>=0.2?'#ff8c42':ranked>=0.1?'#ff6b52':'#ff4d6a';
+    const rank=pool.filter(v=>v<=val).length/Math.max(pool.length,1);
+    const col=rank>=0.9?'#00e599':rank>=0.8?'#3dd68c':rank>=0.7?'#7fd97f':rank>=0.6?'#aad971':rank>=0.5?'#d4d964':rank>=0.4?'#f5c842':rank>=0.3?'#f5a033':rank>=0.2?'#ff8c42':rank>=0.1?'#ff6b52':'#ff4d6a';
     const R=18,circ=2*Math.PI*R,dash=(Math.min(val,100)/100)*circ;
-    return`<td style="text-align:center;padding:5px 8px"><svg width="40" height="40" viewBox="0 0 40 40">
-      <circle cx="20" cy="20" r="${R}" fill="var(--surface3)" stroke="var(--border2)" stroke-width="1.5"/>
-      <circle cx="20" cy="20" r="${R}" fill="none" stroke="${col}" stroke-width="2.5"
-        stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}"
-        stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90 20 20)" opacity="0.85"/>
-      <text x="20" y="24" text-anchor="middle" fill="${col}" font-size="10" font-family="JetBrains Mono" font-weight="700">${Math.round(val)}</text>
-    </svg></td>`;
-  };
-
-  const ringCellPot=(val)=>{
-    if(val==null)return'<td style="text-align:center">—</td>';
-    const ranked=allPotentials.filter(v=>v<=val).length/allPotentials.length;
-    const col=ranked>=0.9?'#00e599':ranked>=0.8?'#3dd68c':ranked>=0.7?'#7fd97f':ranked>=0.6?'#aad971':ranked>=0.5?'#d4d964':ranked>=0.4?'#f5c842':ranked>=0.3?'#f5a033':ranked>=0.2?'#ff8c42':ranked>=0.1?'#ff6b52':'#ff4d6a';
-    const R=18,circ=2*Math.PI*R,dash=(Math.min(val,100)/100)*circ;
-    return`<td style="text-align:center;padding:5px 8px"><svg width="40" height="40" viewBox="0 0 40 40">
-      <circle cx="20" cy="20" r="${R}" fill="var(--surface3)" stroke="var(--border2)" stroke-width="1.5"/>
-      <circle cx="20" cy="20" r="${R}" fill="none" stroke="${col}" stroke-width="2.5"
-        stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}"
-        stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90 20 20)" opacity="0.85"/>
-      <text x="20" y="24" text-anchor="middle" fill="${col}" font-size="10" font-family="JetBrains Mono" font-weight="700">${Math.round(val)}</text>
-    </svg></td>`;
+    return`<td style="text-align:center;padding:5px 8px"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="${R}" fill="var(--surface3)" stroke="var(--border2)" stroke-width="1.5"/><circle cx="20" cy="20" r="${R}" fill="none" stroke="${col}" stroke-width="2.5" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90 20 20)" opacity="0.85"/><text x="20" y="24" text-anchor="middle" fill="${col}" font-size="10" font-family="JetBrains Mono" font-weight="700">${Math.round(val)}</text></svg></td>`;
   };
   const fmt1=v=>v!=null?v.toFixed(1):'—';
   const fmtP=p=>p?`<div style="font-weight:600;font-size:11px">${p.name}</div>`:'—';
-  document.getElementById('toTitle').textContent=`Team Overview · ${rows.length} Teams`;
+  const arr=k=>_toSort.key===k?(_toSort.dir<0?' ▼':' ▲'):'';
   document.getElementById('toBody').innerHTML=`<table class="to-table"><thead><tr>
-    <th>#</th><th>Team</th><th style="text-align:center">Players</th>
-    <th style="text-align:right">Avg Rating</th><th style="text-align:right">Avg Potential</th>
-    <th style="text-align:right">Avg Age</th>
-    <th>Top Player</th><th style="text-align:center">Rating</th>
-    <th>Top Potential</th><th style="text-align:center">Potential</th>
+    <th onclick="sortToTable('rank')">#${arr('rank')}</th>
+    <th onclick="sortToTable('team')">Team${arr('team')}</th>
+    <th style="text-align:center" onclick="sortToTable('count')">Players${arr('count')}</th>
+    <th style="text-align:right" onclick="sortToTable('avgRating')">Avg Rating${arr('avgRating')}</th>
+    <th style="text-align:right" onclick="sortToTable('avgPotential')">Avg Potential${arr('avgPotential')}</th>
+    <th style="text-align:right" onclick="sortToTable('avgAge')">Avg Age${arr('avgAge')}</th>
+    <th colspan="2" onclick="sortToTable('top')">Top Player${arr('top')}</th>
+    <th colspan="2" onclick="sortToTable('topPot')">Top Potential${arr('topPot')}</th>
   </tr></thead><tbody>${rows.map((r,i)=>{
-    const rc=r.avgRating!=null?(r.avgRating>=80?'#00e599':r.avgRating>=60?'#7fd97f':r.avgRating>=40?'#f5c842':r.avgRating>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
-    const pc=r.avgPotential!=null?(r.avgPotential>=80?'#00e599':r.avgPotential>=60?'#7fd97f':r.avgPotential>=40?'#f5c842':r.avgPotential>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
+    const avgRc=r.avgRating!=null?(r.avgRating>=80?'#00e599':r.avgRating>=60?'#7fd97f':r.avgRating>=40?'#f5c842':r.avgRating>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
+    const avgPc=r.avgPotential!=null?(r.avgPotential>=80?'#00e599':r.avgPotential>=60?'#7fd97f':r.avgPotential>=40?'#f5c842':r.avgPotential>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
     return`<tr>
       <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">${i+1}</td>
       <td style="font-weight:600">${r.team}</td>
       <td style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px">${r.count}</td>
-      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${rc}">${fmt1(r.avgRating)}</td>
-      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${pc}">${fmt1(r.avgPotential)}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgRc}">${fmt1(r.avgRating)}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgPc}">${fmt1(r.avgPotential)}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted2)">${r.avgAge!=null?r.avgAge.toFixed(1):'—'}</td>
-      <td>${fmtP(r.top)}</td>${ringCell(r.top?.rating)}
-      <td>${fmtP(r.topPot)}</td>${ringCellPot(r.topPot?.potential)}
+      <td>${fmtP(r.top)}</td>${rc(r.top?.rating,allR)}
+      <td>${fmtP(r.topPot)}</td>${rc(r.topPot?.potential,allP)}
     </tr>`;
   }).join('')}</tbody></table>`;
-  document.getElementById('toModal').classList.add('open');
 }
 function closeTeamOverview(){document.getElementById('toModal').classList.remove('open');}
-
 function htFilter(pid){
   const inp=document.getElementById('htTeamInput_'+pid);
   const dd=document.getElementById('htDropdown_'+pid);
