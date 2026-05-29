@@ -1002,9 +1002,9 @@ async function loadFromGitHub(){
           dribRenames.forEach(([o,n])=>{renameMetric(h.nm,o,n);renameMetric(h.pm,o,n);});
         });
       });
-      // Recalculate league %ile and metric bonuses
-      computeAllLeaguePct();
+      // Metric bonuses first, then league %ile (so %ile reflects fully adjusted ratings)
       computeMetricBonuses();
+      computeAllLeaguePct();
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
@@ -1382,8 +1382,8 @@ async function runCapture(){
   });
   ST.dupQueue=[...newSnaps];
   await processDupQueue();
-  computeAllLeaguePct();
-  computeMetricBonuses(); // 95th percentile metric bonus
+  computeMetricBonuses(); // 95th percentile metric bonus first
+  computeAllLeaguePct();  // then league %ile on fully adjusted ratings
   pf.style.width='100%';pl.textContent='Done!';
   saveState();renderAll();
   showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
@@ -2063,21 +2063,25 @@ function computeAllLeaguePct(){
 function computeMetricBonuses(){
   const allMetrics=new Set();
   ST.players.forEach(p=>Object.keys(p.nm||{}).forEach(m=>allMetrics.add(m)));
-  const thresholds={};
+  const thresholds90={},thresholds95={};
   allMetrics.forEach(m=>{
     const vals=ST.players.map(p=>p.nm&&p.nm[m]!=null?p.nm[m]:null).filter(v=>v!=null).sort((a,b)=>a-b);
-    if(!vals.length){thresholds[m]=null;return;}
-    thresholds[m]=vals[Math.min(Math.floor(vals.length*0.95),vals.length-1)];
+    if(!vals.length){thresholds90[m]=null;thresholds95[m]=null;return;}
+    thresholds90[m]=vals[Math.min(Math.floor(vals.length*0.90),vals.length-1)];
+    thresholds95[m]=vals[Math.min(Math.floor(vals.length*0.95),vals.length-1)];
   });
   ST.players.forEach(p=>{
+    // Reverse previous bonus
     const prev=p._metricBonus||{r:0,pt:0};
     if(prev.r&&p.rating!=null)   p.rating   =Math.round((p.rating   -prev.r )*10)/10;
     if(prev.r&&p.potential!=null)p.potential=Math.round((p.potential-prev.r )*10)/10;
     if(prev.pt&&p.ptPriority!=null)p.ptPriority=Math.round((p.ptPriority-prev.pt)*10)/10;
+    // Calculate new bonus — tiers don't accumulate: 95th = +0.25, 90th = +0.125
     let bonusR=0,bonusPt=0;
     Object.entries(p.nm||{}).forEach(([m,v])=>{
-      const thr=thresholds[m];
-      if(thr!=null&&v>=thr){bonusR+=0.25;bonusPt+=1;}
+      const t95=thresholds95[m],t90=thresholds90[m];
+      if(t95!=null&&v>=t95){bonusR+=0.25;bonusPt+=1;}
+      else if(t90!=null&&v>=t90){bonusR+=0.125;bonusPt+=0.5;}
     });
     if(bonusR){
       p.rating   =Math.min(100,Math.round(((p.rating   ??0)+bonusR)*10)/10);
