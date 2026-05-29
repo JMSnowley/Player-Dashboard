@@ -2168,7 +2168,7 @@ function openTeamOverview(){
     return{team,count:players.length,avgRating,avgPotential,avgAge,top:rated[0]||null,topPot:potSorted[0]||null};
   });
   if(!_toRows.length){showToast('No team data in current filter','error');return;}
-  _toSort={key:'avgRating',dir:-1};
+  _toSort={key:'avgRating',dir:1};
   document.getElementById('toTitle').textContent=`Team Overview · ${_toRows.length} Teams`;
   document.getElementById('toModal').classList.add('open');
   renderToTable();
