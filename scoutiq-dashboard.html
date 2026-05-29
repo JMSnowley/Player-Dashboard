@@ -211,7 +211,18 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .toast.info{border-color:var(--accent-border);color:var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
-/* HYPOTHETICAL TRANSFER */
+/* TEAM OVERVIEW */
+.to-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:350;display:none;align-items:center;justify-content:center}
+.to-modal.open{display:flex}
+.to-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:0;max-width:720px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.to-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.to-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
+.to-body{overflow-y:auto;flex:1}
+.to-table{width:100%;border-collapse:collapse}
+.to-table th{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;position:sticky;top:0;background:var(--surface2);cursor:pointer;user-select:none}
+.to-table th:hover{color:var(--accent)}
+.to-table td{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--border);color:var(--text)}
+.to-table tr:hover td{background:var(--accent-dim)}
 .ht-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:400;display:none;align-items:center;justify-content:center}
 .ht-modal.open{display:flex}
 .ht-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:0;max-width:600px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
@@ -311,6 +322,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
     <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:11px">⚽ Best XI</button>
     <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:11px">⚽ Best Potential XI</button>
+    <button class="btn btn-ghost" onclick="openTeamOverview()" style="font-size:11px">◈ Team Overview</button>
     <button id="setupBtn" class="btn btn-ghost" onclick="openSetupModal()">⚙ Setup</button>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="tt-icon" id="themeIcon">☀</span></button>
   </div>
@@ -449,6 +461,17 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
   <div class="pp-body" id="ppBody"></div>
+</div>
+
+<!-- TEAM OVERVIEW MODAL -->
+<div class="to-modal" id="toModal">
+  <div class="to-panel">
+    <div class="to-header">
+      <span class="to-title" id="toTitle">Team Overview</span>
+      <button class="btn btn-ghost" style="font-size:11px" onclick="closeTeamOverview()">✕ Close</button>
+    </div>
+    <div class="to-body" id="toBody"></div>
+  </div>
 </div>
 
 <!-- HYPOTHETICAL TRANSFER MODAL -->
@@ -2120,6 +2143,49 @@ function computeMetricBonuses(){
 
 // ═══════════════════════════════════
 let _htSelectedTeam={};
+// ═══════════════════════════════════
+// TEAM OVERVIEW
+// ═══════════════════════════════════
+function openTeamOverview(){
+  const {allFiltered}=getFiltered();
+  const teamMap={};
+  allFiltered.forEach(p=>{
+    if(!p.team)return;
+    if(!teamMap[p.team])teamMap[p.team]=[];
+    teamMap[p.team].push(p);
+  });
+  const rows=Object.entries(teamMap).map(([team,players])=>{
+    const rated=players.filter(p=>p.rating!=null);
+    const avgRating=rated.length?rated.reduce((s,p)=>s+p.rating,0)/rated.length:null;
+    const potted=players.filter(p=>p.potential!=null);
+    const avgPotential=potted.length?potted.reduce((s,p)=>s+p.potential,0)/potted.length:null;
+    const sorted=[...rated].sort((a,b)=>b.rating-a.rating);
+    return{team,count:players.length,avgRating,avgPotential,top:sorted[0]||null,bottom:sorted[sorted.length-1]||null};
+  }).sort((a,b)=>(b.avgRating??-Infinity)-(a.avgRating??-Infinity));
+  if(!rows.length){showToast('No team data in current filter','error');return;}
+  const fmt1=v=>v!=null?v.toFixed(1):'—';
+  const fmtP=p=>p?`<div style="font-weight:600;font-size:11px">${p.name}</div><div style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--accent)">${fmt1(p.rating)}</div>`:'—';
+  document.getElementById('toTitle').textContent=`Team Overview · ${rows.length} Teams`;
+  document.getElementById('toBody').innerHTML=`<table class="to-table"><thead><tr>
+    <th>#</th><th>Team</th><th style="text-align:center">Players</th>
+    <th style="text-align:right">Avg Rating</th><th style="text-align:right">Avg Potential</th>
+    <th>Top Player</th><th>Bottom Player</th>
+  </tr></thead><tbody>${rows.map((r,i)=>{
+    const rc=r.avgRating!=null?(r.avgRating>=80?'#00e599':r.avgRating>=60?'#7fd97f':r.avgRating>=40?'#f5c842':r.avgRating>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
+    const pc=r.avgPotential!=null?(r.avgPotential>=80?'#00e599':r.avgPotential>=60?'#7fd97f':r.avgPotential>=40?'#f5c842':r.avgPotential>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
+    return`<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">${i+1}</td>
+      <td style="font-weight:600">${r.team}</td>
+      <td style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px">${r.count}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${rc}">${fmt1(r.avgRating)}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${pc}">${fmt1(r.avgPotential)}</td>
+      <td>${fmtP(r.top)}</td><td>${fmtP(r.bottom)}</td>
+    </tr>`;
+  }).join('')}</tbody></table>`;
+  document.getElementById('toModal').classList.add('open');
+}
+function closeTeamOverview(){document.getElementById('toModal').classList.remove('open');}
+
 function htFilter(pid){
   const inp=document.getElementById('htTeamInput_'+pid);
   const dd=document.getElementById('htDropdown_'+pid);
