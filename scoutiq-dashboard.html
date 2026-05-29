@@ -950,15 +950,15 @@ async function loadFromGitHub(){
         }
       });
       // One-off migration: apply position-based score adjustments to existing players
-      const _POS_ADJ={GK:-2,CB:-1,FB:-1.5,DM:-1,CM:-1,AM:-0.5,WF:0,CF:0};
-      const _POS_PTP_ADJ={GK:-4,CB:-2,FB:-3,DM:-2,CM:-2,AM:-1,WF:0,CF:0};
-      // v1 used same delta for PT Priority as Rating — these are the deltas that were already applied
-      const _POS_PTP_ADJ_V1={GK:-4,CB:-2,FB:-3,DM:-2,CM:-2,AM:-1,WF:0,CF:0};
+       // v2 = old adjustments already applied; v3 = new target
+      const _POS_ADJ_V2={GK:-1,CB:0,FB:-0.5,DM:0,CM:0,AM:0.5,WF:1,CF:1};
+      const _POS_PTP_ADJ_V2={GK:-2,CB:0,FB:-1,DM:0,CM:0,AM:1,WF:2,CF:2};
+      const _POS_ADJ_V3={GK:-2,CB:-1,FB:-1.5,DM:-1,CM:-1,AM:-0.5,WF:0,CF:0};
+      const _POS_PTP_ADJ_V3={GK:-4,CB:-2,FB:-3,DM:-2,CM:-2,AM:-1,WF:0,CF:0};
       const _cap=v=>v!=null?Math.min(100,Math.round(v*10)/10):v;
       ST.players.forEach(p=>{
         if(!p.scoreAdjusted){
-          // Never adjusted — apply full adjustment
-          const adj=_POS_ADJ[p.pos]||0, ptAdj=_POS_PTP_ADJ[p.pos]||0;
+          const adj=_POS_ADJ_V3[p.pos]||0,ptAdj=_POS_PTP_ADJ_V3[p.pos]||0;
           p.rating   =_cap(p.rating!=null?p.rating+adj:null);
           p.potential=_cap(p.potential!=null?p.potential+adj:null);
           p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+ptAdj:null);
@@ -967,7 +967,6 @@ async function loadFromGitHub(){
             h.potential=_cap(h.potential!=null?h.potential+adj:null);
             h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority+ptAdj:null);
           });
-          // FB without LB/RB/LWB/RWB → extra +0.5 rating/potential, +1 ptp
           if(p.pos==='FB'){
             const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());
             if(!wp.some(x=>['LB','RB'].includes(x))){
@@ -976,18 +975,26 @@ async function loadFromGitHub(){
               p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+1:null);
             }
           }
-          p.scoreAdjusted=2; migrated=true;
-        } else if(p.scoreAdjusted<2){
-          // v1 adjusted — only apply PT Priority delta (new minus old) + cap all
-          const ptDelta=(_POS_PTP_ADJ[p.pos]||0)-(_POS_PTP_ADJ_V1[p.pos]||0);
+          p.scoreAdjusted=3; migrated=true;
+        } else if(p.scoreAdjusted<3){
+          // Apply delta from previously-applied v2 to new v3
+          const rDelta=(_POS_ADJ_V3[p.pos]||0)-(_POS_ADJ_V2[p.pos]||0);
+          const ptDelta=(_POS_PTP_ADJ_V3[p.pos]||0)-(_POS_PTP_ADJ_V2[p.pos]||0);
+          if(rDelta!==0){
+            p.rating   =_cap(p.rating!=null?p.rating+rDelta:null);
+            p.potential=_cap(p.potential!=null?p.potential+rDelta:null);
+            (p.history||[]).forEach(h=>{
+              h.rating   =_cap(h.rating!=null?h.rating+rDelta:null);
+              h.potential=_cap(h.potential!=null?h.potential+rDelta:null);
+            });
+          }
           if(ptDelta!==0){
             p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+ptDelta:null);
             (p.history||[]).forEach(h=>{
               h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority+ptDelta:null);
             });
           }
-          p.rating=_cap(p.rating); p.potential=_cap(p.potential); p.ptPriority=_cap(p.ptPriority);
-          p.scoreAdjusted=2; migrated=true;
+          p.scoreAdjusted=3; migrated=true;
         }
       });
 
@@ -1378,7 +1385,7 @@ async function runCapture(){
         snap.ptPriority=cap100(snap.ptPriority!=null?snap.ptPriority+1:null);
       }
     }
-    snap.scoreAdjusted=2;
+    snap.scoreAdjusted=3;
   });
   ST.dupQueue=[...newSnaps];
   await processDupQueue();
