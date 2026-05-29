@@ -980,10 +980,11 @@ async function loadFromGitHub(){
       const _POS_PTP_ADJ_V3={GK:-4,CB:-2,FB:-3,DM:-2,CM:-2,AM:-1,WF:0,CF:0};
       // v4 adds universal -2 rating/pot and -4 pt priority on top of v3, plus ptPriority/50 → potential
       const _cap=v=>v!=null?Math.min(100,Math.round(v*10)/10):v;
+      const _capPtp=v=>v!=null?Math.min(100,Math.max(0,Math.round(v*10)/10)):v;
       const _applyV4=(p)=>{
         p.rating   =_cap(p.rating!=null?p.rating-2:null);
         p.potential=_cap(p.potential!=null?p.potential-2:null);
-        p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority-4:null);
+        p.ptPriority=_capPtp(p.ptPriority!=null?p.ptPriority-4:null);
         // PT Priority / 50 added to Potential
         if(p.ptPriority!=null&&p.potential!=null)
           p.potential=_cap(p.potential+(p.ptPriority/50));
@@ -993,22 +994,22 @@ async function loadFromGitHub(){
           const adj=_POS_ADJ_V3[p.pos]||0,ptAdj=_POS_PTP_ADJ_V3[p.pos]||0;
           p.rating   =_cap(p.rating!=null?p.rating+adj:null);
           p.potential=_cap(p.potential!=null?p.potential+adj:null);
-          p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+ptAdj:null);
+          p.ptPriority=_capPtp(p.ptPriority!=null?p.ptPriority+ptAdj:null);
           (p.history||[]).forEach(h=>{
             h.rating   =_cap(h.rating!=null?h.rating+adj:null);
             h.potential=_cap(h.potential!=null?h.potential+adj:null);
-            h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority+ptAdj:null);
+            h.ptPriority=_capPtp(h.ptPriority!=null?h.ptPriority+ptAdj:null);
           });
           if(p.pos==='FB'){
             const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());
             if(!wp.some(x=>['LB','RB'].includes(x))){
               p.rating   =_cap(p.rating!=null?p.rating+0.5:null);
               p.potential=_cap(p.potential!=null?p.potential+0.5:null);
-              p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+1:null);
+              p.ptPriority=_capPtp(p.ptPriority!=null?p.ptPriority+1:null);
             }
           }
           _applyV4(p);
-          (p.history||[]).forEach(h=>{ h.rating=_cap(h.rating!=null?h.rating-2:null); h.potential=_cap(h.potential!=null?h.potential-2:null); h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority-4:null); if(h.ptPriority!=null&&h.potential!=null)h.potential=_cap(h.potential+(h.ptPriority/50)); });
+          (p.history||[]).forEach(h=>{ h.rating=_cap(h.rating!=null?h.rating-2:null); h.potential=_cap(h.potential!=null?h.potential-2:null); h.ptPriority=_capPtp(h.ptPriority!=null?h.ptPriority-4:null); if(h.ptPriority!=null&&h.potential!=null)h.potential=_cap(h.potential+(h.ptPriority/50)); });
           p.scoreAdjusted=4; migrated=true;
         } else if(p.scoreAdjusted<4){
           if(p.scoreAdjusted<3){
@@ -1016,11 +1017,11 @@ async function loadFromGitHub(){
             const rDelta=(_POS_ADJ_V3[p.pos]||0)-(_POS_ADJ_V2[p.pos]||0);
             const ptDelta=(_POS_PTP_ADJ_V3[p.pos]||0)-(_POS_PTP_ADJ_V2[p.pos]||0);
             if(rDelta){p.rating=_cap(p.rating!=null?p.rating+rDelta:null);p.potential=_cap(p.potential!=null?p.potential+rDelta:null);(p.history||[]).forEach(h=>{h.rating=_cap(h.rating!=null?h.rating+rDelta:null);h.potential=_cap(h.potential!=null?h.potential+rDelta:null);});}
-            if(ptDelta){p.ptPriority=_cap(p.ptPriority!=null?p.ptPriority+ptDelta:null);(p.history||[]).forEach(h=>{h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority+ptDelta:null);});}
+            if(ptDelta){p.ptPriority=_capPtp(p.ptPriority!=null?p.ptPriority+ptDelta:null);(p.history||[]).forEach(h=>{h.ptPriority=_capPtp(h.ptPriority!=null?h.ptPriority+ptDelta:null);});}
           }
           // Apply v3→v4: universal -2/-4 + ptPriority/50 → potential
           _applyV4(p);
-          (p.history||[]).forEach(h=>{ h.rating=_cap(h.rating!=null?h.rating-2:null); h.potential=_cap(h.potential!=null?h.potential-2:null); h.ptPriority=_cap(h.ptPriority!=null?h.ptPriority-4:null); if(h.ptPriority!=null&&h.potential!=null)h.potential=_cap(h.potential+(h.ptPriority/50)); });
+          (p.history||[]).forEach(h=>{ h.rating=_cap(h.rating!=null?h.rating-2:null); h.potential=_cap(h.potential!=null?h.potential-2:null); h.ptPriority=_capPtp(h.ptPriority!=null?h.ptPriority-4:null); if(h.ptPriority!=null&&h.potential!=null)h.potential=_cap(h.potential+(h.ptPriority/50)); });
           p.scoreAdjusted=4; migrated=true;
         }
       });
@@ -1036,6 +1037,8 @@ async function loadFromGitHub(){
           dribRenames.forEach(([o,n])=>{renameMetric(h.nm,o,n);renameMetric(h.pm,o,n);});
         });
       });
+      // Floor PT Priority at 0 for any players that went negative
+      ST.players.forEach(p=>{ if(p.ptPriority!=null&&p.ptPriority<0) p.ptPriority=0; migrated=true; });
       // Metric bonuses first, then league %ile (so %ile reflects fully adjusted ratings)
       computeMetricBonuses();
       computeAllLeaguePct();
@@ -1397,25 +1400,26 @@ async function runCapture(){
   const POS_SCORE_ADJ={GK:-2,CB:-1,FB:-1.5,DM:-1,CM:-1,AM:-0.5,WF:0,CF:0};
   const POS_PTP_ADJ={GK:-4,CB:-2,FB:-3,DM:-2,CM:-2,AM:-1,WF:0,CF:0};
   const cap100=v=>v!=null?Math.min(100,Math.round(v*10)/10):v;
+  const capPtp=v=>v!=null?Math.min(100,Math.max(0,Math.round(v*10)/10)):v;
   newSnaps.forEach(snap=>{
     const adj=POS_SCORE_ADJ[snap.pos]||0;
     const ptAdj=POS_PTP_ADJ[snap.pos]||0;
     snap.rating   =cap100(snap.rating!=null?snap.rating+adj:null);
     snap.potential=cap100(snap.potential!=null?snap.potential+adj:null);
-    snap.ptPriority=cap100(snap.ptPriority!=null?snap.ptPriority+ptAdj:null);
+    snap.ptPriority=capPtp(snap.ptPriority!=null?snap.ptPriority+ptAdj:null);
     // FB without LB/RB → extra +0.5 rating/potential, +1 ptp
     if(snap.pos==='FB'){
       const wp=(snap.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());
       if(!wp.some(p=>['LB','RB'].includes(p))){
         snap.rating   =cap100(snap.rating!=null?snap.rating+0.5:null);
         snap.potential=cap100(snap.potential!=null?snap.potential+0.5:null);
-        snap.ptPriority=cap100(snap.ptPriority!=null?snap.ptPriority+1:null);
+        snap.ptPriority=capPtp(snap.ptPriority!=null?snap.ptPriority+1:null);
       }
     }
     // Universal -2 rating/pot, -4 ptp, then ptPriority/50 added to potential
     snap.rating   =cap100(snap.rating!=null?snap.rating-2:null);
     snap.potential=cap100(snap.potential!=null?snap.potential-2:null);
-    snap.ptPriority=cap100(snap.ptPriority!=null?snap.ptPriority-4:null);
+    snap.ptPriority=capPtp(snap.ptPriority!=null?snap.ptPriority-4:null);
     if(snap.ptPriority!=null&&snap.potential!=null)
       snap.potential=cap100(snap.potential+(snap.ptPriority/50));
     snap.scoreAdjusted=4;
@@ -2136,7 +2140,7 @@ function computeMetricBonuses(){
       p.rating   =Math.min(100,Math.round(((p.rating   ??0)+bonusR)*10)/10);
       p.potential=Math.min(100,Math.round(((p.potential??0)+bonusR)*10)/10);
     }
-    if(bonusPt) p.ptPriority=Math.min(100,Math.round(((p.ptPriority??0)+bonusPt)*10)/10);
+    if(bonusPt) p.ptPriority=Math.min(100,Math.max(0,Math.round(((p.ptPriority??0)+bonusPt)*10)/10));
     p._metricBonus={r:bonusR,pt:bonusPt};
   });
 }
@@ -2171,12 +2175,14 @@ function openTeamOverview(){
     const avgAge=wtAvg(players,'age');
     const rated=players.filter(p=>p.rating!=null);
     const sorted=[...rated].sort((a,b)=>b.rating-a.rating);
-    return{team,count:players.length,avgRating,avgPotential,avgAge,top:sorted[0]||null,bottom:sorted[sorted.length-1]||null};
+    const potSorted=[...players.filter(p=>p.potential!=null)].sort((a,b)=>b.potential-a.potential);
+    return{team,count:players.length,avgRating,avgPotential,avgAge,top:sorted[0]||null,topPot:potSorted[0]||null};
   }).sort((a,b)=>(b.avgRating??-Infinity)-(a.avgRating??-Infinity));
   if(!rows.length){showToast('No team data in current filter','error');return;}
 
   // All ratings for percentile-based ring colour
-  const allRatings=rows.flatMap(r=>[r.top,r.bottom].filter(Boolean).map(p=>p.rating));
+  const allRatings=rows.flatMap(r=>[r.top].filter(Boolean).map(p=>p.rating));
+  const allPotentials=rows.flatMap(r=>[r.topPot].filter(Boolean).map(p=>p.potential));
   const ringCell=(val)=>{
     if(val==null)return'<td style="text-align:center">—</td>';
     const ranked=allRatings.filter(v=>v<=val).length/allRatings.length;
@@ -2191,6 +2197,19 @@ function openTeamOverview(){
     </svg></td>`;
   };
 
+  const ringCellPot=(val)=>{
+    if(val==null)return'<td style="text-align:center">—</td>';
+    const ranked=allPotentials.filter(v=>v<=val).length/allPotentials.length;
+    const col=ranked>=0.9?'#00e599':ranked>=0.8?'#3dd68c':ranked>=0.7?'#7fd97f':ranked>=0.6?'#aad971':ranked>=0.5?'#d4d964':ranked>=0.4?'#f5c842':ranked>=0.3?'#f5a033':ranked>=0.2?'#ff8c42':ranked>=0.1?'#ff6b52':'#ff4d6a';
+    const R=18,circ=2*Math.PI*R,dash=(Math.min(val,100)/100)*circ;
+    return`<td style="text-align:center;padding:5px 8px"><svg width="40" height="40" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="${R}" fill="var(--surface3)" stroke="var(--border2)" stroke-width="1.5"/>
+      <circle cx="20" cy="20" r="${R}" fill="none" stroke="${col}" stroke-width="2.5"
+        stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}"
+        stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90 20 20)" opacity="0.85"/>
+      <text x="20" y="24" text-anchor="middle" fill="${col}" font-size="10" font-family="JetBrains Mono" font-weight="700">${Math.round(val)}</text>
+    </svg></td>`;
+  };
   const fmt1=v=>v!=null?v.toFixed(1):'—';
   const fmtP=p=>p?`<div style="font-weight:600;font-size:11px">${p.name}</div>`:'—';
   document.getElementById('toTitle').textContent=`Team Overview · ${rows.length} Teams`;
@@ -2199,7 +2218,7 @@ function openTeamOverview(){
     <th style="text-align:right">Avg Rating</th><th style="text-align:right">Avg Potential</th>
     <th style="text-align:right">Avg Age</th>
     <th>Top Player</th><th style="text-align:center">Rating</th>
-    <th>Bottom Player</th><th style="text-align:center">Rating</th>
+    <th>Top Potential</th><th style="text-align:center">Potential</th>
   </tr></thead><tbody>${rows.map((r,i)=>{
     const rc=r.avgRating!=null?(r.avgRating>=80?'#00e599':r.avgRating>=60?'#7fd97f':r.avgRating>=40?'#f5c842':r.avgRating>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
     const pc=r.avgPotential!=null?(r.avgPotential>=80?'#00e599':r.avgPotential>=60?'#7fd97f':r.avgPotential>=40?'#f5c842':r.avgPotential>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
@@ -2211,7 +2230,7 @@ function openTeamOverview(){
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${pc}">${fmt1(r.avgPotential)}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted2)">${r.avgAge!=null?r.avgAge.toFixed(1):'—'}</td>
       <td>${fmtP(r.top)}</td>${ringCell(r.top?.rating)}
-      <td>${fmtP(r.bottom)}</td>${ringCell(r.bottom?.rating)}
+      <td>${fmtP(r.topPot)}</td>${ringCellPot(r.topPot?.potential)}
     </tr>`;
   }).join('')}</tbody></table>`;
   document.getElementById('toModal').classList.add('open');
