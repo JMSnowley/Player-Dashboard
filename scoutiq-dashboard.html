@@ -1121,12 +1121,23 @@ async function loadFromGitHub(){
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
-      if(migrated&&GH.token) setTimeout(()=>saveData(),1500); // only save if editor (has token)
+      if(migrated&&GH.token) queueGitHubSave(saveData); // only save if editor (has token)
       showToast('Loaded ' + data.players.length + ' players', 'success');
     }
     setSyncStatus('synced');
     if(!ST.auth) setSheetStatus('public');
   } catch(e){ setSyncStatus('error'); console.error('loadFromGitHub', e); }
+}
+
+// ═══════════════════════════════════
+// GITHUB SAVE QUEUE
+// Serialises all GitHub writes so only one happens at a time,
+// preventing 422 ref conflicts when multiple saves fire concurrently.
+// ═══════════════════════════════════
+let _ghSaveQueue=Promise.resolve();
+function queueGitHubSave(fn){
+  _ghSaveQueue=_ghSaveQueue.then(()=>fn()).catch(e=>console.warn('queued save error',e));
+  return _ghSaveQueue;
 }
 
 async function saveToGitHub(){
@@ -1240,7 +1251,7 @@ async function loadFromSheet(){
 }
 
 async function saveData(){
-  await saveToGitHub();
+  await queueGitHubSave(saveToGitHub);
   await saveToSheet();
 }
 // ═══════════════════════════════════
@@ -1258,8 +1269,6 @@ async function loadPhysicalDB(){
 
 async function savePhysicalDB(){
   if(!GH.token){ console.log('No token — skipping physical_db.json save'); return; }
-  // Delay slightly to avoid racing against saveToGitHub (db.json) advancing the ref
-  await new Promise(r=>setTimeout(r,2000));
   const payload=JSON.stringify({snapshots:PHYS.snapshots,savedAt:new Date().toISOString()},null,0);
   const owner='JMSnowley',repo='Player-Dashboard',path='physical_db.json',branch='main';
   const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
@@ -2618,7 +2627,7 @@ async function runPhysCapture(){
     });
 
     pf.style.width='90%'; pl.textContent='Saving to GitHub (may take a moment)…';
-    await savePhysicalDB();
+    await queueGitHubSave(savePhysicalDB);
 
     pf.style.width='100%'; pl.textContent='Done!';
     showToast(`Physical capture complete — ${added} new, ${updated} updated. Ready to match.`,'success');
