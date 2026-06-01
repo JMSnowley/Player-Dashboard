@@ -1,45 +1,3 @@
-<!
-// ═══════════════════════════════════
-// PHYSICAL DATA STORE
-// ═══════════════════════════════════
-const PHYS={
-  snapshots:[],  // raw captured physical records (before matching)
-  // snapshot schema:
-  // { id, skillcornerId, fullName, shortName, birthdate, season, seasonType,
-  //   physicalScore, components:{psv99,top5psv99,top3timeHSR,distP90,hsrDistTIP,sprintDistTIP,hsrDistOTIP,sprintDistOTIP},
-  //   capturedAt, matchedPlayerId, matchConfidence, applied }
-};
-
-// Physical weighting per position (% of rating that comes from physical score)
-const PHYS_RATING_WEIGHT={CB:0.18,FB:0.12,DM:0.12,CM:0.15,AM:0.10,WF:0.12,CF:0.12};
-
-// Metric weights per position (must sum to 1.0)
-const PHYS_METRIC_WEIGHTS={
-  CB: {psv99:0.35,top5psv99:0.25,top3timeHSR:0.20,distP90:0.05,hsrDistTIP:0.05,sprintDistTIP:0.05,hsrDistOTIP:0.025,sprintDistOTIP:0.025},
-  FB: {psv99:0.25,top5psv99:0.15,top3timeHSR:0.15,distP90:0.15,hsrDistTIP:0.125,sprintDistTIP:0.05,hsrDistOTIP:0.10,sprintDistOTIP:0.025},
-  DM: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.125,distP90:0.175,hsrDistTIP:0.10,sprintDistTIP:0.025,hsrDistOTIP:0.175,sprintDistOTIP:0.05},
-  CM: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.125,distP90:0.175,hsrDistTIP:0.15,sprintDistTIP:0.025,hsrDistOTIP:0.15,sprintDistOTIP:0.025},
-  AM: {psv99:0.20,top5psv99:0.125,top3timeHSR:0.15,distP90:0.175,hsrDistTIP:0.175,sprintDistTIP:0.05,hsrDistOTIP:0.10,sprintDistOTIP:0.025},
-  WF: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.225,distP90:0.10,hsrDistTIP:0.175,sprintDistTIP:0.05,hsrDistOTIP:0.075,sprintDistOTIP:0.025},
-  CF: {psv99:0.25,top5psv99:0.175,top3timeHSR:0.20,distP90:0.10,hsrDistTIP:0.15,sprintDistTIP:0.05,hsrDistOTIP:0.05,sprintDistOTIP:0.025},
-};
-
-// The 8 display metrics in order (for pizza chart and panel display)
-const PHYS_METRICS=[
-  {key:'psv99',         label:'PSV-99',                    inverted:false},
-  {key:'top5psv99',     label:'TOP 5 PSV-99',              inverted:false},
-  {key:'top3timeHSR',   label:'TOP 3 Time to HSR',         inverted:true},
-  {key:'distP90',       label:'Distance P90',              inverted:false},
-  {key:'hsrDistTIP',    label:'HSR Distance TIP P30TIP',   inverted:false},
-  {key:'sprintDistTIP', label:'Sprint Distance TIP P30TIP',inverted:false},
-  {key:'hsrDistOTIP',   label:'HSR Distance OTIP P30OTIP', inverted:false},
-  {key:'sprintDistOTIP',label:'Sprint Distance OTIP P30OTIP',inverted:false},
-];
-
-// MF pool positions (all share one percentile pool, then use pos-specific weights)
-const PHYS_MF_POSITIONS=['DM','CM','AM'];
-// Positions that have no physical data
-const PHYS_EXCLUDED=['GK'];
 
 DOCTYPE html>
 <html lang="en">
@@ -1002,6 +960,49 @@ const GH = {
   get token(){ return localStorage.getItem('plyrdash_ghtoken')||''; },
 };
 
+// ═══════════════════════════════════
+// PHYSICAL DATA STORE
+// ═══════════════════════════════════
+const PHYS={
+  snapshots:[],  // raw captured physical records (before matching)
+  // snapshot schema:
+  // { id, skillcornerId, fullName, shortName, birthdate, season, seasonType,
+  //   physicalScore, components:{psv99,top5psv99,top3timeHSR,distP90,hsrDistTIP,sprintDistTIP,hsrDistOTIP,sprintDistOTIP},
+  //   capturedAt, matchedPlayerId, matchConfidence, applied }
+};
+
+// Physical weighting per position (% of rating that comes from physical score)
+const PHYS_RATING_WEIGHT={CB:0.18,FB:0.12,DM:0.12,CM:0.15,AM:0.10,WF:0.12,CF:0.12};
+
+// Metric weights per position (must sum to 1.0)
+const PHYS_METRIC_WEIGHTS={
+  CB: {psv99:0.35,top5psv99:0.25,top3timeHSR:0.20,distP90:0.05,hsrDistTIP:0.05,sprintDistTIP:0.05,hsrDistOTIP:0.025,sprintDistOTIP:0.025},
+  FB: {psv99:0.25,top5psv99:0.15,top3timeHSR:0.15,distP90:0.15,hsrDistTIP:0.125,sprintDistTIP:0.05,hsrDistOTIP:0.10,sprintDistOTIP:0.025},
+  DM: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.125,distP90:0.175,hsrDistTIP:0.10,sprintDistTIP:0.025,hsrDistOTIP:0.175,sprintDistOTIP:0.05},
+  CM: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.125,distP90:0.175,hsrDistTIP:0.15,sprintDistTIP:0.025,hsrDistOTIP:0.15,sprintDistOTIP:0.025},
+  AM: {psv99:0.20,top5psv99:0.125,top3timeHSR:0.15,distP90:0.175,hsrDistTIP:0.175,sprintDistTIP:0.05,hsrDistOTIP:0.10,sprintDistOTIP:0.025},
+  WF: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.225,distP90:0.10,hsrDistTIP:0.175,sprintDistTIP:0.05,hsrDistOTIP:0.075,sprintDistOTIP:0.025},
+  CF: {psv99:0.25,top5psv99:0.175,top3timeHSR:0.20,distP90:0.10,hsrDistTIP:0.15,sprintDistTIP:0.05,hsrDistOTIP:0.05,sprintDistOTIP:0.025},
+};
+
+// The 8 display metrics in order (for pizza chart and panel display)
+const PHYS_METRICS=[
+  {key:'psv99',         label:'PSV-99',                    inverted:false},
+  {key:'top5psv99',     label:'TOP 5 PSV-99',              inverted:false},
+  {key:'top3timeHSR',   label:'TOP 3 Time to HSR',         inverted:true},
+  {key:'distP90',       label:'Distance P90',              inverted:false},
+  {key:'hsrDistTIP',    label:'HSR Distance TIP P30TIP',   inverted:false},
+  {key:'sprintDistTIP', label:'Sprint Distance TIP P30TIP',inverted:false},
+  {key:'hsrDistOTIP',   label:'HSR Distance OTIP P30OTIP', inverted:false},
+  {key:'sprintDistOTIP',label:'Sprint Distance OTIP P30OTIP',inverted:false},
+];
+
+// MF pool positions (all share one percentile pool, then use pos-specific weights)
+const PHYS_MF_POSITIONS=['DM','CM','AM'];
+// Positions that have no physical data
+const PHYS_EXCLUDED=['GK'];
+
+
 async function loadFromGitHub(){
   try{
     setSyncStatus('loading');
@@ -1228,7 +1229,7 @@ async function loadPhysicalDB(){
 }
 
 async function savePhysicalDB(){
-  if(!GH.token){ console.warn('No token — cannot save physical_db.json'); return; }
+  if(!GH.token){ console.log('No token — skipping physical_db.json save'); return; }
   try{
     const payload=JSON.stringify({snapshots:PHYS.snapshots,savedAt:new Date().toISOString()},null,0);
     const owner='JMSnowley',repo='Player-Dashboard',path='physical_db.json',branch='main';
