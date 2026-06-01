@@ -1136,7 +1136,13 @@ async function loadFromGitHub(){
 // ═══════════════════════════════════
 let _ghSaveQueue=Promise.resolve();
 function queueGitHubSave(fn){
-  _ghSaveQueue=_ghSaveQueue.then(()=>fn()).catch(e=>console.warn('queued save error',e));
+  // Each queued item resets the chain on error so the queue never permanently blocks
+  _ghSaveQueue=_ghSaveQueue
+    .then(()=>Promise.race([
+      fn(),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('GitHub save timeout after 30s')),30000))
+    ]))
+    .catch(e=>console.warn('queued save error:',e.message));
   return _ghSaveQueue;
 }
 
@@ -2626,11 +2632,14 @@ async function runPhysCapture(){
       else{ PHYS.snapshots.push(snap); added++; }
     });
 
-    pf.style.width='90%'; pl.textContent='Saving to GitHub (may take a moment)…';
-    await queueGitHubSave(savePhysicalDB);
+    pf.style.width='90%'; pl.textContent='Queuing save to GitHub…';
+    // Fire save through queue without awaiting — modal closes immediately, toast fires on completion
+    queueGitHubSave(savePhysicalDB).then(()=>{
+      showToast(`Physical data saved to GitHub — ${added} new, ${updated} updated`,'success');
+    });
 
     pf.style.width='100%'; pl.textContent='Done!';
-    showToast(`Physical capture complete — ${added} new, ${updated} updated. Ready to match.`,'success');
+    showToast(`Physical capture complete — ${added} new, ${updated} updated. Saving in background…`,'success');
     setTimeout(()=>{ closeModal('physCaptureModal'); btn.disabled=false; pw.style.display='none'; },900);
 
   }catch(e){
