@@ -1662,7 +1662,7 @@ async function runCapture(){
   pf.style.width='100%';pl.textContent='Done!';
   saveState();renderAll();
   showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
-  saveData();
+  queueGitHubSave(saveData);
   setTimeout(()=>{closeModal('captureModal');btn.disabled=false;pw.style.display='none';},800);
 }
 
@@ -2676,7 +2676,7 @@ async function runPhysCapture(){
 
     pf.style.width='90%'; pl.textContent='Saving to GitHub…';
     try{
-      await savePhysicalDB();
+      await queueGitHubSave(savePhysicalDB);
       pf.style.width='100%'; pl.textContent='Done!';
       showToast(`Physical capture complete — ${added} new, ${updated} updated. Ready to match.`,'success');
     }catch(e){
@@ -3230,7 +3230,7 @@ function deleteSelected(){
   if(ST.panelId&&!ST.players.find(p=>p.id===ST.panelId))closePanel();
   saveState();renderAll();
   showToast(`${n} player${n!==1?'s':''} deleted`,'success');
-  saveData();
+  queueGitHubSave(saveData);
 }
 
 function deleteSinglePlayer(id){
@@ -3242,7 +3242,7 @@ function deleteSinglePlayer(id){
   closePanel();
   saveState();renderAll();
   showToast(`${p.name} deleted`,'success');
-  saveData();
+  queueGitHubSave(saveData);
 }
 
 // ═══════════════════════════════════
@@ -3541,7 +3541,7 @@ function deleteSnapshot(playerId,histIdx){
     capturedAt:latest.capturedAt,roles:latest.roles,
     age:latest.age,minutes:latest.minutes,
   });
-  saveState();saveData();renderPanel();showToast('Snapshot deleted','success');
+  saveState();queueGitHubSave(saveData);renderPanel();showToast('Snapshot deleted','success');
 }
 function toggleHist(el){const b=el.nextElementSibling;b.classList.toggle('open');el.querySelector('span:last-child').textContent=b.classList.contains('open')?'⌄':'›';}
 
@@ -3645,7 +3645,7 @@ function exportCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`scoutiq-${new Date().toISOString().slice(0,10)}.csv`;a.click();
   showToast('Exported','success');
 }
-function clearAllData(){if(!confirm('Clear all player data?'))return;ST.players=[];saveState();renderAll();saveData();showToast('Cleared','info');}
+function clearAllData(){if(!confirm('Clear all player data?'))return;ST.players=[];saveState();renderAll();queueGitHubSave(saveData);showToast('Cleared','info');}
 
 // ═══════════════════════════════════
 // MODALS & TOASTS
