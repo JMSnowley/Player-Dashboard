@@ -1048,7 +1048,7 @@ async function loadFromGitHub(){
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
-      if(migrated) setTimeout(()=>saveData(),1500); // slight delay to avoid SHA conflict with any concurrent save
+      if(migrated&&GH.token) setTimeout(()=>saveData(),1500); // only save if editor (has token)
       showToast('Loaded ' + data.players.length + ' players', 'success');
     }
     setSyncStatus('synced');
