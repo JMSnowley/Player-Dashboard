@@ -1,5 +1,4 @@
-
-DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -320,7 +319,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
-    <button id="physCaptureBtn" class="btn btn-ghost" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
+    <button id="physCaptureBtn" class="btn btn-gold" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
     <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
     <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:11px">⚽ Best XI</button>
     <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:11px">⚽ Best Potential XI</button>
@@ -2497,8 +2496,8 @@ function setPhysSeasonType(type){
   const seasons=type==='winter'?PHYS_WINTER_SEASONS:PHYS_SUMMER_SEASONS;
   const sel=document.getElementById('physCapSeason');
   sel.innerHTML=seasons.map(s=>`<option value="${s}">${s}</option>`).join('');
-  // Default to most recent season
-  sel.value=seasons[seasons.length-3]||seasons[0];
+  // Default: 25/26 for winter, 2026 for summer
+  sel.value=type==='winter'?'25/26':'2026';
   // Style buttons
   document.getElementById('physSeasonTypeWinter').className='btn '+(type==='winter'?'btn-gold':'btn-ghost')+' ';
   document.getElementById('physSeasonTypeSummer').className='btn '+(type==='summer'?'btn-gold':'btn-ghost')+' ';
