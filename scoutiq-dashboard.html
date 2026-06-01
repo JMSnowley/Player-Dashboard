@@ -1,4 +1,47 @@
-<!DOCTYPE html>
+<!
+// ═══════════════════════════════════
+// PHYSICAL DATA STORE
+// ═══════════════════════════════════
+const PHYS={
+  snapshots:[],  // raw captured physical records (before matching)
+  // snapshot schema:
+  // { id, skillcornerId, fullName, shortName, birthdate, season, seasonType,
+  //   physicalScore, components:{psv99,top5psv99,top3timeHSR,distP90,hsrDistTIP,sprintDistTIP,hsrDistOTIP,sprintDistOTIP},
+  //   capturedAt, matchedPlayerId, matchConfidence, applied }
+};
+
+// Physical weighting per position (% of rating that comes from physical score)
+const PHYS_RATING_WEIGHT={CB:0.18,FB:0.12,DM:0.12,CM:0.15,AM:0.10,WF:0.12,CF:0.12};
+
+// Metric weights per position (must sum to 1.0)
+const PHYS_METRIC_WEIGHTS={
+  CB: {psv99:0.35,top5psv99:0.25,top3timeHSR:0.20,distP90:0.05,hsrDistTIP:0.05,sprintDistTIP:0.05,hsrDistOTIP:0.025,sprintDistOTIP:0.025},
+  FB: {psv99:0.25,top5psv99:0.15,top3timeHSR:0.15,distP90:0.15,hsrDistTIP:0.125,sprintDistTIP:0.05,hsrDistOTIP:0.10,sprintDistOTIP:0.025},
+  DM: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.125,distP90:0.175,hsrDistTIP:0.10,sprintDistTIP:0.025,hsrDistOTIP:0.175,sprintDistOTIP:0.05},
+  CM: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.125,distP90:0.175,hsrDistTIP:0.15,sprintDistTIP:0.025,hsrDistOTIP:0.15,sprintDistOTIP:0.025},
+  AM: {psv99:0.20,top5psv99:0.125,top3timeHSR:0.15,distP90:0.175,hsrDistTIP:0.175,sprintDistTIP:0.05,hsrDistOTIP:0.10,sprintDistOTIP:0.025},
+  WF: {psv99:0.20,top5psv99:0.15,top3timeHSR:0.225,distP90:0.10,hsrDistTIP:0.175,sprintDistTIP:0.05,hsrDistOTIP:0.075,sprintDistOTIP:0.025},
+  CF: {psv99:0.25,top5psv99:0.175,top3timeHSR:0.20,distP90:0.10,hsrDistTIP:0.15,sprintDistTIP:0.05,hsrDistOTIP:0.05,sprintDistOTIP:0.025},
+};
+
+// The 8 display metrics in order (for pizza chart and panel display)
+const PHYS_METRICS=[
+  {key:'psv99',         label:'PSV-99',                    inverted:false},
+  {key:'top5psv99',     label:'TOP 5 PSV-99',              inverted:false},
+  {key:'top3timeHSR',   label:'TOP 3 Time to HSR',         inverted:true},
+  {key:'distP90',       label:'Distance P90',              inverted:false},
+  {key:'hsrDistTIP',    label:'HSR Distance TIP P30TIP',   inverted:false},
+  {key:'sprintDistTIP', label:'Sprint Distance TIP P30TIP',inverted:false},
+  {key:'hsrDistOTIP',   label:'HSR Distance OTIP P30OTIP', inverted:false},
+  {key:'sprintDistOTIP',label:'Sprint Distance OTIP P30OTIP',inverted:false},
+];
+
+// MF pool positions (all share one percentile pool, then use pos-specific weights)
+const PHYS_MF_POSITIONS=['DM','CM','AM'];
+// Positions that have no physical data
+const PHYS_EXCLUDED=['GK'];
+
+DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -954,7 +997,8 @@ function chunkString(str,size=40000){
 // Token stored in localStorage only — never in this file
 // ═══════════════════════════════════
 const GH = {
-  rawUrl: 'https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/db.json',
+  rawUrl:    'https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/db.json',
+  physUrl:   'https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/physical_db.json',
   get token(){ return localStorage.getItem('plyrdash_ghtoken')||''; },
 };
 
@@ -1170,6 +1214,57 @@ async function saveData(){
   await saveToGitHub();
   await saveToSheet();
 }
+// ═══════════════════════════════════
+// PHYSICAL DB LOAD / SAVE
+// ═══════════════════════════════════
+async function loadPhysicalDB(){
+  try{
+    const resp=await fetch(GH.physUrl+'?cb='+Date.now());
+    if(!resp.ok){ console.log('physical_db.json not found — starting fresh'); return; }
+    const data=await resp.json();
+    if(data.snapshots) PHYS.snapshots=data.snapshots;
+    console.log('Physical DB loaded:',PHYS.snapshots.length,'snapshots');
+  }catch(e){ console.warn('loadPhysicalDB error',e); }
+}
+
+async function savePhysicalDB(){
+  if(!GH.token){ console.warn('No token — cannot save physical_db.json'); return; }
+  try{
+    const payload=JSON.stringify({snapshots:PHYS.snapshots,savedAt:new Date().toISOString()},null,0);
+    const owner='JMSnowley',repo='Player-Dashboard',path='physical_db.json',branch='main';
+    const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
+    // Git Data API — handles large files, no 1MB limit
+    const refResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+    if(!refResp.ok) throw new Error('ref '+refResp.status);
+    const latestSha=(await refResp.json()).object.sha;
+    const commitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${latestSha}`,{headers});
+    if(!commitResp.ok) throw new Error('commit '+commitResp.status);
+    const baseTree=(await commitResp.json()).tree.sha;
+    const blobResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:payload,encoding:'utf-8'})});
+    if(!blobResp.ok) throw new Error('blob '+blobResp.status);
+    const blobSha=(await blobResp.json()).sha;
+    const treeResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
+    if(!treeResp.ok) throw new Error('tree '+treeResp.status);
+    const newTreeSha=(await treeResp.json()).sha;
+    const newCommitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'PLYRDASH physical_db '+new Date().toISOString().slice(0,16),tree:newTreeSha,parents:[latestSha]})});
+    if(!newCommitResp.ok) throw new Error('newcommit '+newCommitResp.status);
+    const newCommitSha=(await newCommitResp.json()).sha;
+    // Update ref with 422 retry
+    const tryUpdate=async(sha)=>fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha})});
+    let updateResp=await tryUpdate(newCommitSha);
+    if(updateResp.status===422){
+      const retryRef=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+      const retrySha=(await retryRef.json()).object.sha;
+      const retryCommit=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'PLYRDASH physical_db (retry)',tree:newTreeSha,parents:[retrySha]})});
+      const retryCommitSha=(await retryCommit.json()).sha;
+      updateResp=await tryUpdate(retryCommitSha);
+    }
+    if(!updateResp.ok) throw new Error('updateRef '+updateResp.status);
+    console.log('physical_db.json saved');
+  }catch(e){ console.error('savePhysicalDB',e); showToast('Physical save failed: '+e.message,'error'); }
+}
+
+
 
 async function manualSync(){
   await saveData();
@@ -3099,6 +3194,7 @@ renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
 // Auto-load from GitHub on startup — open CORS, works on all devices without auth
 loadFromGitHub();
+loadPhysicalDB();
 </script>
 </body>
 </html> 
