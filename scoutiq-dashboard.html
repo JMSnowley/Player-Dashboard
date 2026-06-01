@@ -339,6 +339,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button id="physCaptureBtn" class="btn btn-gold" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
     <button id="physMatchBtn" class="btn btn-ghost" onclick="openPhysMatchModal()" style="display:none;font-size:11px">🔗 Match Physical</button>
+    <button id="physApplyBtn" class="btn btn-ghost" onclick="applyPhysicalData()" style="display:none;font-size:11px">✓ Apply Physical</button>
     <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
     <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:11px">⚽ Best XI</button>
     <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:11px">⚽ Best Potential XI</button>
@@ -975,7 +976,7 @@ function setEditorMode(isEditor){
   // viewer-mode CSS class hides .col-check column on both th and td — survives table re-renders
   document.body.classList.toggle('viewer-mode',!isEditor);
   // Editor-only buttons
-  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn','physCaptureBtn','physMatchBtn'].forEach(id=>{
+  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn','physCaptureBtn','physMatchBtn','physApplyBtn'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.style.display=isEditor?'':'none';
   });
   const selBar=document.getElementById('selBar');
@@ -3014,9 +3015,110 @@ function savePhysMatchResults(){
 }
 
 // ═══════════════════════════════════
-// PHYSICAL SCORE CALCULATION — PHASE 4
+// PHYSICAL SCORE CALCULATION — PHASE 4+5
 // ═══════════════════════════════════
-let _xiMode='best';
+
+function computeAndApplyPhysical(){
+  const pools={};
+  const MF_POOL=[];
+  PHYS.snapshots.forEach(snap=>{
+    if(!snap.matchedPlayerId) return;
+    const player=ST.players.find(p=>p.id===snap.matchedPlayerId);
+    if(!player||PHYS_EXCLUDED.includes(player.pos)) return;
+    if(snap.season!==player.season) return;
+    snap._pos=player.pos;
+    if(PHYS_MF_POSITIONS.includes(player.pos)) MF_POOL.push(snap);
+    else{ if(!pools[player.pos]) pools[player.pos]=[]; pools[player.pos].push(snap); }
+  });
+  if(MF_POOL.length) pools['MF']=MF_POOL;
+
+  // Percentile ranks within each pool
+  const calcPercentiles=(snapList,metricKey,inverted)=>{
+    const vals=snapList.map(s=>s.metrics[metricKey]).filter(v=>v!=null);
+    if(!vals.length) return;
+    const sorted=[...vals].sort((a,b)=>inverted?b-a:a-b);
+    snapList.forEach(s=>{
+      if(s.metrics[metricKey]==null) return;
+      const v=s.metrics[metricKey];
+      const rank=inverted?sorted.filter(x=>x>=v).length/sorted.length:sorted.filter(x=>x<=v).length/sorted.length;
+      if(!s._pct) s._pct={};
+      s._pct[metricKey]=Math.round(rank*100);
+    });
+  };
+  PHYS_METRICS.forEach(({key,inverted})=>Object.values(pools).forEach(pool=>calcPercentiles(pool,key,inverted)));
+
+  // Weighted sum → normalise to 40-100
+  Object.entries(pools).forEach(([poolKey,pool])=>{
+    pool.forEach(snap=>{
+      const weights=PHYS_METRIC_WEIGHTS[snap._pos]||PHYS_METRIC_WEIGHTS[poolKey];
+      if(!weights) return;
+      let weightedSum=0,totalWeight=0;
+      PHYS_METRICS.forEach(({key})=>{ const pct=snap._pct?.[key],w=weights[key]||0; if(pct!=null){weightedSum+=pct*w;totalWeight+=w;} });
+      snap._rawScore=totalWeight>0?weightedSum/totalWeight:null;
+    });
+    const rawScores=pool.map(s=>s._rawScore).filter(v=>v!=null);
+    if(!rawScores.length) return;
+    const minR=Math.min(...rawScores),maxR=Math.max(...rawScores);
+    pool.forEach(snap=>{
+      if(snap._rawScore==null){snap.physicalScore=null;return;}
+      snap.physicalScore=Math.round((maxR===minR?70:40+((snap._rawScore-minR)/(maxR-minR))*60)*10)/10;
+    });
+  });
+
+  // Apply rating adjustments
+  let applied=0;
+  PHYS.snapshots.forEach(snap=>{
+    if(!snap.matchedPlayerId||snap.physicalScore==null) return;
+    const player=ST.players.find(p=>p.id===snap.matchedPlayerId);
+    if(!player||PHYS_EXCLUDED.includes(player.pos)||snap.season!==player.season) return;
+    const ratingWeight=PHYS_RATING_WEIGHT[player.pos]||0;
+    if(!ratingWeight) return;
+    // Reverse previous physical adjustment
+    if(snap.applied&&snap.physicalAdj!=null){
+      if(player.rating!=null)    player.rating   =Math.round((player.rating   -snap.physicalAdj)*10)/10;
+      if(player.potential!=null) player.potential=Math.round((player.potential-snap.physicalAdj)*10)/10;
+      if(player.ptPriority!=null)player.ptPriority=Math.max(0,Math.min(100,Math.round((player.ptPriority-(snap.physicalAdj*2))*10)/10));
+    }
+    // New adjustment: blend formula
+    const baseRating=player.rating??0;
+    const physAdj=Math.round(((baseRating*(1-ratingWeight))+(snap.physicalScore*ratingWeight)-baseRating)*10)/10;
+    player.rating   =Math.min(100,Math.round((baseRating+physAdj)*10)/10);
+    player.potential=Math.min(100,Math.round(((player.potential??0)+physAdj)*10)/10);
+    player.ptPriority=Math.max(0,Math.min(100,Math.round(((player.ptPriority??0)+(physAdj*2))*10)/10));
+    player.hasPhysical=true;
+    snap.physicalAdj=physAdj;
+    snap.applied=true;
+    snap.appliedAt=new Date().toISOString();
+    // History entry
+    if(!player.history) player.history=[];
+    const ei=player.history.findIndex(h=>h.type==='physical'&&h.season===snap.season);
+    const he={type:'physical',season:snap.season,capturedAt:snap.appliedAt,physicalScore:snap.physicalScore,physicalAdj:physAdj,rating:player.rating,potential:player.potential,ptPriority:player.ptPriority};
+    if(ei>=0) player.history[ei]=he; else player.history.push(he);
+    applied++;
+  });
+
+  // Mark players without physical data
+  ST.players.forEach(p=>{
+    if(!PHYS_EXCLUDED.includes(p.pos))
+      p.hasPhysical=PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  });
+
+  computeMetricBonuses();
+  computeAllLeaguePct();
+  saveState();renderAll();
+  return applied;
+}
+
+function applyPhysicalData(){
+  if(!confirm('Apply physical scores to all matched players? This adjusts their ratings.')) return;
+  const n=computeAndApplyPhysical();
+  showToast(`Physical scores applied to ${n} players`,'success');
+  queueGitHubSave(saveData);
+  queueGitHubSave(savePhysicalDB);
+}
+
+// ═══════════════════════════════════
+// BEST XI / BEST POTENTIAL XI
 function redrawXI(){openXI(_xiMode,true);}
 function openXI(mode,keepFormation=false){
   _xiMode=mode;
