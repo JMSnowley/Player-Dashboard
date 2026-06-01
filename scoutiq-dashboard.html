@@ -1060,41 +1060,60 @@ async function saveToGitHub(){
   if(!GH.token){ showToast('Enter your GitHub token in Setup to save','error'); return; }
   try{
     setSyncStatus('saving');
-    const payload = JSON.stringify({players: ST.players, savedAt: new Date().toISOString()});
-    // Get current file SHA (required by GitHub API for updates)
-    let sha = null;
-    try{
-      const meta = await fetch('https://api.github.com/repos/JMSnowley/Player-Dashboard/contents/db.json',
-        {headers:{'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json'}});
-      if(meta.ok){ const m=await meta.json(); sha=m.sha; }
-    }catch(e){}
-    // Encode payload as base64
-    const encoded = btoa(unescape(encodeURIComponent(payload)));
-    const body = {
-      message: 'PLYRDASH db ' + new Date().toISOString().slice(0,16),
-      content: encoded,
-      branch: 'main',
-    };
-    if(sha) body.sha = sha;
-    const resp = await fetch('https://api.github.com/repos/JMSnowley/Player-Dashboard/contents/db.json', {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'token ' + GH.token,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
+    const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
+    const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
+    const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
+
+    // Step 1: Get current commit SHA for main branch
+    const refResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+    if(!refResp.ok) throw new Error('Could not get branch ref: '+refResp.status);
+    const refData=await refResp.json();
+    const latestCommitSha=refData.object.sha;
+
+    // Step 2: Get tree SHA from latest commit
+    const commitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${latestCommitSha}`,{headers});
+    if(!commitResp.ok) throw new Error('Could not get commit: '+commitResp.status);
+    const commitData=await commitResp.json();
+    const baseTreeSha=commitData.tree.sha;
+
+    // Step 3: Create a blob with the new file content
+    const blobResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{
+      method:'POST',headers,
+      body:JSON.stringify({content:payload,encoding:'utf-8'})
     });
-    if(resp.ok || resp.status===200 || resp.status===201){
-      setSyncStatus('saved');
-      showToast('Saved — viewers will see updates shortly','success');
-    } else {
-      const t=await resp.text();
-      console.error('saveToGitHub failed',resp.status,t);
-      setSyncStatus('error');
-      showToast('Save failed: '+resp.status+' — check token in Setup','error');
-    }
-  } catch(e){ setSyncStatus('error'); console.error('saveToGitHub',e); }
+    if(!blobResp.ok) throw new Error('Could not create blob: '+blobResp.status);
+    const blobData=await blobResp.json();
+
+    // Step 4: Create new tree pointing to new blob
+    const treeResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{
+      method:'POST',headers,
+      body:JSON.stringify({base_tree:baseTreeSha,tree:[{path,mode:'100644',type:'blob',sha:blobData.sha}]})
+    });
+    if(!treeResp.ok) throw new Error('Could not create tree: '+treeResp.status);
+    const treeData=await treeResp.json();
+
+    // Step 5: Create new commit
+    const newCommitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{
+      method:'POST',headers,
+      body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16),tree:treeData.sha,parents:[latestCommitSha]})
+    });
+    if(!newCommitResp.ok) throw new Error('Could not create commit: '+newCommitResp.status);
+    const newCommitData=await newCommitResp.json();
+
+    // Step 6: Update branch ref to new commit
+    const updateResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{
+      method:'PATCH',headers,
+      body:JSON.stringify({sha:newCommitData.sha})
+    });
+    if(!updateResp.ok) throw new Error('Could not update ref: '+updateResp.status);
+
+    setSyncStatus('saved');
+    showToast('Saved — viewers will see updates shortly','success');
+  }catch(e){
+    setSyncStatus('error');
+    console.error('saveToGitHub',e);
+    showToast('Save failed: '+e.message,'error');
+  }
 }
 
 async function saveToSheet(){
@@ -1147,6 +1166,12 @@ function setSyncStatus(status){
   const map={saving:'↑ Saving…',saved:'✓ Saved',loading:'↓ Loading…',synced:'✓ Synced',error:'⚠ Sync error',idle:''};
   lbl.textContent=map[status]||'';
   lbl.style.color=status==='error'?'var(--red)':status==='synced'||status==='saved'?'var(--green)':'var(--muted2)';
+  // Warn before leaving if save in progress
+  if(status==='saving'){
+    window.onbeforeunload=e=>{e.preventDefault();e.returnValue='Data is still saving to GitHub. If you leave now your latest changes may be lost.';return e.returnValue;};
+  } else {
+    window.onbeforeunload=null;
+  }
 }
 
 // ═══════════════════════════════════
