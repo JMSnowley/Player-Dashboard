@@ -2776,15 +2776,31 @@ function findCandidates(snap){
       return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
     })();
 
+    const snapBDYear=snap.birthdate?parseInt(snap.birthdate.slice(0,4)):null;
+    // Derive approximate birth year from player age + capture date
+    const playerBDYear=(p)=>{
+      if(!p.age) return null;
+      const captureYear=p.capturedAt?new Date(p.capturedAt).getFullYear():new Date().getFullYear();
+      return captureYear-p.age;
+    };
+    const bdOk=(p)=>{
+      if(!snapBDYear) return 'unknown';
+      const pby=playerBDYear(p);
+      if(pby==null) return 'unknown';
+      const diff=Math.abs(pby-snapBDYear);
+      if(diff===0) return 'exact';
+      if(diff<=1) return 'close';
+      return false;
+    };
     const nameMatch=snInPn||pnInSn||fnMatch||initMatch;
     if(!nameMatch) return;
 
-    const bd=bdMatch(snap.birthdate,p.birthdate||null,false);
+    const bd=bdOk(p);
     let confidence,reason;
-    if(bd==='exact'){confidence='high';reason='Name + birthdate exact';}
-    else if(bd==='close'){confidence='high';reason='Name + birthdate ±365d';}
-    else if(bd==='unknown'){confidence='medium';reason='Name match, no birthdate';}
-    else{confidence='low';reason='Name match only, birthdate mismatch';}
+    if(bd==='exact'){confidence='high';reason='Name + birth year exact';}
+    else if(bd==='close'){confidence='high';reason='Name + birth year ±1yr';}
+    else if(bd==='unknown'){confidence='medium';reason='Name match, no age data';}
+    else{confidence='low';reason='Name match, age mismatch';}
 
     candidates.push({player:p,confidence,reason,bd});
   });
@@ -2883,22 +2899,98 @@ function updatePhysMatchSummary(){
     `${matched} matched · ${skipped} skipped this session`;
 }
 
-function runAutoMatch(){
-  const unmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId);
-  let autoCount=0;
-  unmatched.forEach(snap=>{
-    if(_physMatchDecisions[snap.id]) return; // already decided
-    const candidates=findCandidates(snap);
-    const top=candidates[0];
-    if(top&&top.confidence==='high'){
-      _physMatchDecisions[snap.id]=top.player.id;
-      autoCount++;
-    }
+async function runAutoMatch(){
+  const unmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId&&!_physMatchDecisions[s.id]);
+  const total=unmatched.length;
+  if(!total){showToast('Nothing left to auto-match','success');return;}
+
+  // Pre-build a lookup index from normalised name fragments → players
+  // This reduces comparisons from O(n×m) to O(n×k) where k is a small candidate set
+  const nameIndex={};
+  ST.players.forEach(p=>{
+    if(PHYS_EXCLUDED.includes(p.pos)) return;
+    const pn=normPhys(p.name);
+    // Index by each word of length ≥3
+    pn.split(' ').filter(w=>w.length>=3).forEach(w=>{
+      if(!nameIndex[w]) nameIndex[w]=[];
+      nameIndex[w].push(p);
+    });
   });
-  showToast(`Auto-matched ${autoCount} high-confidence records`,'success');
-  // Re-render with updated decisions
+
+  // Fast candidate lookup using index
+  const fastCandidates=(snap)=>{
+    const sn=normPhys(snap.shortName);
+    const fn=normPhys(snap.fullName);
+    const snapBDYear=snap.birthdate?parseInt(snap.birthdate.slice(0,4)):null;
+
+    const words=[...sn.split(' '),...fn.split(' ')].filter(w=>w.length>=3);
+    const seen=new Set();
+    const pool=[];
+    words.forEach(w=>{
+      (nameIndex[w]||[]).forEach(p=>{
+        if(!seen.has(p.id)){seen.add(p.id);pool.push(p);}
+      });
+    });
+
+    const results=[];
+    pool.forEach(p=>{
+      const pn=normPhys(p.name);
+      const snInPn=sn&&pn.includes(sn);
+      const pnInSn=pn&&sn.includes(pn);
+      const fnMatch=fn&&(pn===fn||pn.includes(fn)||fn.includes(pn));
+      const initMatch=sn&&(()=>{
+        const parts=sn.split(' ');
+        if(parts.length<2) return false;
+        const init=parts[0].replace('.','');
+        const surname=parts.slice(1).join(' ');
+        const pParts=pn.split(' ');
+        return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
+      })();
+      if(!snInPn&&!pnInSn&&!fnMatch&&!initMatch) return;
+
+      // Derive approximate birth year from player age + capture date
+      let bdOk=false;
+      if(snapBDYear&&p.age&&p.capturedAt){
+        const captureYear=new Date(p.capturedAt).getFullYear();
+        const approxBDYear=captureYear-p.age;
+        // Allow ±1 year tolerance
+        bdOk=Math.abs(approxBDYear-snapBDYear)<=1;
+      } else if(snapBDYear&&p.age){
+        // No capturedAt — use current year estimate
+        const approxBDYear=new Date().getFullYear()-p.age;
+        bdOk=Math.abs(approxBDYear-snapBDYear)<=1;
+      }
+
+      if(bdOk) results.push({player:p,confidence:'high'});
+      else results.push({player:p,confidence:'medium'}); // name match but can't confirm age
+    });
+    // Only auto-match high confidence (name + age match)
+    return results.filter(r=>r.confidence==='high');
+  };
+
+  // Process in chunks to keep UI responsive
+  const CHUNK=200;
+  let autoCount=0;
+  showToast(`Auto-matching ${total} records…`,'success');
+
+  for(let i=0;i<unmatched.length;i+=CHUNK){
+    const chunk=unmatched.slice(i,i+CHUNK);
+    chunk.forEach(snap=>{
+      const candidates=fastCandidates(snap);
+      if(candidates.length>0){
+        _physMatchDecisions[snap.id]=candidates[0].player.id;
+        autoCount++;
+      }
+    });
+    // Yield to browser between chunks
+    await new Promise(r=>setTimeout(r,0));
+    // Update progress toast every 1000
+    if(i%1000===0&&i>0) showToast(`Auto-matching… ${i}/${total} processed`,'success');
+  }
+
+  showToast(`Auto-matched ${autoCount} of ${total} records`,'success');
   const stillUnmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId&&!_physMatchDecisions[s.id]);
-  renderPhysMatchBody(stillUnmatched.length?stillUnmatched:PHYS.snapshots.filter(s=>!s.matchedPlayerId));
+  renderPhysMatchBody(stillUnmatched);
   updatePhysMatchSummary();
 }
 
