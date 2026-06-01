@@ -320,6 +320,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
+    <button id="physCaptureBtn" class="btn btn-ghost" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
     <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
     <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:11px">⚽ Best XI</button>
     <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:11px">⚽ Best Potential XI</button>
@@ -597,6 +598,34 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('captureModal')">Cancel</button>
       <button class="btn btn-gold" id="captureBtn" onclick="runCapture()">◎ Capture</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- PHYSICAL CAPTURE MODAL -->
+<div class="mb" id="physCaptureModal">
+  <div class="modal" style="width:480px">
+    <div class="modal-title">CAPTURE PHYSICAL DATA</div>
+    <div class="modal-sub">Select season type, season, then capture from the PHYSICAL tab in your Sheet.</div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">Season Type</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button id="physSeasonTypeWinter" class="btn btn-gold" style="justify-content:center;font-size:11px" onclick="setPhysSeasonType('winter')">❄ Winter (cross-calendar)</button>
+        <button id="physSeasonTypeSummer" class="btn btn-ghost" style="justify-content:center;font-size:11px" onclick="setPhysSeasonType('summer')">☀ Summer (calendar year)</button>
+      </div>
+    </div>
+    <div class="modal-sec">
+      <div class="modal-sec-title">Season</div>
+      <div class="fg"><select id="physCapSeason" style="width:100%"></select></div>
+    </div>
+    <div id="physCapProgWrap" style="display:none;margin-bottom:10px">
+      <div class="prog-lbl" id="physCapProgLbl">Reading sheet…</div>
+      <div class="prog-bar"><div class="prog-fill" id="physCapProgFill" style="width:0%"></div></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('physCaptureModal')">Cancel</button>
+      <button class="btn btn-gold" id="physCaptureBtn2" onclick="runPhysCapture()">⚡ Capture Physical</button>
     </div>
   </div>
 </div>
@@ -906,7 +935,7 @@ function setEditorMode(isEditor){
   // viewer-mode CSS class hides .col-check column on both th and td — survives table re-renders
   document.body.classList.toggle('viewer-mode',!isEditor);
   // Editor-only buttons
-  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn'].forEach(id=>{
+  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn','physCaptureBtn'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.style.display=isEditor?'':'none';
   });
   const selBar=document.getElementById('selBar');
@@ -2444,6 +2473,192 @@ function runHypTransfer(pid){
   document.getElementById('htModal').classList.add('open');
 }
 function closeHT(){document.getElementById('htModal').classList.remove('open');}
+
+// ═══════════════════════════════════
+// PHYSICAL CAPTURE — PHASE 2
+// ═══════════════════════════════════
+
+// Winter = cross-calendar seasons (25/26 etc), Summer = calendar year (2025 etc)
+const PHYS_WINTER_SEASONS=['18/19','19/20','20/21','21/22','22/23','23/24','24/25','25/26','26/27','27/28','28/29','29/30'];
+const PHYS_SUMMER_SEASONS=['2019','2020','2021','2022','2023','2024','2025','2026','2027','2028','2029','2030'];
+
+let _physSeasonType='winter';
+
+function openPhysCaptureModal(){
+  if(!ST.auth){showToast('Connect to Google Sheets first (Setup)','error');return;}
+  _physSeasonType='winter';
+  setPhysSeasonType('winter');
+  closeModal('captureModal');
+  document.getElementById('physCaptureModal').classList.add('open');
+}
+
+function setPhysSeasonType(type){
+  _physSeasonType=type;
+  const seasons=type==='winter'?PHYS_WINTER_SEASONS:PHYS_SUMMER_SEASONS;
+  const sel=document.getElementById('physCapSeason');
+  sel.innerHTML=seasons.map(s=>`<option value="${s}">${s}</option>`).join('');
+  // Default to most recent season
+  sel.value=seasons[seasons.length-3]||seasons[0];
+  // Style buttons
+  document.getElementById('physSeasonTypeWinter').className='btn '+(type==='winter'?'btn-gold':'btn-ghost')+' ';
+  document.getElementById('physSeasonTypeSummer').className='btn '+(type==='summer'?'btn-gold':'btn-ghost')+' ';
+  document.getElementById('physSeasonTypeWinter').style.cssText='justify-content:center;font-size:11px';
+  document.getElementById('physSeasonTypeSummer').style.cssText='justify-content:center;font-size:11px';
+}
+
+// Column name → internal key mapping for the 8 physical metrics
+const PHYS_COL_MAP={
+  'PSV-99':                         'psv99',
+  'TOP 5 PSV-99':                   'top5psv99',
+  'TOP 3 Time to HSR':              'top3timeHSR',
+  'Distance P90':                   'distP90',
+  'HSR Distance TIP P30TIP':        'hsrDistTIP',
+  'Sprint Distance TIP P30TIP':     'sprintDistTIP',
+  'HSR Distance OTIP P30OTIP':      'hsrDistOTIP',
+  'Sprint Distance OTIP P30OTIP':   'sprintDistOTIP',
+};
+// Column H (index 7) = Count Performances (Physical Check passed)
+const PHYS_COUNT_COL='Count Performances (Physical Check passed)';
+
+async function runPhysCapture(){
+  const btn=document.getElementById('physCaptureBtn2');
+  const pw=document.getElementById('physCapProgWrap');
+  const pf=document.getElementById('physCapProgFill');
+  const pl=document.getElementById('physCapProgLbl');
+  const season=document.getElementById('physCapSeason').value;
+  const tabName=_physSeasonType==='winter'?'PHYSICAL WINTER':'PHYSICAL SUMMER';
+  btn.disabled=true; pw.style.display='block'; pf.style.width='10%';
+  pl.textContent='Reading '+tabName+'…';
+
+  try{
+    // Read physical tab
+    const rows=await sheetsRead(tabName);
+    if(!rows||rows.length<2) throw new Error('No data found in '+tabName);
+    pf.style.width='30%'; pl.textContent='Parsing rows…';
+
+    const header=rows[0];
+    // Build column index map
+    const colIdx={};
+    header.forEach((h,i)=>{ colIdx[h.trim()]=i; });
+
+    // Required identity columns
+    const playerCol=colIdx['Player']??colIdx['player']??0;
+    const shortCol=colIdx['Short Name']??colIdx['short name']??1;
+    const idCol=colIdx['Player ID']??colIdx['player id']??2;
+    const bdCol=colIdx['Birthdate']??colIdx['birthdate']??3;
+    const countCol=colIdx[PHYS_COUNT_COL]??7;
+
+    // Parse all data rows
+    const raw=[];
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i];
+      if(!r||!r.length) continue;
+      const gv=idx=>idx!=null&&r[idx]!=null?String(r[idx]).trim():'';
+      const gn=idx=>{ const v=gv(idx); return v!==''&&!isNaN(v)?parseFloat(v):null; };
+
+      const skillcornerId=gn(idCol);
+      const fullName=gv(playerCol);
+      const shortName=gv(shortCol);
+      const birthdate=gv(bdCol);
+      const countPerf=gn(countCol)||1;
+
+      if(!fullName&&!shortName) continue;
+
+      // Extract the 8 metric values
+      const metrics={};
+      Object.entries(PHYS_COL_MAP).forEach(([col,key])=>{
+        const idx=colIdx[col];
+        metrics[key]=gn(idx);
+      });
+
+      raw.push({skillcornerId,fullName,shortName,birthdate,countPerf,metrics});
+    }
+
+    pf.style.width='55%'; pl.textContent=`Parsed ${raw.length} rows — merging duplicates…`;
+
+    // Merge duplicates by Player ID (same skillcornerId)
+    // Weighted average by countPerf
+    const merged=mergePhysicalDuplicates(raw);
+
+    pf.style.width='70%'; pl.textContent=`${merged.length} unique players — saving snapshots…`;
+
+    // Build snapshot objects and store in PHYS
+    const capturedAt=new Date().toISOString();
+    let added=0,updated=0;
+
+    merged.forEach(p=>{
+      // Check if snapshot already exists for this skillcornerId+season
+      const existing=PHYS.snapshots.findIndex(s=>
+        s.skillcornerId===p.skillcornerId && s.season===season
+      );
+      const snap={
+        id: existing>=0 ? PHYS.snapshots[existing].id : 'phys_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        skillcornerId: p.skillcornerId,
+        fullName: p.fullName,
+        shortName: p.shortName,
+        birthdate: p.birthdate,
+        season,
+        seasonType: _physSeasonType,
+        metrics: p.metrics,
+        countPerf: p.countPerf,
+        capturedAt,
+        matchedPlayerId: existing>=0 ? PHYS.snapshots[existing].matchedPlayerId : null,
+        matchConfidence: existing>=0 ? PHYS.snapshots[existing].matchConfidence : null,
+        physicalScore: null,  // calculated after matching in Phase 4
+        physicalAdj: null,
+        applied: false,
+      };
+      if(existing>=0){ PHYS.snapshots[existing]=snap; updated++; }
+      else{ PHYS.snapshots.push(snap); added++; }
+    });
+
+    pf.style.width='90%'; pl.textContent='Saving to GitHub…';
+    await savePhysicalDB();
+
+    pf.style.width='100%'; pl.textContent='Done!';
+    showToast(`Physical capture complete — ${added} new, ${updated} updated. Ready to match.`,'success');
+    setTimeout(()=>{ closeModal('physCaptureModal'); btn.disabled=false; pw.style.display='none'; },900);
+
+  }catch(e){
+    console.error('runPhysCapture',e);
+    showToast('Physical capture failed: '+e.message,'error');
+    btn.disabled=false; pw.style.display='none';
+  }
+}
+
+// Merge duplicate rows with same skillcornerId using countPerf-weighted average
+function mergePhysicalDuplicates(rows){
+  const byId={};
+  // Group by skillcornerId; fall back to shortName+birthdate for rows without an ID
+  rows.forEach(r=>{
+    const key=r.skillcornerId!=null?'id_'+r.skillcornerId:'name_'+r.shortName+'_'+r.birthdate;
+    if(!byId[key]) byId[key]=[];
+    byId[key].push(r);
+  });
+  return Object.values(byId).map(group=>{
+    if(group.length===1) return group[0];
+    // Weighted merge
+    const totalCount=group.reduce((s,r)=>s+r.countPerf,0);
+    const merged={
+      skillcornerId: group[0].skillcornerId,
+      fullName: group[0].fullName,
+      shortName: group[0].shortName,
+      birthdate: group[0].birthdate,
+      countPerf: totalCount,
+      metrics: {},
+    };
+    // Weighted average for each metric
+    PHYS_METRICS.forEach(({key})=>{
+      const valid=group.filter(r=>r.metrics[key]!=null);
+      if(!valid.length){ merged.metrics[key]=null; return; }
+      const validTotal=valid.reduce((s,r)=>s+r.countPerf,0);
+      merged.metrics[key]=Math.round(
+        (valid.reduce((s,r)=>s+(r.metrics[key]*r.countPerf),0)/validTotal)*1000
+      )/1000;
+    });
+    return merged;
+  });
+}
 
 // ═══════════════════════════════════
 // BEST XI / BEST POTENTIAL XI
