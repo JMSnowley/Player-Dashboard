@@ -1352,7 +1352,8 @@ async function savePhysicalDB(){
     }catch(e){ lastErr=e; console.warn('savePhysicalDB attempt '+attempt+' failed:',e.message); }
   }
   console.error('savePhysicalDB failed after 3 attempts',lastErr);
-  showToast('Physical save failed after retries: '+lastErr.message,'error');
+  showToast('Physical save failed: '+lastErr.message,'error');
+  throw lastErr;
 }
 
 
@@ -2673,14 +2674,15 @@ async function runPhysCapture(){
       else{ PHYS.snapshots.push(snap); added++; }
     });
 
-    pf.style.width='90%'; pl.textContent='Queuing save to GitHub…';
-    // Fire save through queue without awaiting — modal closes immediately, toast fires on completion
-    queueGitHubSave(savePhysicalDB).then(()=>{
-      showToast(`Physical data saved to GitHub — ${added} new, ${updated} updated`,'success');
-    });
-
-    pf.style.width='100%'; pl.textContent='Done!';
-    showToast(`Physical capture complete — ${added} new, ${updated} updated. Saving in background…`,'success');
+    pf.style.width='90%'; pl.textContent='Saving to GitHub…';
+    try{
+      await savePhysicalDB();
+      pf.style.width='100%'; pl.textContent='Done!';
+      showToast(`Physical capture complete — ${added} new, ${updated} updated. Ready to match.`,'success');
+    }catch(e){
+      showToast('Physical save error: '+e.message,'error');
+      console.error('Physical save failed:',e);
+    }
     setTimeout(()=>{ closeModal('physCaptureModal'); btn.disabled=false; pw.style.display='none'; },900);
 
   }catch(e){
