@@ -1048,7 +1048,7 @@ async function loadFromGitHub(){
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
-      if(migrated) saveData(); // persist migration to db.json silently
+      if(migrated) setTimeout(()=>saveData(),1500); // slight delay to avoid SHA conflict with any concurrent save
       showToast('Loaded ' + data.players.length + ' players', 'success');
     }
     setSyncStatus('synced');
@@ -1100,11 +1100,27 @@ async function saveToGitHub(){
     if(!newCommitResp.ok) throw new Error('Could not create commit: '+newCommitResp.status);
     const newCommitData=await newCommitResp.json();
 
-    // Step 6: Update branch ref to new commit
-    const updateResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{
-      method:'PATCH',headers,
-      body:JSON.stringify({sha:newCommitData.sha})
-    });
+    // Step 6: Update branch ref to new commit (retry once on 422 conflict)
+    const updateRef=async(commitSha)=>{
+      const r=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{
+        method:'PATCH',headers,body:JSON.stringify({sha:commitSha})
+      });
+      return r;
+    };
+    let updateResp=await updateRef(newCommitData.sha);
+    if(updateResp.status===422){
+      // Stale ref — re-fetch latest commit, create new tree+commit on top of it, then retry
+      const retryRef=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+      if(!retryRef.ok) throw new Error('Retry ref fetch failed: '+retryRef.status);
+      const retryRefData=await retryRef.json();
+      const retryCommitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{
+        method:'POST',headers,
+        body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16)+' (retry)',tree:treeData.sha,parents:[retryRefData.object.sha]})
+      });
+      if(!retryCommitResp.ok) throw new Error('Retry commit failed: '+retryCommitResp.status);
+      const retryCommitData=await retryCommitResp.json();
+      updateResp=await updateRef(retryCommitData.sha);
+    }
     if(!updateResp.ok) throw new Error('Could not update ref: '+updateResp.status);
 
     setSyncStatus('saved');
