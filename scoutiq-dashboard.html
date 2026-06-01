@@ -211,6 +211,24 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .toast.info{border-color:var(--accent-border);color:var(--accent)}
 @keyframes tIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;padding:0 2px}
+/* PHYSICAL MATCH */
+.pm-row{border-bottom:1px solid var(--border);padding:10px 20px;display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start}
+.pm-row:hover{background:var(--accent-dim)}
+.pm-row.pm-matched{background:rgba(0,229,153,0.05)}
+.pm-row.pm-skipped{opacity:0.5}
+.pm-phys{font-size:11px}
+.pm-phys-name{font-weight:700;color:var(--text);font-size:12px}
+.pm-phys-detail{color:var(--muted2);font-size:10px;font-family:'JetBrains Mono',monospace;margin-top:2px}
+.pm-phys-score{color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px;margin-top:4px}
+.pm-candidates{display:flex;flex-direction:column;gap:4px}
+.pm-candidate{padding:6px 10px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:11px;transition:all .15s}
+.pm-candidate:hover{border-color:var(--accent);background:var(--accent-dim)}
+.pm-candidate.pm-selected{border-color:var(--green);background:rgba(0,229,153,0.08)}
+.pm-candidate.pm-auto{border-color:var(--gold);background:rgba(245,200,66,0.05)}
+.pm-no-match{font-size:11px;color:var(--muted);font-style:italic;padding:4px 0}
+.pm-skip-btn{font-size:10px;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block}
+.pm-skip-btn:hover{color:var(--red)}
+
 /* TEAM OVERVIEW */
 .to-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:350;display:none;align-items:center;justify-content:center}
 .to-modal.open{display:flex}
@@ -320,6 +338,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button id="physCaptureBtn" class="btn btn-gold" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
+    <button id="physMatchBtn" class="btn btn-ghost" onclick="openPhysMatchModal()" style="display:none;font-size:11px">🔗 Match Physical</button>
     <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
     <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:11px">⚽ Best XI</button>
     <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:11px">⚽ Best Potential XI</button>
@@ -601,6 +620,28 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   </div>
 </div>
 
+
+
+<!-- PHYSICAL MATCH MODAL -->
+<div class="mb" id="physMatchModal" style="z-index:500">
+  <div class="modal" style="width:820px;max-height:90vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div class="modal-title" style="margin:0">MATCH PHYSICAL DATA</div>
+        <div class="modal-sub" style="margin:4px 0 0" id="physMatchStatus">Loading…</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-gold" style="font-size:11px" onclick="runAutoMatch()">⚡ Auto-Match All</button>
+        <button class="btn btn-ghost" style="font-size:11px" onclick="closeModal('physMatchModal')">✕ Close</button>
+      </div>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:0" id="physMatchBody"></div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:11px;color:var(--muted)" id="physMatchSummary"></div>
+      <button class="btn btn-gold" style="font-size:11px" onclick="savePhysMatchResults()">✓ Save Matches</button>
+    </div>
+  </div>
+</div>
 
 <!-- PHYSICAL CAPTURE MODAL -->
 <div class="mb" id="physCaptureModal">
@@ -934,7 +975,7 @@ function setEditorMode(isEditor){
   // viewer-mode CSS class hides .col-check column on both th and td — survives table re-renders
   document.body.classList.toggle('viewer-mode',!isEditor);
   // Editor-only buttons
-  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn','physCaptureBtn'].forEach(id=>{
+  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn','physCaptureBtn','physMatchBtn'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.style.display=isEditor?'':'none';
   });
   const selBar=document.getElementById('selBar');
@@ -2684,7 +2725,202 @@ function mergePhysicalDuplicates(rows){
 }
 
 // ═══════════════════════════════════
-// BEST XI / BEST POTENTIAL XI
+// PHYSICAL MATCHING ENGINE — PHASE 3
+// ═══════════════════════════════════
+
+// Normalise a name for comparison: lowercase, strip accents, remove punctuation
+function normPhys(s){
+  return(s||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,' ').trim();
+}
+
+// Parse birthdate string to Date (handles YYYY-MM-DD)
+function parseBD(s){ if(!s)return null; try{return new Date(s);}catch(e){return null;} }
+
+// Birthdate match: exact or within 365 days
+function bdMatch(a,b,strict){
+  const da=parseBD(a),db=parseBD(b);
+  if(!da||!db) return strict?false:'unknown';
+  const diff=Math.abs(da-db)/(1000*60*60*24);
+  if(diff===0) return 'exact';
+  if(diff<=365) return 'close';
+  return false;
+}
+
+// Build candidate list from ST.players for a given physical snapshot
+// Returns array of {player, confidence, reason}
+function findCandidates(snap){
+  const sn=normPhys(snap.shortName);
+  const fn=normPhys(snap.fullName);
+  const candidates=[];
+
+  ST.players.forEach(p=>{
+    if(PHYS_EXCLUDED.includes(p.pos)) return;
+    const pn=normPhys(p.name);
+
+    // Short name match: check if snap.shortName appears in player name or vice versa
+    const snInPn=sn&&pn.includes(sn);
+    const pnInSn=pn&&sn.includes(pn);
+    // Full name match
+    const fnMatch=fn&&(normPhys(p.name)===fn||pn.includes(fn)||fn.includes(pn));
+    // Initial match: e.g. "M. Frame" matches "Mitchel Frame"
+    const initMatch=sn&&(()=>{
+      const parts=sn.split(' ');
+      if(parts.length<2) return false;
+      const init=parts[0].replace('.','');
+      const surname=parts.slice(1).join(' ');
+      const pParts=pn.split(' ');
+      return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
+    })();
+
+    const nameMatch=snInPn||pnInSn||fnMatch||initMatch;
+    if(!nameMatch) return;
+
+    const bd=bdMatch(snap.birthdate,p.birthdate||null,false);
+    let confidence,reason;
+    if(bd==='exact'){confidence='high';reason='Name + birthdate exact';}
+    else if(bd==='close'){confidence='high';reason='Name + birthdate ±365d';}
+    else if(bd==='unknown'){confidence='medium';reason='Name match, no birthdate';}
+    else{confidence='low';reason='Name match only, birthdate mismatch';}
+
+    candidates.push({player:p,confidence,reason,bd});
+  });
+
+  // Sort: high confidence first, then by name similarity
+  const order={high:0,medium:1,low:2};
+  return candidates.sort((a,b)=>order[a.confidence]-order[b.confidence]);
+}
+
+// Pending match decisions: snapId → playerId|'skip'
+let _physMatchDecisions={};
+
+function openPhysMatchModal(){
+  _physMatchDecisions={};
+  const unmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId);
+  const matched=PHYS.snapshots.filter(s=>s.matchedPlayerId);
+  document.getElementById('physMatchStatus').textContent=
+    `${unmatched.length} unmatched · ${matched.length} already matched`;
+  renderPhysMatchBody(unmatched);
+  updatePhysMatchSummary();
+  document.getElementById('physMatchModal').classList.add('open');
+}
+
+function renderPhysMatchBody(snapshots){
+  const body=document.getElementById('physMatchBody');
+  if(!snapshots.length){
+    body.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">All physical records are matched ✓</div>';
+    return;
+  }
+  // Only show first 200 for performance — rest handled by auto-match
+  const toShow=snapshots.slice(0,200);
+  body.innerHTML=toShow.map(snap=>{
+    const candidates=findCandidates(snap);
+    const top=candidates[0];
+    const isAutoHigh=top&&top.confidence==='high';
+    const dec=_physMatchDecisions[snap.id];
+    const matchedClass=dec&&dec!=='skip'?'pm-matched':dec==='skip'?'pm-skipped':'';
+
+    const candidateHTML=candidates.slice(0,4).map(({player:p,confidence,reason})=>{
+      const isSelected=dec===p.id;
+      return`<div class="pm-candidate ${isSelected?'pm-selected':''} ${confidence==='high'?'pm-auto':''}"
+        onclick="selectPhysMatch('${snap.id}','${p.id}')">
+        <div>
+          <span style="font-weight:600">${p.name}</span>
+          <span style="color:var(--muted2);margin-left:6px">${p.team||''}</span>
+          <span class="pos-tag" style="margin-left:4px">${p.pos}</span>
+        </div>
+        <div style="text-align:right">
+          <div style="color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace">${reason}</div>
+          <div style="color:var(--accent);font-size:10px;font-family:'JetBrains Mono',monospace">${p.rating!=null?p.rating.toFixed(1):''}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return`<div class="pm-row ${matchedClass}" id="pmrow_${snap.id}">
+      <div class="pm-phys">
+        <div class="pm-phys-name">${snap.fullName||snap.shortName}</div>
+        <div class="pm-phys-detail">Short: ${snap.shortName} · BD: ${snap.birthdate||'—'}</div>
+        <div class="pm-phys-detail">Season: ${snap.season} · Games: ${snap.countPerf||'—'}</div>
+        <div class="pm-phys-score">${Object.entries(snap.metrics||{}).filter(([k,v])=>v!=null).slice(0,3).map(([k,v])=>`${k}:${v.toFixed(1)}`).join(' · ')}</div>
+      </div>
+      <div class="pm-candidates">
+        ${candidates.length?candidateHTML:'<div class="pm-no-match">No candidates found</div>'}
+        <span class="pm-skip-btn" onclick="selectPhysMatch('${snap.id}','skip')">Skip this record</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  if(snapshots.length>200){
+    body.innerHTML+=`<div style="padding:16px 20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border)">
+      Showing 200 of ${snapshots.length} unmatched records. Use ⚡ Auto-Match All to process the remainder automatically.
+    </div>`;
+  }
+}
+
+function selectPhysMatch(snapId,playerId){
+  _physMatchDecisions[snapId]=playerId;
+  // Update row styling
+  const row=document.getElementById('pmrow_'+snapId);
+  if(row){
+    row.classList.toggle('pm-matched',playerId!=='skip');
+    row.classList.toggle('pm-skipped',playerId==='skip');
+    // Update candidate highlights
+    row.querySelectorAll('.pm-candidate').forEach(el=>{
+      const pid=el.getAttribute('onclick')?.match(/'([^']+)'\)$/)?.[1];
+      el.classList.toggle('pm-selected',pid===playerId);
+    });
+  }
+  updatePhysMatchSummary();
+}
+
+function updatePhysMatchSummary(){
+  const matched=Object.values(_physMatchDecisions).filter(v=>v!=='skip').length;
+  const skipped=Object.values(_physMatchDecisions).filter(v=>v==='skip').length;
+  document.getElementById('physMatchSummary').textContent=
+    `${matched} matched · ${skipped} skipped this session`;
+}
+
+function runAutoMatch(){
+  const unmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId);
+  let autoCount=0;
+  unmatched.forEach(snap=>{
+    if(_physMatchDecisions[snap.id]) return; // already decided
+    const candidates=findCandidates(snap);
+    const top=candidates[0];
+    if(top&&top.confidence==='high'){
+      _physMatchDecisions[snap.id]=top.player.id;
+      autoCount++;
+    }
+  });
+  showToast(`Auto-matched ${autoCount} high-confidence records`,'success');
+  // Re-render with updated decisions
+  const stillUnmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId&&!_physMatchDecisions[s.id]);
+  renderPhysMatchBody(stillUnmatched.length?stillUnmatched:PHYS.snapshots.filter(s=>!s.matchedPlayerId));
+  updatePhysMatchSummary();
+}
+
+function savePhysMatchResults(){
+  let saved=0,skipped=0;
+  Object.entries(_physMatchDecisions).forEach(([snapId,decision])=>{
+    const snap=PHYS.snapshots.find(s=>s.id===snapId);
+    if(!snap) return;
+    if(decision==='skip'){
+      snap.matchConfidence='skipped';
+      skipped++;
+    } else {
+      snap.matchedPlayerId=decision;
+      snap.matchConfidence='manual';
+      saved++;
+    }
+  });
+  queueGitHubSave(savePhysicalDB).then(()=>showToast('Match results saved','success'));
+  showToast(`Saved ${saved} matches · ${skipped} skipped — saving in background…`,'success');
+  closeModal('physMatchModal');
+}
+
+// ═══════════════════════════════════
+// PHYSICAL SCORE CALCULATION — PHASE 4
 // ═══════════════════════════════════
 let _xiMode='best';
 function redrawXI(){openXI(_xiMode,true);}
