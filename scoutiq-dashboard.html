@@ -1182,7 +1182,7 @@ function queueGitHubSave(fn){
   _ghSaveQueue=_ghSaveQueue
     .then(()=>Promise.race([
       fn(),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('GitHub save timeout after 30s')),30000))
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('GitHub save timeout after 90s')),90000))
     ]))
     .catch(e=>console.warn('queued save error:',e.message));
   return _ghSaveQueue;
@@ -1190,112 +1190,42 @@ function queueGitHubSave(fn){
 
 async function saveToGitHub(){
   if(!GH.token){ showToast('Enter your GitHub token in Setup to save','error'); return; }
-  try{
-    setSyncStatus('saving');
-    const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
-    const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
-    const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
+  setSyncStatus('saving');
+  const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
+  const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
+  const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
 
-    // Step 1: Get current commit SHA for main branch
-    const refResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
-    if(!refResp.ok) throw new Error('Could not get branch ref: '+refResp.status);
-    const refData=await refResp.json();
-    const latestCommitSha=refData.object.sha;
+  const buildCommit=async()=>{
+    const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+    if(!refR.ok) throw new Error('ref '+refR.status);
+    const tipSha=(await refR.json()).object.sha;
+    const commitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${tipSha}`,{headers});
+    if(!commitR.ok) throw new Error('commit '+commitR.status);
+    const baseTree=(await commitR.json()).tree.sha;
+    const blobR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:payload,encoding:'utf-8'})});
+    if(!blobR.ok) throw new Error('blob '+blobR.status);
+    const blobSha=(await blobR.json()).sha;
+    const treeR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
+    if(!treeR.ok) throw new Error('tree '+treeR.status);
+    const newTreeSha=(await treeR.json()).sha;
+    const newCommitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16),tree:newTreeSha,parents:[tipSha]})});
+    if(!newCommitR.ok) throw new Error('newcommit '+newCommitR.status);
+    return (await newCommitR.json()).sha;
+  };
 
-    // Step 2: Get tree SHA from latest commit
-    const commitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${latestCommitSha}`,{headers});
-    if(!commitResp.ok) throw new Error('Could not get commit: '+commitResp.status);
-    const commitData=await commitResp.json();
-    const baseTreeSha=commitData.tree.sha;
-
-    // Step 3: Create a blob with the new file content
-    const blobResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{
-      method:'POST',headers,
-      body:JSON.stringify({content:payload,encoding:'utf-8'})
-    });
-    if(!blobResp.ok) throw new Error('Could not create blob: '+blobResp.status);
-    const blobData=await blobResp.json();
-
-    // Step 4: Create new tree pointing to new blob
-    const treeResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{
-      method:'POST',headers,
-      body:JSON.stringify({base_tree:baseTreeSha,tree:[{path,mode:'100644',type:'blob',sha:blobData.sha}]})
-    });
-    if(!treeResp.ok) throw new Error('Could not create tree: '+treeResp.status);
-    const treeData=await treeResp.json();
-
-    // Step 5: Create new commit
-    const newCommitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{
-      method:'POST',headers,
-      body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16),tree:treeData.sha,parents:[latestCommitSha]})
-    });
-    if(!newCommitResp.ok) throw new Error('Could not create commit: '+newCommitResp.status);
-    const newCommitData=await newCommitResp.json();
-
-    // Step 6: Update branch ref to new commit (retry once on 422 conflict)
-    const updateRef=async(commitSha)=>{
-      const r=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{
-        method:'PATCH',headers,body:JSON.stringify({sha:commitSha})
-      });
-      return r;
-    };
-    let updateResp=await updateRef(newCommitData.sha);
-    if(updateResp.status===422){
-      // Stale ref — re-fetch latest commit, create new tree+commit on top of it, then retry
-      const retryRef=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
-      if(!retryRef.ok) throw new Error('Retry ref fetch failed: '+retryRef.status);
-      const retryRefData=await retryRef.json();
-      const retryCommitResp=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{
-        method:'POST',headers,
-        body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16)+' (retry)',tree:treeData.sha,parents:[retryRefData.object.sha]})
-      });
-      if(!retryCommitResp.ok) throw new Error('Retry commit failed: '+retryCommitResp.status);
-      const retryCommitData=await retryCommitResp.json();
-      updateResp=await updateRef(retryCommitData.sha);
-    }
-    if(!updateResp.ok) throw new Error('Could not update ref: '+updateResp.status);
-
-    setSyncStatus('saved');
-    showToast('Saved — viewers will see updates shortly','success');
-  }catch(e){
-    setSyncStatus('error');
-    console.error('saveToGitHub',e);
-    showToast('Save failed: '+e.message,'error');
+  let lastErr;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      if(attempt>1) await new Promise(r=>setTimeout(r,2000*attempt));
+      const commitSha=await buildCommit();
+      const updateR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:commitSha})});
+      if(updateR.ok){ setSyncStatus('saved'); showToast('Saved — viewers will see updates shortly','success'); return; }
+      if(updateR.status===422){ lastErr=new Error('422 conflict'); continue; }
+      throw new Error('Could not update ref: '+updateR.status);
+    }catch(e){ lastErr=e; console.warn('saveToGitHub attempt '+attempt+' failed:',e.message); }
   }
-}
-
-async function saveToSheet(){
-  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
-  try{
-    const ok=await ensureDbTab(); if(!ok) return;
-    const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString(),v:2});
-    const chunks=chunkString(payload);
-    const rows=[[chunks.length.toString()],...chunks.map(c=>[c])];
-    await sheetsWrite(ST.cfg.dbTab,'A1:A'+(rows.length),rows);
-  }catch(e){ console.error('saveToSheet',e); }
-}
-
-async function loadFromSheet(){
-  if(!ST.auth||!ST.cfg.sheetId||!ST.cfg.dbTab) return;
-  try{
-    const resp=await fetch(
-      'https://sheets.googleapis.com/v4/spreadsheets/'+ST.cfg.sheetId+'/values/'+encodeURIComponent(ST.cfg.dbTab+'!A1:A200'),
-      {headers:{'Authorization':'Bearer '+ST.auth}});
-    if(!resp.ok) return;
-    const data=await resp.json();
-    const rows=(data.values||[]).map(r=>r[0]||'');
-    if(!rows.length||!rows[0]) return;
-    let fullJson='';
-    const firstVal=rows[0].trim();
-    if(firstVal.startsWith('{')){ fullJson=firstVal; }
-    else{ const n=parseInt(firstVal)||1; fullJson=rows.slice(1,1+n).join(''); }
-    if(!fullJson) return;
-    const parsed=JSON.parse(fullJson);
-    if(parsed.players&&parsed.players.length){
-      ST.players=parsed.players; ST.selectedIds=new Set();
-      saveState(); renderAll();
-    }
-  }catch(e){ console.error('loadFromSheet',e); }
+  setSyncStatus('error');
+  throw new Error('Could not update ref: '+lastErr.message);
 }
 
 async function saveData(){
@@ -2995,23 +2925,22 @@ async function runAutoMatch(){
   updatePhysMatchSummary();
 }
 
-function savePhysMatchResults(){
+async function savePhysMatchResults(){
   let saved=0,skipped=0;
   Object.entries(_physMatchDecisions).forEach(([snapId,decision])=>{
     const snap=PHYS.snapshots.find(s=>s.id===snapId);
     if(!snap) return;
-    if(decision==='skip'){
-      snap.matchConfidence='skipped';
-      skipped++;
-    } else {
-      snap.matchedPlayerId=decision;
-      snap.matchConfidence='manual';
-      saved++;
-    }
+    if(decision==='skip'){ snap.matchConfidence='skipped'; skipped++; }
+    else{ snap.matchedPlayerId=decision; snap.matchConfidence='manual'; saved++; }
   });
-  queueGitHubSave(savePhysicalDB).then(()=>showToast('Match results saved','success'));
-  showToast(`Saved ${saved} matches · ${skipped} skipped — saving in background…`,'success');
+  showToast(`Saving ${saved} matches to GitHub — please wait…`,'success');
   closeModal('physMatchModal');
+  try{
+    await savePhysicalDB();
+    showToast(`✓ ${saved} matches saved successfully`,'success');
+  }catch(e){
+    showToast('Match save failed: '+e.message+' — do not refresh yet','error');
+  }
 }
 
 // ═══════════════════════════════════
