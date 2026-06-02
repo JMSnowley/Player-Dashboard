@@ -3111,7 +3111,37 @@ function computeAndApplyPhysical(){
 
 function applyPhysicalData(){
   if(!confirm('Apply physical scores to all matched players? This adjusts their ratings.')) return;
+
+  // Diagnostics before applying
+  const matchedSnaps=PHYS.snapshots.filter(s=>s.matchedPlayerId);
+  const withScore=matchedSnaps.filter(s=>s.physicalScore!=null);
+  const seasonMatch=matchedSnaps.filter(s=>{
+    const p=ST.players.find(x=>x.id===s.matchedPlayerId);
+    return p&&s.season===p.season;
+  });
+  console.log('=== PHYSICAL APPLY DIAGNOSTICS ===');
+  console.log('Total snapshots:', PHYS.snapshots.length);
+  console.log('Matched snapshots:', matchedSnaps.length);
+  console.log('With physicalScore already calculated:', withScore.length);
+  console.log('Season-matching player+snapshot pairs:', seasonMatch.length);
+  if(seasonMatch.length>0){
+    const s=seasonMatch[0];
+    const p=ST.players.find(x=>x.id===s.matchedPlayerId);
+    console.log('Example pair:', p?.name, 'pos:',p?.pos, 'season:',p?.season, 'snap.season:',s.season, 'snap.physicalScore:',s.physicalScore);
+  }
+
   const n=computeAndApplyPhysical();
+
+  // Diagnostics after applying
+  const nowWithScore=PHYS.snapshots.filter(s=>s.physicalScore!=null);
+  console.log('After compute — snaps with physicalScore:', nowWithScore.length);
+  if(nowWithScore.length>0){
+    const s=nowWithScore[0];
+    const p=ST.players.find(x=>x.id===s.matchedPlayerId);
+    console.log('Example result:', p?.name, 'rating:',p?.rating, 'physAdj:',s.physicalAdj, 'physScore:',s.physicalScore);
+  }
+  console.log('Players applied:', n);
+
   showToast(`Physical scores applied to ${n} players`,'success');
   queueGitHubSave(saveData);
   queueGitHubSave(savePhysicalDB);
