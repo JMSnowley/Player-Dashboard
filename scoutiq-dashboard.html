@@ -1157,6 +1157,18 @@ async function loadFromGitHub(){
       });
       // Floor PT Priority at 0 for any players that went negative
       ST.players.forEach(p=>{ if(p.ptPriority!=null&&p.ptPriority<0) p.ptPriority=0; migrated=true; });
+      // One-off migration: strip _metricBonus from stored ratings so they're clean pre-bonus values
+      // If _metricBonus is stored and non-zero, reverse it from the stored rating
+      ST.players.forEach(p=>{
+        const b=p._metricBonus;
+        if(b&&(b.r||b.pt)){
+          if(b.r&&p.rating!=null)    p.rating   =Math.round((p.rating   -b.r)*10)/10;
+          if(b.r&&p.potential!=null) p.potential=Math.round((p.potential-b.r)*10)/10;
+          if(b.pt&&p.ptPriority!=null)p.ptPriority=Math.max(0,Math.round((p.ptPriority-b.pt)*10)/10);
+          migrated=true;
+        }
+        delete p._metricBonus; // always strip — will be recalculated fresh
+      });
       // Metric bonuses first, then league %ile (so %ile reflects fully adjusted ratings)
       computeMetricBonuses();
       computeAllLeaguePct();
@@ -1191,7 +1203,12 @@ function queueGitHubSave(fn){
 async function saveToGitHub(){
   if(!GH.token){ showToast('Enter your GitHub token in Setup to save','error'); return; }
   setSyncStatus('saving');
-  const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
+  // Strip runtime-only fields before saving — these are recalculated on every load
+  const savePlayers=ST.players.map(p=>{
+    const {_metricBonus,...rest}=p;
+    return rest;
+  });
+  const payload=JSON.stringify({players:savePlayers,savedAt:new Date().toISOString()});
   const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
   const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
 
