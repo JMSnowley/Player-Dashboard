@@ -630,6 +630,18 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 
 
 
+<!-- PANEL PHYSICAL MATCH MODAL -->
+<div class="mb" id="panelPhysMatchModal" style="z-index:600">
+  <div class="modal" style="width:480px;max-height:80vh;overflow-y:auto">
+    <div class="modal-title" id="panelPhysMatchTitle">Link Physical Data</div>
+    <div class="modal-sub">Select the matching Skillcorner record. High-confidence matches are highlighted.</div>
+    <div id="panelPhysMatchBody" style="margin:12px 0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('panelPhysMatchModal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- PHYSICAL MATCH MODAL -->
 <div class="mb" id="physMatchModal" style="z-index:500">
   <div class="modal" style="width:820px;max-height:90vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
@@ -639,9 +651,15 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <div class="modal-sub" style="margin:4px 0 0" id="physMatchStatus">Loading…</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
+        <select id="physMatchSort" onchange="refreshPhysMatchModal()" style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px">
+          <option value="rating">Sort: Rating ↓</option>
+          <option value="name">Sort: Name A–Z</option>
+          <option value="pos">Sort: Position</option>
+        </select>
         <button class="btn btn-gold" style="font-size:11px" onclick="runAutoMatch()">⚡ Auto-Match All</button>
         <button class="btn btn-ghost" style="font-size:11px" onclick="closeModal('physMatchModal')">✕ Close</button>
       </div>
+    </div>
     </div>
     <div style="overflow-y:auto;flex:1;padding:0" id="physMatchBody"></div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
@@ -1871,7 +1889,7 @@ async function resolveSnap(snap){
   // 4. No name match at all — new player
   createPlayer(snap);
 }
-function norm(s){return(s||'').trim().toLowerCase();}
+function norm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
 function capScore(v){return v!=null?Math.min(100,v):v;}
 function createPlayer(snap){
   const id=`p_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
@@ -2137,7 +2155,7 @@ function renderTable(){
       ${cbCell}
       ${rankCell}
       <td><div class="pc"><div class="av">${initials(p.name)}</div><div>
-        <div class="pn">${hl(p.name)}${!p.hasPhysical&&p.pos!=='GK'?'<span title="No physical data" style="color:var(--accent);font-size:10px;margin-left:4px;font-weight:700">◌</span>':''}</div>
+        <div class="pn">${hl(p.name)}${!p.hasPhysical&&p.pos!=='GK'?'<span title="No physical data" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:middle;opacity:0.7"></span>':''}</div>
         <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
       <td style="font-size:16px;text-align:center" title="${(p.nationalities||[]).join(', ')||''}">${natF}</td>
@@ -2838,12 +2856,18 @@ function findCandidates(snap){
 // Pending match decisions: snapId → playerId|'skip'
 let _physMatchDecisions={};
 
-function openPhysMatchModal(){
-  _physMatchDecisions={};
-  // Show Wyscout players that have no physical data for their current season
+function refreshPhysMatchModal(){ openPhysMatchModal(true); }
+
+function openPhysMatchModal(keepOpen=false){
+  if(!keepOpen) _physMatchDecisions={};
+  const sortKey=(document.getElementById('physMatchSort')||{}).value||'rating';
   const unmatched=ST.players.filter(p=>{
     if(PHYS_EXCLUDED.includes(p.pos)) return false;
     return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  }).sort((a,b)=>{
+    if(sortKey==='name') return (a.name||'').localeCompare(b.name||'');
+    if(sortKey==='pos') return (a.pos||'').localeCompare(b.pos||'');
+    return (b.rating??-Infinity)-(a.rating??-Infinity);
   });
   const matched=ST.players.filter(p=>!PHYS_EXCLUDED.includes(p.pos)&&PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null));
   document.getElementById('physMatchStatus').textContent=
@@ -3532,6 +3556,7 @@ function renderPanel(){
       </div>
       ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
       ${p.wyscoutPositions?`<div class="pst" style="margin-top:12px">Positions</div>${buildPitchSVG(p.wyscoutPositions)}`:''}
+      ${p.pos!=='GK'?buildPhysMatchSection(p):''}
       <div class="pst" style="margin-top:14px">Hypothetical Transfer</div>
       <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
         <div style="position:relative">
@@ -3815,90 +3840,201 @@ function buildPhysicalSection(p){
   const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
   if(!snap){
     return`<div style="margin-top:14px">
-      <div class="skill-section-hdr" style="justify-content:space-between">
-        <span>Physical</span>
-        <span style="color:var(--muted);font-size:10px;font-style:italic">No data this season</span>
+      <div class="skill-group-title"><div class="skill-dot" style="background:#00d4ff"></div>Physical</div>
+      <div style="font-size:11px;color:var(--muted);font-style:italic;padding:4px 0 8px">No physical data for this season</div>
+    </div>`;
+  }
+  const pctMap={};
+  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
+  const isPizza=ST.metricChartView==='pizza';
+
+  if(!isPizza){
+    // Bars — same style as technical metrics sections
+    const metricRows=PHYS_METRICS.map(({key,label})=>{
+      const pct=pctMap[key]??0;
+      const mc=pctMap[key]==null?'var(--muted)':pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
+      const dispPct=pctMap[key]!=null?pct:'—';
+      return`<div class="metric-row">
+        <div class="metric-lbl">${label}</div>
+        <div class="metric-bar-wrap"><div class="metric-bar" style="width:${pct}%;background:${mc}"></div></div>
+        <div class="metric-val" style="color:${mc}">${dispPct}</div>
+      </div>`;
+    }).join('');
+    return`<div style="margin-top:14px">
+      <div class="skill-group-title"><div class="skill-dot" style="background:#00d4ff"></div>Physical</div>
+      ${metricRows}
+    </div>`;
+  }
+
+  // Pizza — same size/style as technical pizza (SZ=420, R=130)
+  const SZ=420,CX=SZ/2,CY=SZ/2,R=130,innerR=22,labelR=R+14;
+  const n=PHYS_METRICS.length;
+  const angleStep=(2*Math.PI)/n;
+  const _il=document.body.classList.contains('light-mode');
+  const _gc=_il?'rgba(0,0,0,0.1)':'rgba(255,255,255,0.05)';
+  const _gt=_il?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.15)';
+  const _sc=_il?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.05)';
+
+  const gridCircles=[25,50,75,100].map(pct=>{
+    const gr=R*(pct/100);
+    return`<circle cx="${CX}" cy="${CY}" r="${gr.toFixed(1)}" fill="none" stroke="${_gc}" stroke-width="1"/>
+            <text x="${(CX+3).toFixed(0)}" y="${(CY-gr-2).toFixed(0)}" fill="${_gt}" font-size="7" font-family="JetBrains Mono">${pct}</text>`;
+  }).join('');
+
+  const spokeLines=PHYS_METRICS.map((_,i)=>{
+    const a=-Math.PI/2+i*angleStep;
+    return`<line x1="${(CX+innerR*Math.cos(a)).toFixed(1)}" y1="${(CY+innerR*Math.sin(a)).toFixed(1)}" x2="${(CX+R*Math.cos(a)).toFixed(1)}" y2="${(CY+R*Math.sin(a)).toFixed(1)}" stroke="${_sc}" stroke-width="1"/>`;
+  }).join('');
+
+  const splitLabel=str=>{
+    const words=str.split(' ');
+    if(str.length<=11) return[str];
+    let best=0,bestDiff=999,cum=0;
+    words.forEach((w,i)=>{cum+=w.length+(i?1:0);const diff=Math.abs(cum-str.length/2);if(diff<bestDiff){bestDiff=diff;best=i;}});
+    const l1=words.slice(0,best+1).join(' ');
+    const l2=words.slice(best+1).join(' ');
+    return l2?[l1,l2]:[l1];
+  };
+
+  const slicesHTML=PHYS_METRICS.map(({key,label,group},i)=>{
+    const pct=pctMap[key]??0;
+    const a0=-Math.PI/2+i*angleStep;
+    const a1=a0+angleStep;
+    const aMid=a0+angleStep/2;
+    const r=R*(pct/100);
+    const large=angleStep>Math.PI?1:0;
+    const x0=CX+innerR*Math.cos(a0),y0=CY+innerR*Math.sin(a0);
+    const x1=CX+r*Math.cos(a0),    y1=CY+r*Math.sin(a0);
+    const x2=CX+r*Math.cos(a1),    y2=CY+r*Math.sin(a1);
+    const x3=CX+innerR*Math.cos(a1),y3=CY+innerR*Math.sin(a1);
+    const col=PHYS_GROUP_COLORS[group]||'#00d4ff';
+    const slicePath=pct>0
+      ?`M${x0.toFixed(1)},${y0.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`
+      :`M${x0.toFixed(1)},${y0.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`;
+    const lx=CX+labelR*Math.cos(aMid),ly=CY+labelR*Math.sin(aMid);
+    const anchor=Math.abs(Math.cos(aMid))<0.1?'middle':Math.cos(aMid)>0?'start':'end';
+    const lines=splitLabel(label);
+    const labelText=lines.map((ln,li)=>`<text x="${lx.toFixed(1)}" y="${(ly+li*10).toFixed(1)}" text-anchor="${anchor}" fill="${_il?'rgba(0,0,0,0.75)':'rgba(255,255,255,0.75)'}" font-size="9" font-family="JetBrains Mono" class="pizza-label">${ln}</text>`).join('');
+    return`<path d="${slicePath}" fill="${col}" fill-opacity="0.75" stroke="var(--surface)" stroke-width="1"/>${labelText}`;
+  }).join('');
+
+  return`<div style="margin-top:6px">
+    <div class="skill-group-title"><div class="skill-dot" style="background:#00d4ff"></div>Physical</div>
+    <div style="display:flex;justify-content:center">
+      <svg width="${SZ}" height="${SZ}" viewBox="0 0 ${SZ} ${SZ}" style="max-width:100%">
+        ${gridCircles}${spokeLines}${slicesHTML}
+        <circle cx="${CX}" cy="${CY}" r="${innerR}" fill="var(--surface2)" stroke="var(--border2)" stroke-width="1"/>
+      </svg>
+    </div>
+  </div>`;
+}
+
+
+// Build physical data link/unlink section for player overview tab
+function buildPhysMatchSection(p){
+  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season);
+  if(snap&&snap.physicalScore!=null){
+    // Already matched — show profile with unmatch option
+    const adjColor=(snap.physicalAdj||0)>=0?'var(--green)':'var(--red)';
+    const adjStr=(snap.physicalAdj||0)>=0?'+':'';
+    return`<div class="pst" style="margin-top:12px">Physical Data</div>
+    <div style="margin-top:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-weight:600;font-size:12px">${snap.fullName}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);margin-top:2px">
+            ${snap.shortName}${snap.birthdate?' · DOB: '+snap.birthdate:''}
+          </div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;margin-top:4px">
+            <span style="color:var(--accent)">Score: ${snap.physicalScore.toFixed(1)}</span>
+            <span style="color:${adjColor};margin-left:8px">Adj: ${adjStr}${(snap.physicalAdj||0).toFixed(2)}</span>
+            <span style="color:var(--muted2);margin-left:8px">Games: ${snap.countPerf||'—'}</span>
+          </div>
+        </div>
+        ${ST._isEditor!==false?`<button class="btn btn-ghost" style="font-size:9px;padding:3px 8px;flex-shrink:0;margin-left:8px" onclick="unmatchPhysical('${p.id}','${snap.id}')">Unlink</button>`:''}
       </div>
     </div>`;
   }
-  // Use pre-computed percentile cache
-  const pctMap={};
-  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
-
-  const isPizza=ST.metricChartView==='pizza';
-  let html=`<div style="margin-top:14px">
-    <div class="skill-section-hdr" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <span>Physical</span>
+  // Not matched — show link button (editor only)
+  if(ST._isEditor===false) return '';
+  return`<div class="pst" style="margin-top:12px">Physical Data</div>
+    <div style="margin-top:6px">
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px" onclick="openPanelPhysMatch('${p.id}')">🔗 Link Physical Data</button>
     </div>`;
+}
 
-  if(!isPizza){
-    // Bars — same style as technical, grouped by skill section
-    const groups=[
-      {label:'Speed',        keys:['psv99','top5psv99'],           color:PHYS_GROUP_COLORS.speed},
-      {label:'Explosiveness',keys:['top3timeHSR'],                  color:PHYS_GROUP_COLORS.explosive},
-      {label:'Distance',     keys:['distP90'],                      color:PHYS_GROUP_COLORS.distance},
-      {label:'In Possession',keys:['hsrDistTIP','sprintDistTIP'],   color:PHYS_GROUP_COLORS.tip},
-      {label:'Out of Poss.', keys:['hsrDistOTIP','sprintDistOTIP'], color:PHYS_GROUP_COLORS.otip},
-    ];
-    groups.forEach(({label,keys,color})=>{
-      html+=`<div class="skill-group" style="margin-bottom:6px">
-        <div class="skill-hdr" style="color:${color}">${label}</div>`;
-      keys.forEach(key=>{
-        const m=PHYS_METRICS.find(x=>x.key===key);
-        if(!m) return;
-        const pct=pctMap[key];
-        const mc=pct==null?'var(--muted)':pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
-        html+=`<div class="metric-row">
-          <div class="metric-lbl">${m.label}</div>
-          <div class="metric-bar-wrap"><div class="metric-bar" style="width:${pct??0}%;background:${mc}"></div></div>
-          <div class="metric-val" style="color:${mc}">${pct!=null?pct:'—'}</div>
-        </div>`;
-      });
-      html+='</div>';
-    });
+// Panel-level physical match modal
+let _panelMatchPlayerId=null;
+function openPanelPhysMatch(playerId){
+  _panelMatchPlayerId=playerId;
+  const player=ST.players.find(p=>p.id===playerId);
+  if(!player) return;
+  const candidates=findPhysSnapsForPlayer(player);
+  document.getElementById('panelPhysMatchTitle').textContent='Link Physical: '+player.name;
+  const body=document.getElementById('panelPhysMatchBody');
+  if(!candidates.length){
+    body.innerHTML='<div style="padding:16px;color:var(--muted);font-size:11px;text-align:center">No physical candidates found for this player</div>';
   } else {
-    // Pizza — same size as technical, numbered slices, group colours
-    const n=PHYS_METRICS.length;
-    const cx=130,cy=115,R=80,innerR=18;
-    const sliceAngle=2*Math.PI/n;
-    let slices='',labels='',legend='';
-    PHYS_METRICS.forEach(({key,label,group},i)=>{
-      const pct=pctMap[key]??0;
-      const r=innerR+(R-innerR)*(pct/100);
-      const a0=i*sliceAngle-Math.PI/2;
-      const a1=(i+1)*sliceAngle-Math.PI/2;
-      const x0=cx+Math.cos(a0)*innerR,y0=cy+Math.sin(a0)*innerR;
-      const x1=cx+Math.cos(a0)*r,    y1=cy+Math.sin(a0)*r;
-      const x2=cx+Math.cos(a1)*r,    y2=cy+Math.sin(a1)*r;
-      const x3=cx+Math.cos(a1)*innerR,y3=cy+Math.sin(a1)*innerR;
-      const large=sliceAngle>Math.PI?1:0;
-      const col=PHYS_GROUP_COLORS[group]||'#00d4ff';
-      slices+=`<path d="M${x0},${y0} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large} 0 ${x0},${y0}" fill="${col}" fill-opacity="0.7" stroke="var(--surface)" stroke-width="1"/>`;
-      slices+=`<line x1="${cx+Math.cos(a0)*innerR}" y1="${cy+Math.sin(a0)*innerR}" x2="${cx+Math.cos(a0)*R}" y2="${cy+Math.sin(a0)*R}" stroke="var(--border2)" stroke-width="0.5" class="pizza-spoke"/>`;
-      const lmid=(a0+a1)/2,lR=R+13;
-      labels+=`<text x="${(cx+Math.cos(lmid)*lR).toFixed(1)}" y="${(cy+Math.sin(lmid)*lR+3).toFixed(1)}" text-anchor="middle" fill="var(--muted2)" font-size="8" font-family="JetBrains Mono" class="pizza-label">${i+1}</text>`;
-      const pc=pctMap[key];
-      const vc=pc==null?'var(--muted)':pc>=80?'#00e599':pc>=60?'#7fd97f':pc>=40?'#f5c842':pc>=20?'#ff8c42':'#ff4d6a';
-      legend+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0">
-        <div style="font-size:10px;color:var(--muted2)"><span style="color:${col};font-family:'JetBrains Mono',monospace;font-size:9px;margin-right:4px">${i+1}</span>${label}</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${vc}">${pc!=null?pc+'th':'—'}</div>
-      </div>`;
-    });
-    let grid='';
-    [25,50,75,100].forEach(v=>{
-      const gr=innerR+(R-innerR)*(v/100);
-      grid+=`<circle cx="${cx}" cy="${cy}" r="${gr}" fill="none" stroke="var(--border2)" stroke-width="0.5" class="pizza-grid"/>`;
-      grid+=`<text x="${cx+2}" y="${cy-gr+3}" fill="var(--muted)" font-size="7" font-family="JetBrains Mono" class="pizza-grid-label">${v}</text>`;
-    });
-    grid+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--border2)" stroke-width="1"/>`;
-    grid+=`<circle cx="${cx}" cy="${cy}" r="${innerR}" fill="var(--surface2)" stroke="var(--border2)" stroke-width="0.5"/>`;
-    html+=`<div style="display:flex;gap:8px;align-items:flex-start">
-      <svg width="260" height="230" viewBox="0 0 260 230" style="flex-shrink:0">${grid}${slices}${labels}</svg>
-      <div style="flex:1;min-width:0">${legend}</div>
-    </div>`;
+    body.innerHTML=candidates.slice(0,8).map(({snap,confidence,reason})=>`
+      <div class="pm-candidate ${confidence==='high'?'pm-auto':''}" style="margin:6px 0"
+        onclick="confirmPanelPhysMatch('${snap.id}')">
+        <div>
+          <div style="font-weight:600;font-size:12px">${snap.fullName}</div>
+          <div style="font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace">
+            ${snap.shortName}${snap.birthdate?' · DOB: '+snap.birthdate:''}
+            ${snap.season?' · '+snap.season:''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:10px;color:${confidence==='high'?'var(--green)':'var(--muted)'};font-family:'JetBrains Mono',monospace">${reason}</div>
+          <div style="font-size:10px;color:var(--accent);font-family:'JetBrains Mono',monospace">Games: ${snap.countPerf||'—'}</div>
+        </div>
+      </div>`).join('');
   }
-  html+='</div>';
-  return html;
+  document.getElementById('panelPhysMatchModal').classList.add('open');
+}
+
+async function confirmPanelPhysMatch(snapId){
+  const snap=PHYS.snapshots.find(s=>s.id===snapId);
+  if(!snap||!_panelMatchPlayerId) return;
+  snap.matchedPlayerId=_panelMatchPlayerId;
+  snap.matchConfidence='manual';
+  document.getElementById('panelPhysMatchModal').classList.remove('open');
+  showToast('Linked — applying physical data…','success');
+  computeAndApplyPhysical();
+  try{
+    await savePhysicalDB();
+    await queueGitHubSave(saveData);
+    showToast('Physical data linked and saved','success');
+    renderPanel();
+  }catch(e){ showToast('Save failed: '+e.message,'error'); }
+}
+
+async function unmatchPhysical(playerId,snapId){
+  if(!confirm('Unlink this physical data? The rating adjustment will be reversed.')) return;
+  const snap=PHYS.snapshots.find(s=>s.id===snapId);
+  const player=ST.players.find(p=>p.id===playerId);
+  if(!snap||!player) return;
+  // Reverse physical adjustment
+  if(snap.physicalAdj!=null){
+    if(player.rating!=null)    player.rating   =Math.round((player.rating   -snap.physicalAdj)*10)/10;
+    if(player.potential!=null) player.potential=Math.round((player.potential-snap.physicalAdj)*10)/10;
+    if(player.ptPriority!=null)player.ptPriority=Math.max(0,Math.min(100,Math.round((player.ptPriority-(snap.physicalAdj*2))*10)/10));
+  }
+  // Remove physical history entry
+  if(player.history) player.history=player.history.filter(h=>!(h.type==='physical'&&h.season===snap.season));
+  player.hasPhysical=false;
+  snap.matchedPlayerId=null;
+  snap.matchConfidence=null;
+  snap.physicalAdj=null;
+  snap.applied=false;
+  computeMetricBonuses();
+  computeAllLeaguePct();
+  buildPhysPercentileCache();
+  saveState(); renderPanel();
+  showToast('Physical data unlinked','success');
+  queueGitHubSave(saveData);
+  try{ await savePhysicalDB(); } catch(e){ console.warn('Physical save failed',e); }
 }
 
 // ═══════════════════════════════════
