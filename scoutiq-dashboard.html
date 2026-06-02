@@ -667,7 +667,6 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <button class="btn btn-ghost" style="font-size:11px" onclick="closeModal('physMatchModal')">✕ Close</button>
       </div>
     </div>
-    </div>
     <div style="overflow-y:auto;flex:1;padding:0" id="physMatchBody"></div>
     <div style="padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:11px;color:var(--muted)" id="physMatchSummary"></div>
@@ -1128,8 +1127,8 @@ async function loadFromGitHub(){
        // v2→v3→v4 migration
       const _POS_ADJ_V2={GK:-2,CB:-1,FB:-1.5,DM:-1,CM:-1,AM:-0.5,WF:0,CF:0}; // v3 (what's currently applied)
       const _POS_PTP_ADJ_V2={GK:-4,CB:-2,FB:-3,DM:-2,CM:-2,AM:-1,WF:0,CF:0}; // v3 ptp (what's currently applied)
-      const _POS_ADJ_V3={GK:-2,CB:-1,FB:-2,DM:-1,CM:-1,AM:-1,WF:-0.5,CF:0};
-      const _POS_PTP_ADJ_V3={GK:-4,CB:-2,FB:-4,DM:-2,CM:-2,AM:-2,WF:-1,CF:0};
+      const _POS_ADJ_V3={GK:-1.5,CB:-1.5,FB:-2,DM:-1,CM:-2,AM:-2.5,WF:-0.5,CF:1};
+      const _POS_PTP_ADJ_V3={GK:-3,CB:-3,FB:-4,DM:-2,CM:-4,AM:-5,WF:-1,CF:2};
       // v4 adds universal -2 rating/pot and -4 pt priority on top of v3, plus ptPriority/50 → potential
       const _cap=v=>v!=null?Math.min(100,Math.round(v*10)/10):v;
       const _capPtp=v=>v!=null?Math.min(100,Math.max(0,Math.round(v*10)/10)):v;
@@ -1622,8 +1621,8 @@ async function runCapture(){
   }
   pf.style.width='85%';pl.textContent=`Resolving ${newSnaps.length} players…`;
   // Apply position-based score adjustments
-  const POS_SCORE_ADJ={GK:-2,CB:-1,FB:-2,DM:-1,CM:-1,AM:-1,WF:-0.5,CF:0};
-  const POS_PTP_ADJ={GK:-4,CB:-2,FB:-4,DM:-2,CM:-2,AM:-2,WF:-1,CF:0};
+  const POS_SCORE_ADJ={GK:-1.5,CB:-1.5,FB:-2,DM:-1,CM:-2,AM:-2.5,WF:-0.5,CF:1};
+  const POS_PTP_ADJ={GK:-3,CB:-3,FB:-4,DM:-2,CM:-4,AM:-5,WF:-1,CF:2};
   const cap100=v=>v!=null?Math.min(100,Math.round(v*10)/10):v;
   const capPtp=v=>v!=null?Math.min(100,Math.max(0,Math.round(v*10)/10)):v;
   newSnaps.forEach(snap=>{
@@ -1639,7 +1638,7 @@ async function runCapture(){
     snap.ptPriority=capPtp(snap.ptPriority!=null?snap.ptPriority-4:null);
     if(snap.ptPriority!=null&&snap.potential!=null)
       snap.potential=cap100(snap.potential+(snap.ptPriority/50));
-    snap.scoreAdjusted=5;
+    snap.scoreAdjusted=6;
   });
   ST.dupQueue=[...newSnaps];
   await processDupQueue();
@@ -2936,6 +2935,14 @@ function renderPhysMatchBody(wyscoutPlayers){
 
 // Find physical snapshots that could match a given Wyscout player
 function findPhysSnapsForPlayer(player){
+  // If player already has a stored Skillcorner ID, find that snap directly first
+  if(player.skillcornerId){
+    const direct=PHYS.snapshots.find(s=>s.skillcornerId===player.skillcornerId);
+    if(direct){
+      const isTaken=direct.matchedPlayerId&&direct.matchedPlayerId!==player.id;
+      return[{snap:direct,confidence:'high',reason:'Stored Skillcorner ID match'+(isTaken?' ⚠ currently linked to another':'')}];
+    }
+  }
   const pn=normPhys(player.name);
   const pBDYear=player.age&&player.capturedAt?new Date(player.capturedAt).getFullYear()-player.age:null;
   const candidates=[];
@@ -2995,12 +3002,13 @@ function updatePhysMatchSummary(){
 async function runAutoMatch(){
   const unmatched=ST.players.filter(p=>{
     if(PHYS_EXCLUDED.includes(p.pos)) return false;
-    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null)&&!_physMatchDecisions[p.id];
-  });
+    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  }).filter(p=>!_physMatchDecisions[p.id]);
+
   const total=unmatched.length;
   if(!total){showToast('Nothing left to auto-match','success');return;}
 
-  // Pre-build name index from PHYS snapshots
+  // Pre-build name index from unmatched PHYS snapshots
   const nameIndex={};
   PHYS.snapshots.filter(s=>!s.matchedPlayerId).forEach(snap=>{
     const sn=normPhys(snap.shortName);
@@ -3011,13 +3019,25 @@ async function runAutoMatch(){
     });
   });
 
+  // Also build skillcornerId → snap lookup for instant matching
+  const scIdIndex={};
+  PHYS.snapshots.filter(s=>!s.matchedPlayerId&&s.skillcornerId).forEach(s=>{
+    scIdIndex[s.skillcornerId]=s;
+  });
+
   const CHUNK=200;
-  let autoCount=0;
+  let autoCount=0, idCount=0;
   showToast(`Auto-matching ${total} players…`,'success');
 
   for(let i=0;i<unmatched.length;i+=CHUNK){
     const chunk=unmatched.slice(i,i+CHUNK);
     chunk.forEach(player=>{
+      // 1. Try stored Skillcorner ID first
+      if(player.skillcornerId&&scIdIndex[player.skillcornerId]){
+        _physMatchDecisions[player.id]=scIdIndex[player.skillcornerId].id;
+        idCount++; autoCount++; return;
+      }
+      // 2. Fall back to name+age matching
       const pn=normPhys(player.name);
       const pBDYear=player.age&&player.capturedAt?new Date(player.capturedAt).getFullYear()-player.age:null;
       const words=pn.split(' ').filter(w=>w.length>=3);
@@ -3045,7 +3065,7 @@ async function runAutoMatch(){
     if(i%1000===0&&i>0) showToast(`Auto-matching… ${i}/${total}`,'success');
   }
 
-  showToast(`Auto-matched ${autoCount} of ${total} players`,'success');
+  showToast(`Auto-matched ${autoCount} players (${idCount} via stored ID)`,'success');
   const stillUnmatched=ST.players.filter(p=>{
     if(PHYS_EXCLUDED.includes(p.pos)) return false;
     return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null)&&!_physMatchDecisions[p.id];
@@ -3062,6 +3082,9 @@ async function savePhysMatchResults(){
     if(!snap) return;
     snap.matchedPlayerId=playerId;
     snap.matchConfidence='manual';
+    // Persist Skillcorner ID on the Wyscout player for future auto-matching
+    const player=ST.players.find(p=>p.id===playerId);
+    if(player&&snap.skillcornerId) player.skillcornerId=snap.skillcornerId;
     saved++;
   });
   showToast(`Saving ${saved} matches to GitHub — please wait…`,'success');
@@ -3146,6 +3169,7 @@ function computeAndApplyPhysical(){
     player.potential=Math.min(100,Math.round(((player.potential??0)+physAdj)*10)/10);
     player.ptPriority=Math.max(0,Math.min(100,Math.round(((player.ptPriority??0)+(physAdj*2))*10)/10));
     player.hasPhysical=true;
+    if(snap.skillcornerId) player.skillcornerId=snap.skillcornerId;
     snap.physicalAdj=physAdj;
     snap.applied=true;
     snap.appliedAt=new Date().toISOString();
@@ -4007,7 +4031,7 @@ function openPanelPhysMatch(playerId){
 async function confirmPanelPhysMatch(snapId){
   const snap=PHYS.snapshots.find(s=>s.id===snapId);
   if(!snap||!_panelMatchPlayerId) return;
-  // If snap was previously matched to someone else, unlink them
+  // Unlink from previous player if reassigning
   if(snap.matchedPlayerId&&snap.matchedPlayerId!==_panelMatchPlayerId){
     const prev=ST.players.find(p=>p.id===snap.matchedPlayerId);
     if(prev&&snap.physicalAdj!=null){
@@ -4016,11 +4040,15 @@ async function confirmPanelPhysMatch(snapId){
       if(prev.ptPriority!=null)prev.ptPriority=Math.max(0,Math.min(100,Math.round((prev.ptPriority-(snap.physicalAdj*2))*10)/10));
       if(prev.history) prev.history=prev.history.filter(h=>!(h.type==='physical'&&h.season===snap.season));
       prev.hasPhysical=false;
+      delete prev.skillcornerId; // remove stale link
     }
     snap.matchedPlayerId=null; snap.physicalAdj=null; snap.applied=false;
   }
   snap.matchedPlayerId=_panelMatchPlayerId;
   snap.matchConfidence='manual';
+  // Persist Skillcorner ID on the Wyscout player for future auto-matching
+  const player=ST.players.find(p=>p.id===_panelMatchPlayerId);
+  if(player&&snap.skillcornerId) player.skillcornerId=snap.skillcornerId;
   document.getElementById('panelPhysMatchModal').classList.remove('open');
   showToast('Linked — applying physical data…','success');
   computeAndApplyPhysical();
@@ -4055,7 +4083,7 @@ async function unmatchPhysical(playerId,snapId){
   // Remove physical history entry
   if(player.history) player.history=player.history.filter(h=>!(h.type==='physical'&&h.season===snap.season));
   player.hasPhysical=false;
-  snap.matchedPlayerId=null;
+  delete player.skillcornerId;
   snap.matchConfidence=null;
   snap.physicalAdj=null;
   snap.applied=false;
