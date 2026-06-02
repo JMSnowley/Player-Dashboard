@@ -2422,16 +2422,18 @@ function openTeamOverview(){
   const {allFiltered}=getFiltered();
   const teamMap={};
   allFiltered.forEach(p=>{if(!p.team)return;if(!teamMap[p.team])teamMap[p.team]=[];teamMap[p.team].push(p);});
-  const wtAvg=(players,field)=>{
-    const el=players.filter(p=>p[field]!=null&&p.minutes!=null&&p.minutes>0);
-    if(!el.length){const all=players.filter(p=>p[field]!=null);return all.length?all.reduce((s,p)=>s+p[field],0)/all.length:null;}
+  const wtAvg=(players,valFn)=>{
+    const el=players.filter(p=>valFn(p)!=null&&p.minutes!=null&&p.minutes>0);
+    if(!el.length){const all=players.filter(p=>valFn(p)!=null);return all.length?all.reduce((s,p)=>s+valFn(p),0)/all.length:null;}
     const tot=el.reduce((s,p)=>s+p.minutes,0);
-    return el.reduce((s,p)=>s+(p[field]*p.minutes),0)/tot;
+    return el.reduce((s,p)=>s+(valFn(p)*p.minutes),0)/tot;
   };
   _toRows=Object.entries(teamMap).map(([team,players])=>{
-    const avgRating=wtAvg(players,'rating'),avgPotential=wtAvg(players,'potential'),avgAge=wtAvg(players,'age');
-    const rated=players.filter(p=>p.rating!=null).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
-    const potSorted=players.filter(p=>p.potential!=null).sort((a,b)=>b.potential-a.potential);
+    const avgRating=wtAvg(players,p=>displayRating(p));
+    const avgPotential=wtAvg(players,p=>displayPotential(p));
+    const avgAge=wtAvg(players,p=>p.age);
+    const rated=players.filter(p=>displayRating(p)!=null).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+    const potSorted=players.filter(p=>displayPotential(p)!=null).sort((a,b)=>(displayPotential(b)??0)-(displayPotential(a)??0));
     return{team,count:players.length,avgRating,avgPotential,avgAge,top:rated[0]||null,topPot:potSorted[0]||null};
   });
   if(!_toRows.length){showToast('No team data in current filter','error');return;}
@@ -2453,7 +2455,7 @@ function renderToTable(){
     return _toSort.dir*(bv-av);
   });
   const allR=rows.flatMap(r=>[r.top].filter(Boolean).map(p=>displayRating(p)));
-  const allP=rows.flatMap(r=>[r.topPot].filter(Boolean).map(p=>p.potential));
+  const allP=rows.flatMap(r=>[r.topPot].filter(Boolean).map(p=>displayPotential(p)));
   const rc=(val,pool)=>{
     if(val==null)return'<td style="text-align:center">—</td>';
     const rank=pool.filter(v=>v<=val).length/Math.max(pool.length,1);
@@ -2483,8 +2485,8 @@ function renderToTable(){
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgRc}">${fmt1(r.avgRating)}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgPc}">${fmt1(r.avgPotential)}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted2)">${r.avgAge!=null?r.avgAge.toFixed(1):'—'}</td>
-      <td>${fmtP(r.top)}</td>${rc(r.top?.rating,allR)}
-      <td>${fmtP(r.topPot)}</td>${rc(r.topPot?.potential,allP)}
+      <td>${fmtP(r.top)}</td>${rc(displayRating(r.top),allR)}
+      <td>${fmtP(r.topPot)}</td>${rc(displayPotential(r.topPot),allP)}
     </tr>`;
   }).join('')}</tbody></table>`;
 }
@@ -3333,11 +3335,11 @@ function openXI(mode,keepFormation=false){
       {row:'FWD',slots:[{p:lw,label:'LW'},{p:cf,label:'CF'},{p:rw,label:'RW'}]},
     ];
   }
-  document.getElementById('xiPitch').innerHTML=renderXIPitch(xi,scoreKey);
+  document.getElementById('xiPitch').innerHTML=renderXIPitch(xi,scoreOf);
   document.getElementById('xiModal').classList.add('open');
 }
 function closeXI(){document.getElementById('xiModal').classList.remove('open');}
-function renderXIPitch(xi,scoreKey){
+function renderXIPitch(xi,scoreOf){
   const isLight=document.body.classList.contains('light-mode');
   const pitchBg=isLight?'#263545':'var(--surface2)';
   const la=isLight?'0.5':'0.2',lf=isLight?'0.35':'0.18';
