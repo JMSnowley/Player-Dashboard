@@ -1064,15 +1064,17 @@ const PHYS_METRIC_WEIGHTS={
 
 // The 8 display metrics in order (for pizza chart and panel display)
 const PHYS_METRICS=[
-  {key:'psv99',         label:'PSV-99',                    inverted:false},
-  {key:'top5psv99',     label:'TOP 5 PSV-99',              inverted:false},
-  {key:'top3timeHSR',   label:'TOP 3 Time to HSR',         inverted:true},
-  {key:'distP90',       label:'Distance P90',              inverted:false},
-  {key:'hsrDistTIP',    label:'HSR Distance TIP P30TIP',   inverted:false},
-  {key:'sprintDistTIP', label:'Sprint Distance TIP P30TIP',inverted:false},
-  {key:'hsrDistOTIP',   label:'HSR Distance OTIP P30OTIP', inverted:false},
-  {key:'sprintDistOTIP',label:'Sprint Distance OTIP P30OTIP',inverted:false},
+  {key:'psv99',         label:'Avg. Top Speed',      inverted:false, group:'speed',    groupLabel:'Speed'},
+  {key:'top5psv99',     label:'Peak Top Speed',       inverted:false, group:'speed',    groupLabel:'Speed'},
+  {key:'top3timeHSR',   label:'Explosiveness',        inverted:true,  group:'explosive',groupLabel:'Explosiveness'},
+  {key:'distP90',       label:'Distance',             inverted:false, group:'distance', groupLabel:'Distance'},
+  {key:'hsrDistTIP',    label:'HSR In Poss.',         inverted:false, group:'tip',      groupLabel:'In Possession'},
+  {key:'sprintDistTIP', label:'Sprint In Poss.',      inverted:false, group:'tip',      groupLabel:'In Possession'},
+  {key:'hsrDistOTIP',   label:'HSR Out of Poss.',     inverted:false, group:'otip',     groupLabel:'Out of Possession'},
+  {key:'sprintDistOTIP',label:'Sprint Out of Poss.',  inverted:false, group:'otip',     groupLabel:'Out of Possession'},
 ];
+// Physical metric group colours
+const PHYS_GROUP_COLORS={speed:'#00d4ff',explosive:'#f5c842',distance:'#00e599',tip:'#cc7040',otip:'#7060a8'};
 
 // MF pool positions (all share one percentile pool, then use pos-specific weights)
 const PHYS_MF_POSITIONS=['DM','CM','AM'];
@@ -1179,6 +1181,7 @@ async function loadFromGitHub(){
       // Metric bonuses first, then league %ile (so %ile reflects fully adjusted ratings)
       computeMetricBonuses();
       computeAllLeaguePct();
+      buildPhysPercentileCache();
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
@@ -1626,6 +1629,7 @@ async function runCapture(){
   await processDupQueue();
   computeMetricBonuses(); // 95th percentile metric bonus first
   computeAllLeaguePct();  // then league %ile on fully adjusted ratings
+  buildPhysPercentileCache(); // pre-compute physical percentiles
   pf.style.width='100%';pl.textContent='Done!';
   saveState();renderAll();
   showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
@@ -1963,27 +1967,13 @@ function getFiltered(){
       list=list.filter(p=>{ const v=(p.nm&&p.nm[key]!=null)?p.nm[key]:(p.pm&&p.pm[key]!=null)?p.pm[key]:null; return v!=null&&v>=lo&&v<=hi; });
     }
   });
-  // Physical metric percentile filters
+  // Physical metric percentile filters — uses pre-computed cache for performance
   Object.entries(SLIDER_STATE.physMetrics||{}).forEach(([key,[lo,hi]])=>{
     if(lo===0&&hi===100) return;
     const metricKey=key.slice(6); // strip 'phys::'
     list=list.filter(p=>{
-      const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
-      if(!snap) return lo===0; // no physical data — only include if filter starts at 0
-      // Get percentile for this metric from the pool
-      const pos=p.pos;
-      const pool=PHYS.snapshots.filter(s=>{
-        const pl=ST.players.find(x=>x.id===s.matchedPlayerId);
-        return pl&&s.season===p.season&&(PHYS_MF_POSITIONS.includes(pos)?PHYS_MF_POSITIONS.includes(pl.pos):pl.pos===pos)&&s.physicalScore!=null;
-      });
-      const metric=PHYS_METRICS.find(m=>m.key===metricKey);
-      if(!metric) return true;
-      const vals=pool.map(s=>s.metrics[metricKey]).filter(v=>v!=null).sort((a,b)=>metric.inverted?b-a:a-b);
-      if(!vals.length) return true;
-      const v=snap.metrics[metricKey];
-      if(v==null) return lo===0;
-      const rank=metric.inverted?vals.filter(x=>x>=v).length/vals.length:vals.filter(x=>x<=v).length/vals.length;
-      const pct=Math.round(rank*100);
+      const pct=PHYS_PCT_CACHE[p.id]?.[metricKey];
+      if(pct==null) return lo===0;
       return pct>=lo&&pct<=hi;
     });
   });
@@ -2147,7 +2137,7 @@ function renderTable(){
       ${cbCell}
       ${rankCell}
       <td><div class="pc"><div class="av">${initials(p.name)}</div><div>
-        <div class="pn">${hl(p.name)}${!p.hasPhysical&&p.pos!=='GK'?'<span title="No physical data" style="color:var(--muted);font-size:9px;margin-left:4px;opacity:0.6">◌</span>':''}</div>
+        <div class="pn">${hl(p.name)}${!p.hasPhysical&&p.pos!=='GK'?'<span title="No physical data" style="color:var(--accent);font-size:10px;margin-left:4px;font-weight:700">◌</span>':''}</div>
         <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
       <td style="font-size:16px;text-align:center" title="${(p.nationalities||[]).join(', ')||''}">${natF}</td>
@@ -2326,6 +2316,43 @@ function computeAllLeaguePct(){
 // Apply bonus for each Normal metric where player >= 95th percentile
 // +0.25 Rating & Potential, +1 PT Priority per qualifying metric
 // Stored in p._metricBonus so it can be reversed/recomputed safely on each load
+
+// Pre-compute physical percentile cache for each player/metric
+// Avoids per-render O(n) pool scans in buildPhysicalSection and getFiltered
+let PHYS_PCT_CACHE={}; // {playerId: {metricKey: percentile}}
+
+function buildPhysPercentileCache(){
+  PHYS_PCT_CACHE={};
+  if(!PHYS.snapshots.length||!ST.players.length) return;
+
+  // Build positional pools per season
+  const poolMap={}; // 'season::poolKey' → [snap]
+  PHYS.snapshots.forEach(s=>{
+    if(!s.matchedPlayerId||!s.physicalScore) return;
+    const p=ST.players.find(x=>x.id===s.matchedPlayerId);
+    if(!p||PHYS_EXCLUDED.includes(p.pos)) return;
+    const poolKey=PHYS_MF_POSITIONS.includes(p.pos)?'MF':p.pos;
+    const k=s.season+'::'+poolKey;
+    if(!poolMap[k]) poolMap[k]=[];
+    poolMap[k].push({snap:s,pos:p.pos});
+  });
+
+  // For each pool, compute percentile ranks for all metrics
+  Object.entries(poolMap).forEach(([poolK,entries])=>{
+    PHYS_METRICS.forEach(({key,inverted})=>{
+      const vals=entries.map(e=>e.snap.metrics[key]).filter(v=>v!=null).sort((a,b)=>inverted?b-a:a-b);
+      if(!vals.length) return;
+      entries.forEach(({snap,pos})=>{
+        const v=snap.metrics[key];
+        if(v==null) return;
+        const rank=inverted?vals.filter(x=>x>=v).length/vals.length:vals.filter(x=>x<=v).length/vals.length;
+        if(!PHYS_PCT_CACHE[snap.matchedPlayerId]) PHYS_PCT_CACHE[snap.matchedPlayerId]={};
+        PHYS_PCT_CACHE[snap.matchedPlayerId][key]=Math.round(rank*100);
+      });
+    });
+  });
+}
+
 function computeMetricBonuses(){
   // Build thresholds for both nm and pm
   const buildThresholds=(mode)=>{
@@ -2342,6 +2369,10 @@ function computeMetricBonuses(){
   };
   const nm=buildThresholds('nm'),pm=buildThresholds('pm');
   ST.players.forEach(p=>{
+    // Minutes scaling: 0 bonus at ≤500 mins, full bonus at ≥1500 mins, linear between
+    const mins=p.minutes||0;
+    const minScale=mins<=500?0:mins>=1500?1:Math.round((mins-500)/1000*1000)/1000;
+
     // Reverse previous bonus
     const prev=p._metricBonus||{r:0,pt:0};
     if(prev.r&&p.rating!=null)   p.rating   =Math.round((p.rating   -prev.r )*10)/10;
@@ -2353,11 +2384,14 @@ function computeMetricBonuses(){
       if(nm.t95[m]!=null&&v>=nm.t95[m]){bonusR+=0.25;bonusPt+=1;}
       else if(nm.t90[m]!=null&&v>=nm.t90[m]){bonusR+=0.125;bonusPt+=0.5;}
     });
-    // PAdj metrics (same thresholds logic, separate pool)
+    // PAdj metrics
     Object.entries(p.pm||{}).forEach(([m,v])=>{
       if(pm.t95[m]!=null&&v>=pm.t95[m]){bonusR+=0.25;bonusPt+=1;}
       else if(pm.t90[m]!=null&&v>=pm.t90[m]){bonusR+=0.125;bonusPt+=0.5;}
     });
+    // Apply minutes scaling
+    bonusR=Math.round(bonusR*minScale*1000)/1000;
+    bonusPt=Math.round(bonusPt*minScale*1000)/1000;
     if(bonusR){
       p.rating   =Math.min(100,Math.round(((p.rating   ??0)+bonusR)*10)/10);
       p.potential=Math.min(100,Math.round(((p.potential??0)+bonusR)*10)/10);
@@ -2806,78 +2840,116 @@ let _physMatchDecisions={};
 
 function openPhysMatchModal(){
   _physMatchDecisions={};
-  const unmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId);
-  const matched=PHYS.snapshots.filter(s=>s.matchedPlayerId);
+  // Show Wyscout players that have no physical data for their current season
+  const unmatched=ST.players.filter(p=>{
+    if(PHYS_EXCLUDED.includes(p.pos)) return false;
+    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  });
+  const matched=ST.players.filter(p=>!PHYS_EXCLUDED.includes(p.pos)&&PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null));
   document.getElementById('physMatchStatus').textContent=
-    `${unmatched.length} unmatched · ${matched.length} already matched`;
+    `${unmatched.length} without physical data · ${matched.length} matched`;
   renderPhysMatchBody(unmatched);
   updatePhysMatchSummary();
   document.getElementById('physMatchModal').classList.add('open');
 }
 
-function renderPhysMatchBody(snapshots){
+function renderPhysMatchBody(wyscoutPlayers){
   const body=document.getElementById('physMatchBody');
-  if(!snapshots.length){
-    body.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">All physical records are matched ✓</div>';
+  if(!wyscoutPlayers.length){
+    body.innerHTML='<div style="padding:40px;text-align:center;color:var(--muted)">All players have physical data ✓</div>';
     return;
   }
-  // Only show first 200 for performance — rest handled by auto-match
-  const toShow=snapshots.slice(0,200);
-  body.innerHTML=toShow.map(snap=>{
-    const candidates=findCandidates(snap);
-    const top=candidates[0];
-    const isAutoHigh=top&&top.confidence==='high';
-    const dec=_physMatchDecisions[snap.id];
+  // Sort by rating desc so highest priority players first
+  const sorted=[...wyscoutPlayers].sort((a,b)=>(b.rating??0)-(a.rating??0));
+  const toShow=sorted.slice(0,200);
+
+  body.innerHTML=toShow.map(player=>{
+    // Find physical snap candidates for this player
+    const candidates=findPhysSnapsForPlayer(player);
+    const dec=_physMatchDecisions[player.id];
     const matchedClass=dec&&dec!=='skip'?'pm-matched':dec==='skip'?'pm-skipped':'';
 
-    const candidateHTML=candidates.slice(0,4).map(({player:p,confidence,reason})=>{
-      const isSelected=dec===p.id;
+    const candHTML=candidates.slice(0,4).map(({snap,confidence,reason})=>{
+      const isSelected=dec===snap.id;
       return`<div class="pm-candidate ${isSelected?'pm-selected':''} ${confidence==='high'?'pm-auto':''}"
-        onclick="selectPhysMatch('${snap.id}','${p.id}')">
+        onclick="selectPhysMatch('${player.id}','${snap.id}')">
         <div>
-          <span style="font-weight:600">${p.name}</span>
-          <span style="color:var(--muted2);margin-left:6px">${p.team||''}</span>
-          <span class="pos-tag" style="margin-left:4px">${p.pos}</span>
+          <span style="font-weight:600">${snap.fullName}</span>
+          <span style="color:var(--muted2);margin-left:6px;font-size:10px">${snap.shortName}</span>
         </div>
         <div style="text-align:right">
           <div style="color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace">${reason}</div>
-          <div style="color:var(--accent);font-size:10px;font-family:'JetBrains Mono',monospace">${p.rating!=null?p.rating.toFixed(1):''}</div>
+          <div style="color:var(--accent);font-size:10px;font-family:'JetBrains Mono',monospace">${snap.season}</div>
         </div>
       </div>`;
     }).join('');
 
-    return`<div class="pm-row ${matchedClass}" id="pmrow_${snap.id}">
+    return`<div class="pm-row ${matchedClass}" id="pmrow_${player.id}">
       <div class="pm-phys">
-        <div class="pm-phys-name">${snap.fullName||snap.shortName}</div>
-        <div class="pm-phys-detail">Short: ${snap.shortName} · BD: ${snap.birthdate||'—'}</div>
-        <div class="pm-phys-detail">Season: ${snap.season} · Games: ${snap.countPerf||'—'}</div>
-        <div class="pm-phys-score">${Object.entries(snap.metrics||{}).filter(([k,v])=>v!=null).slice(0,3).map(([k,v])=>`${k}:${v.toFixed(1)}`).join(' · ')}</div>
+        <div class="pm-phys-name">${player.name}</div>
+        <div class="pm-phys-detail">${player.team||''} · <span class="pos-tag" style="font-size:9px">${player.pos}</span></div>
+        <div class="pm-phys-detail">Season: ${player.season||'—'} · Age: ${player.age||'—'} · Rating: ${player.rating?.toFixed(1)||'—'}</div>
       </div>
       <div class="pm-candidates">
-        ${candidates.length?candidateHTML:'<div class="pm-no-match">No candidates found</div>'}
-        <span class="pm-skip-btn" onclick="selectPhysMatch('${snap.id}','skip')">Skip this record</span>
+        ${candidates.length?candHTML:'<div class="pm-no-match">No physical candidates found</div>'}
+        <span class="pm-skip-btn" onclick="selectPhysMatch('${player.id}','skip')">Skip</span>
       </div>
     </div>`;
   }).join('');
 
-  if(snapshots.length>200){
-    body.innerHTML+=`<div style="padding:16px 20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border)">
-      Showing 200 of ${snapshots.length} unmatched records. Use ⚡ Auto-Match All to process the remainder automatically.
+  if(wyscoutPlayers.length>200){
+    body.innerHTML+=`<div style="padding:12px 20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border)">
+      Showing top 200 by rating. Use ⚡ Auto-Match All to process all ${wyscoutPlayers.length}.
     </div>`;
   }
 }
 
-function selectPhysMatch(snapId,playerId){
-  _physMatchDecisions[snapId]=playerId;
-  // Update row styling
-  const row=document.getElementById('pmrow_'+snapId);
+// Find physical snapshots that could match a given Wyscout player
+function findPhysSnapsForPlayer(player){
+  const pn=normPhys(player.name);
+  const pBDYear=player.age&&player.capturedAt?new Date(player.capturedAt).getFullYear()-player.age:null;
+  const candidates=[];
+  // Only look at unmatched snaps (or snaps for same season)
+  const eligibleSnaps=PHYS.snapshots.filter(s=>!s.matchedPlayerId||s.matchedPlayerId===player.id);
+  eligibleSnaps.forEach(snap=>{
+    const sn=normPhys(snap.shortName);
+    const fn=normPhys(snap.fullName);
+    const snInPn=sn&&pn.includes(sn);
+    const pnInSn=pn&&sn.includes(pn);
+    const fnMatch=fn&&(pn===fn||pn.includes(fn)||fn.includes(pn));
+    const initMatch=sn&&(()=>{
+      const parts=sn.split(' ');
+      if(parts.length<2) return false;
+      const init=parts[0].replace('.','');
+      const surname=parts.slice(1).join(' ');
+      const pParts=pn.split(' ');
+      return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
+    })();
+    if(!snInPn&&!pnInSn&&!fnMatch&&!initMatch) return;
+    let confidence='medium',reason='Name match';
+    if(pBDYear&&snap.birthdate){
+      const snapBDYear=parseInt(snap.birthdate.slice(0,4));
+      const diff=Math.abs(pBDYear-snapBDYear);
+      if(diff===0){confidence='high';reason='Name + birth year exact';}
+      else if(diff<=1){confidence='high';reason='Name + birth year ±1yr';}
+      else{reason='Name match, age mismatch';}
+    }
+    candidates.push({snap,confidence,reason});
+  });
+  const order={high:0,medium:1};
+  return candidates.sort((a,b)=>order[a.confidence]-order[b.confidence]);
+}
+
+
+function selectPhysMatch(playerId,snapId){
+  _physMatchDecisions[playerId]=snapId;
+  const row=document.getElementById('pmrow_'+playerId);
   if(row){
-    row.classList.toggle('pm-matched',playerId!=='skip');
-    row.classList.toggle('pm-skipped',playerId==='skip');
-    // Update candidate highlights
+    row.classList.toggle('pm-matched',snapId!=='skip');
+    row.classList.toggle('pm-skipped',snapId==='skip');
     row.querySelectorAll('.pm-candidate').forEach(el=>{
-      const pid=el.getAttribute('onclick')?.match(/'([^']+)'\)$/)?.[1];
-      el.classList.toggle('pm-selected',pid===playerId);
+      const sid=el.getAttribute('onclick')?.match(/'([^']+)'\)$/)?.[1];
+      el.classList.toggle('pm-selected',sid===snapId);
     });
   }
   updatePhysMatchSummary();
@@ -2891,107 +2963,76 @@ function updatePhysMatchSummary(){
 }
 
 async function runAutoMatch(){
-  const unmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId&&!_physMatchDecisions[s.id]);
+  const unmatched=ST.players.filter(p=>{
+    if(PHYS_EXCLUDED.includes(p.pos)) return false;
+    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null)&&!_physMatchDecisions[p.id];
+  });
   const total=unmatched.length;
   if(!total){showToast('Nothing left to auto-match','success');return;}
 
-  // Pre-build a lookup index from normalised name fragments → players
-  // This reduces comparisons from O(n×m) to O(n×k) where k is a small candidate set
+  // Pre-build name index from PHYS snapshots
   const nameIndex={};
-  ST.players.forEach(p=>{
-    if(PHYS_EXCLUDED.includes(p.pos)) return;
-    const pn=normPhys(p.name);
-    // Index by each word of length ≥3
-    pn.split(' ').filter(w=>w.length>=3).forEach(w=>{
+  PHYS.snapshots.filter(s=>!s.matchedPlayerId).forEach(snap=>{
+    const sn=normPhys(snap.shortName);
+    const fn=normPhys(snap.fullName);
+    [...sn.split(' '),...fn.split(' ')].filter(w=>w.length>=3).forEach(w=>{
       if(!nameIndex[w]) nameIndex[w]=[];
-      nameIndex[w].push(p);
+      nameIndex[w].push(snap);
     });
   });
 
-  // Fast candidate lookup using index
-  const fastCandidates=(snap)=>{
-    const sn=normPhys(snap.shortName);
-    const fn=normPhys(snap.fullName);
-    const snapBDYear=snap.birthdate?parseInt(snap.birthdate.slice(0,4)):null;
-
-    const words=[...sn.split(' '),...fn.split(' ')].filter(w=>w.length>=3);
-    const seen=new Set();
-    const pool=[];
-    words.forEach(w=>{
-      (nameIndex[w]||[]).forEach(p=>{
-        if(!seen.has(p.id)){seen.add(p.id);pool.push(p);}
-      });
-    });
-
-    const results=[];
-    pool.forEach(p=>{
-      const pn=normPhys(p.name);
-      const snInPn=sn&&pn.includes(sn);
-      const pnInSn=pn&&sn.includes(pn);
-      const fnMatch=fn&&(pn===fn||pn.includes(fn)||fn.includes(pn));
-      const initMatch=sn&&(()=>{
-        const parts=sn.split(' ');
-        if(parts.length<2) return false;
-        const init=parts[0].replace('.','');
-        const surname=parts.slice(1).join(' ');
-        const pParts=pn.split(' ');
-        return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
-      })();
-      if(!snInPn&&!pnInSn&&!fnMatch&&!initMatch) return;
-
-      // Derive approximate birth year from player age + capture date
-      let bdOk=false;
-      if(snapBDYear&&p.age&&p.capturedAt){
-        const captureYear=new Date(p.capturedAt).getFullYear();
-        const approxBDYear=captureYear-p.age;
-        // Allow ±1 year tolerance
-        bdOk=Math.abs(approxBDYear-snapBDYear)<=1;
-      } else if(snapBDYear&&p.age){
-        // No capturedAt — use current year estimate
-        const approxBDYear=new Date().getFullYear()-p.age;
-        bdOk=Math.abs(approxBDYear-snapBDYear)<=1;
-      }
-
-      if(bdOk) results.push({player:p,confidence:'high'});
-      else results.push({player:p,confidence:'medium'}); // name match but can't confirm age
-    });
-    // Only auto-match high confidence (name + age match)
-    return results.filter(r=>r.confidence==='high');
-  };
-
-  // Process in chunks to keep UI responsive
   const CHUNK=200;
   let autoCount=0;
-  showToast(`Auto-matching ${total} records…`,'success');
+  showToast(`Auto-matching ${total} players…`,'success');
 
   for(let i=0;i<unmatched.length;i+=CHUNK){
     const chunk=unmatched.slice(i,i+CHUNK);
-    chunk.forEach(snap=>{
-      const candidates=fastCandidates(snap);
-      if(candidates.length>0){
-        _physMatchDecisions[snap.id]=candidates[0].player.id;
-        autoCount++;
-      }
+    chunk.forEach(player=>{
+      const pn=normPhys(player.name);
+      const pBDYear=player.age&&player.capturedAt?new Date(player.capturedAt).getFullYear()-player.age:null;
+      const words=pn.split(' ').filter(w=>w.length>=3);
+      const seen=new Set();
+      const pool=[];
+      words.forEach(w=>(nameIndex[w]||[]).forEach(s=>{if(!seen.has(s.id)){seen.add(s.id);pool.push(s);}}));
+      let bestSnap=null;
+      pool.forEach(snap=>{
+        const sn=normPhys(snap.shortName);
+        const fn=normPhys(snap.fullName);
+        const nameMatch=pn.includes(sn)||sn.includes(pn)||pn===fn||pn.includes(fn)||fn.includes(pn)||(()=>{
+          const parts=sn.split(' ');if(parts.length<2)return false;
+          const init=parts[0].replace('.',''),surname=parts.slice(1).join(' '),pParts=pn.split(' ');
+          return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
+        })();
+        if(!nameMatch) return;
+        if(pBDYear&&snap.birthdate){
+          const snapBDYear=parseInt(snap.birthdate.slice(0,4));
+          if(Math.abs(pBDYear-snapBDYear)<=1) bestSnap=snap;
+        }
+      });
+      if(bestSnap){_physMatchDecisions[player.id]=bestSnap.id;autoCount++;}
     });
-    // Yield to browser between chunks
     await new Promise(r=>setTimeout(r,0));
-    // Update progress toast every 1000
-    if(i%1000===0&&i>0) showToast(`Auto-matching… ${i}/${total} processed`,'success');
+    if(i%1000===0&&i>0) showToast(`Auto-matching… ${i}/${total}`,'success');
   }
 
-  showToast(`Auto-matched ${autoCount} of ${total} records`,'success');
-  const stillUnmatched=PHYS.snapshots.filter(s=>!s.matchedPlayerId&&!_physMatchDecisions[s.id]);
+  showToast(`Auto-matched ${autoCount} of ${total} players`,'success');
+  const stillUnmatched=ST.players.filter(p=>{
+    if(PHYS_EXCLUDED.includes(p.pos)) return false;
+    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null)&&!_physMatchDecisions[p.id];
+  });
   renderPhysMatchBody(stillUnmatched);
   updatePhysMatchSummary();
 }
 
 async function savePhysMatchResults(){
   let saved=0,skipped=0;
-  Object.entries(_physMatchDecisions).forEach(([snapId,decision])=>{
+  Object.entries(_physMatchDecisions).forEach(([playerId,snapId])=>{
+    if(snapId==='skip'){skipped++;return;}
     const snap=PHYS.snapshots.find(s=>s.id===snapId);
     if(!snap) return;
-    if(decision==='skip'){ snap.matchConfidence='skipped'; skipped++; }
-    else{ snap.matchedPlayerId=decision; snap.matchConfidence='manual'; saved++; }
+    snap.matchedPlayerId=playerId;
+    snap.matchConfidence='manual';
+    saved++;
   });
   showToast(`Saving ${saved} matches to GitHub — please wait…`,'success');
   closeModal('physMatchModal');
@@ -3094,6 +3135,7 @@ function computeAndApplyPhysical(){
 
   computeMetricBonuses();
   computeAllLeaguePct();
+  buildPhysPercentileCache();
   saveState();renderAll();
   return applied;
 }
@@ -3769,80 +3811,94 @@ function toggleHist(el){const b=el.nextElementSibling;b.classList.toggle('open')
 
 // Build physical data section for player expand metrics tab
 function buildPhysicalSection(p){
-  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
   if(p.pos==='GK') return '';
+  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
   if(!snap){
-    return`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-      <div class="pst" style="margin-bottom:6px">Physical Data</div>
-      <div style="font-size:11px;color:var(--muted);font-style:italic">No physical data for this season</div>
+    return`<div style="margin-top:14px">
+      <div class="skill-section-hdr" style="justify-content:space-between">
+        <span>Physical</span>
+        <span style="color:var(--muted);font-size:10px;font-style:italic">No data this season</span>
+      </div>
     </div>`;
   }
-  // Get positional pool percentiles from PHYS.snapshots
-  const pos=p.pos;
-  const poolPos=PHYS_MF_POSITIONS.includes(pos)?'MF':pos;
-  const pool=PHYS.snapshots.filter(s=>{
-    const pl=ST.players.find(x=>x.id===s.matchedPlayerId);
-    return pl&&s.season===p.season&&(PHYS_MF_POSITIONS.includes(pos)?PHYS_MF_POSITIONS.includes(pl.pos):pl.pos===pos)&&s.physicalScore!=null;
-  });
-  // Calculate percentiles for this player's metrics within their pool
+  // Use pre-computed percentile cache
   const pctMap={};
-  PHYS_METRICS.forEach(({key,inverted})=>{
-    const vals=pool.map(s=>s.metrics[key]).filter(v=>v!=null).sort((a,b)=>inverted?b-a:a-b);
-    if(!vals.length){pctMap[key]=null;return;}
-    const v=snap.metrics[key];
-    if(v==null){pctMap[key]=null;return;}
-    const rank=inverted?vals.filter(x=>x>=v).length/vals.length:vals.filter(x=>x<=v).length/vals.length;
-    pctMap[key]=Math.round(rank*100);
-  });
-  // Build pizza chart
-  const n=PHYS_METRICS.length;
-  const cx=130,cy=110,R=80,innerR=18;
-  const sliceAngle=2*Math.PI/n;
-  let slices='',labels='',legend='';
-  const physColor='#00d4ff';
-  PHYS_METRICS.forEach(({key,label},i)=>{
-    const pct=pctMap[key]??0;
-    const r=innerR+(R-innerR)*(pct/100);
-    const a0=i*sliceAngle-Math.PI/2;
-    const a1=(i+1)*sliceAngle-Math.PI/2;
-    const x0=cx+Math.cos(a0)*innerR,y0=cy+Math.sin(a0)*innerR;
-    const x1=cx+Math.cos(a0)*r,    y1=cy+Math.sin(a0)*r;
-    const x2=cx+Math.cos(a1)*r,    y2=cy+Math.sin(a1)*r;
-    const x3=cx+Math.cos(a1)*innerR,y3=cy+Math.sin(a1)*innerR;
-    const large=sliceAngle>Math.PI?1:0;
-    slices+=`<path d="M${x0},${y0} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large} 0 ${x0},${y0}" fill="${physColor}" fill-opacity="0.7" stroke="var(--surface)" stroke-width="1"/>`;
-    // spoke
-    slices+=`<line x1="${cx+Math.cos(a0)*innerR}" y1="${cy+Math.sin(a0)*innerR}" x2="${cx+Math.cos(a0)*R}" y2="${cy+Math.sin(a0)*R}" stroke="var(--border2)" stroke-width="0.5" class="pizza-spoke"/>`;
-    // label number
-    const lmid=(a0+a1)/2, lR=R+12;
-    labels+=`<text x="${(cx+Math.cos(lmid)*lR).toFixed(1)}" y="${(cy+Math.sin(lmid)*lR+3).toFixed(1)}" text-anchor="middle" fill="var(--muted2)" font-size="8" font-family="JetBrains Mono" class="pizza-label">${i+1}</text>`;
-    // legend
-    legend+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border)">
-      <div style="font-size:10px;color:var(--muted2)"><span style="color:${physColor};font-family:'JetBrains Mono',monospace;font-size:9px;margin-right:4px">${i+1}</span>${label}</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${pct>=90?'#00e599':pct>=70?'#7fd97f':pct>=50?'#f5c842':pct>=30?'#ff8c42':'#ff4d6a'}">${pctMap[key]!=null?pctMap[key]+'th':'—'}</div>
-    </div>`;
-  });
-  // Grid rings
-  let grid='';
-  [25,50,75,100].forEach(v=>{
-    const gr=innerR+(R-innerR)*(v/100);
-    grid+=`<circle cx="${cx}" cy="${cy}" r="${gr}" fill="none" stroke="var(--border2)" stroke-width="0.5" class="pizza-grid"/>`;
-    grid+=`<text x="${cx+2}" y="${cy-gr+3}" fill="var(--muted)" font-size="7" font-family="JetBrains Mono" class="pizza-grid-label">${v}</text>`;
-  });
-  // Outer ring
-  grid+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--border2)" stroke-width="1"/>`;
-  grid+=`<circle cx="${cx}" cy="${cy}" r="${innerR}" fill="var(--surface2)" stroke="var(--border2)" stroke-width="0.5"/>`;
+  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
 
-  const adjColor=(snap.physicalAdj||0)>=0?'var(--green)':'var(--red)';
-  return`<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
-    <div class="pst" style="margin-bottom:8px">Physical Data <span style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:10px">Score: ${snap.physicalScore.toFixed(1)}</span> <span style="color:${adjColor};font-family:'JetBrains Mono',monospace;font-size:10px">(${(snap.physicalAdj||0)>=0?'+':''}${(snap.physicalAdj||0).toFixed(2)} rating adj)</span></div>
-    <div style="display:flex;gap:12px">
-      <svg width="260" height="220" viewBox="0 0 260 220" style="flex-shrink:0">
-        ${grid}${slices}${labels}
-      </svg>
-      <div style="flex:1;overflow:auto;font-size:11px">${legend}</div>
-    </div>
-  </div>`;
+  const isPizza=ST.metricChartView==='pizza';
+  let html=`<div style="margin-top:14px">
+    <div class="skill-section-hdr" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span>Physical</span>
+    </div>`;
+
+  if(!isPizza){
+    // Bars — same style as technical, grouped by skill section
+    const groups=[
+      {label:'Speed',        keys:['psv99','top5psv99'],           color:PHYS_GROUP_COLORS.speed},
+      {label:'Explosiveness',keys:['top3timeHSR'],                  color:PHYS_GROUP_COLORS.explosive},
+      {label:'Distance',     keys:['distP90'],                      color:PHYS_GROUP_COLORS.distance},
+      {label:'In Possession',keys:['hsrDistTIP','sprintDistTIP'],   color:PHYS_GROUP_COLORS.tip},
+      {label:'Out of Poss.', keys:['hsrDistOTIP','sprintDistOTIP'], color:PHYS_GROUP_COLORS.otip},
+    ];
+    groups.forEach(({label,keys,color})=>{
+      html+=`<div class="skill-group" style="margin-bottom:6px">
+        <div class="skill-hdr" style="color:${color}">${label}</div>`;
+      keys.forEach(key=>{
+        const m=PHYS_METRICS.find(x=>x.key===key);
+        if(!m) return;
+        const pct=pctMap[key];
+        const mc=pct==null?'var(--muted)':pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
+        html+=`<div class="metric-row">
+          <div class="metric-lbl">${m.label}</div>
+          <div class="metric-bar-wrap"><div class="metric-bar" style="width:${pct??0}%;background:${mc}"></div></div>
+          <div class="metric-val" style="color:${mc}">${pct!=null?pct:'—'}</div>
+        </div>`;
+      });
+      html+='</div>';
+    });
+  } else {
+    // Pizza — same size as technical, numbered slices, group colours
+    const n=PHYS_METRICS.length;
+    const cx=130,cy=115,R=80,innerR=18;
+    const sliceAngle=2*Math.PI/n;
+    let slices='',labels='',legend='';
+    PHYS_METRICS.forEach(({key,label,group},i)=>{
+      const pct=pctMap[key]??0;
+      const r=innerR+(R-innerR)*(pct/100);
+      const a0=i*sliceAngle-Math.PI/2;
+      const a1=(i+1)*sliceAngle-Math.PI/2;
+      const x0=cx+Math.cos(a0)*innerR,y0=cy+Math.sin(a0)*innerR;
+      const x1=cx+Math.cos(a0)*r,    y1=cy+Math.sin(a0)*r;
+      const x2=cx+Math.cos(a1)*r,    y2=cy+Math.sin(a1)*r;
+      const x3=cx+Math.cos(a1)*innerR,y3=cy+Math.sin(a1)*innerR;
+      const large=sliceAngle>Math.PI?1:0;
+      const col=PHYS_GROUP_COLORS[group]||'#00d4ff';
+      slices+=`<path d="M${x0},${y0} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large} 0 ${x0},${y0}" fill="${col}" fill-opacity="0.7" stroke="var(--surface)" stroke-width="1"/>`;
+      slices+=`<line x1="${cx+Math.cos(a0)*innerR}" y1="${cy+Math.sin(a0)*innerR}" x2="${cx+Math.cos(a0)*R}" y2="${cy+Math.sin(a0)*R}" stroke="var(--border2)" stroke-width="0.5" class="pizza-spoke"/>`;
+      const lmid=(a0+a1)/2,lR=R+13;
+      labels+=`<text x="${(cx+Math.cos(lmid)*lR).toFixed(1)}" y="${(cy+Math.sin(lmid)*lR+3).toFixed(1)}" text-anchor="middle" fill="var(--muted2)" font-size="8" font-family="JetBrains Mono" class="pizza-label">${i+1}</text>`;
+      const pc=pctMap[key];
+      const vc=pc==null?'var(--muted)':pc>=80?'#00e599':pc>=60?'#7fd97f':pc>=40?'#f5c842':pc>=20?'#ff8c42':'#ff4d6a';
+      legend+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:2px 0">
+        <div style="font-size:10px;color:var(--muted2)"><span style="color:${col};font-family:'JetBrains Mono',monospace;font-size:9px;margin-right:4px">${i+1}</span>${label}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${vc}">${pc!=null?pc+'th':'—'}</div>
+      </div>`;
+    });
+    let grid='';
+    [25,50,75,100].forEach(v=>{
+      const gr=innerR+(R-innerR)*(v/100);
+      grid+=`<circle cx="${cx}" cy="${cy}" r="${gr}" fill="none" stroke="var(--border2)" stroke-width="0.5" class="pizza-grid"/>`;
+      grid+=`<text x="${cx+2}" y="${cy-gr+3}" fill="var(--muted)" font-size="7" font-family="JetBrains Mono" class="pizza-grid-label">${v}</text>`;
+    });
+    grid+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--border2)" stroke-width="1"/>`;
+    grid+=`<circle cx="${cx}" cy="${cy}" r="${innerR}" fill="var(--surface2)" stroke="var(--border2)" stroke-width="0.5"/>`;
+    html+=`<div style="display:flex;gap:8px;align-items:flex-start">
+      <svg width="260" height="230" viewBox="0 0 260 230" style="flex-shrink:0">${grid}${slices}${labels}</svg>
+      <div style="flex:1;min-width:0">${legend}</div>
+    </div>`;
+  }
+  html+='</div>';
+  return html;
 }
 
 // ═══════════════════════════════════
