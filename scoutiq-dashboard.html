@@ -1991,7 +1991,10 @@ function getFiltered(){
   const sk=ST.sortKey||'rating';  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
-    if(sk==='rank')return ST.sortDir*((parseFloat(b.rating)??-Infinity)-(parseFloat(a.rating)??-Infinity));
+    if(sk==='rank')return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
+    if(sk==='rating')return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
+    if(sk==='potential')return ST.sortDir*((displayPotential(b)??-Infinity)-(displayPotential(a)??-Infinity));
+    if(sk==='ptPriority')return ST.sortDir*((displayPTP(b)??-Infinity)-(displayPTP(a)??-Infinity));
     if(NUMERIC_FIELDS.has(sk)){
       const av=parseFloat(a[sk]??-Infinity), bv=parseFloat(b[sk]??-Infinity);
       return ST.sortDir*(bv-av);
@@ -2425,7 +2428,7 @@ function openTeamOverview(){
   };
   _toRows=Object.entries(teamMap).map(([team,players])=>{
     const avgRating=wtAvg(players,'rating'),avgPotential=wtAvg(players,'potential'),avgAge=wtAvg(players,'age');
-    const rated=players.filter(p=>p.rating!=null).sort((a,b)=>b.rating-a.rating);
+    const rated=players.filter(p=>p.rating!=null).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
     const potSorted=players.filter(p=>p.potential!=null).sort((a,b)=>b.potential-a.potential);
     return{team,count:players.length,avgRating,avgPotential,avgAge,top:rated[0]||null,topPot:potSorted[0]||null};
   });
@@ -2517,7 +2520,7 @@ function runHypTransfer(pid){
   let squad=ST.players.filter(p=>p.team===team&&p.id!==pid);
   if(season)squad=squad.filter(p=>p.season===season);
   // Combine squad + hypothetical player (as-is, not re-assigned to team)
-  const combined=[...squad,player].sort((a,b)=>(b.rating??-Infinity)-(a.rating??-Infinity));
+  const combined=[...squad,player].sort((a,b)=>(displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
   const title=`${player.name} → ${team}${season?' ('+season+')':''}`;
   document.getElementById('htTitle').textContent=title;
   // Build table
