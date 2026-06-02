@@ -1168,9 +1168,16 @@ async function loadFromGitHub(){
           (p.history||[]).forEach(h=>{ h.rating=_cap(h.rating!=null?h.rating-2:null); h.potential=_cap(h.potential!=null?h.potential-2:null); h.ptPriority=_capPtp(h.ptPriority!=null?h.ptPriority-4:null); if(h.ptPriority!=null&&h.potential!=null)h.potential=_cap(h.potential+(h.ptPriority/50)); });
           p.scoreAdjusted=4; migrated=true;
         }
-      });
-
-      // One-off migration: rename Dribbles metric key in stored player data
+        // v5→v6: new positional deltas
+        if(p.scoreAdjusted===5){
+          const V6_R_DELTA={GK:0.5,CB:-0.5,FB:0,DM:0,CM:-1,AM:-1.5,WF:0,CF:1};
+          const V6_PTP_DELTA={GK:1,CB:-1,FB:0,DM:0,CM:-2,AM:-3,WF:0,CF:2};
+          const rd=V6_R_DELTA[p.pos]||0, ptd=V6_PTP_DELTA[p.pos]||0;
+          if(rd){p.rating=_cap(p.rating!=null?p.rating+rd:null);p.potential=_cap(p.potential!=null?p.potential+rd:null);}
+          if(ptd){p.ptPriority=_capPtp(p.ptPriority!=null?p.ptPriority+ptd:null);}
+          p.scoreAdjusted=6; migrated=true;
+        }
+      }); // end ST.players.forEach positional migration metric key in stored player data
       const renameMetric=(obj,oldK,newK)=>{if(obj&&obj[oldK]!==undefined&&obj[newK]===undefined){obj[newK]=obj[oldK];delete obj[oldK];return true;}return false;};
       const dribRenames=[['Dribbles','Dribbles + Offensive Duels'],['PAdj Dribbles','PAdj Dribbles + Offensive Duels']];
       ST.players.forEach(p=>{
@@ -2893,35 +2900,37 @@ function renderPhysMatchBody(wyscoutPlayers){
   const toShow=sorted.slice(0,200);
 
   body.innerHTML=toShow.map(player=>{
-    // Find physical snap candidates for this player
     const candidates=findPhysSnapsForPlayer(player);
     const dec=_physMatchDecisions[player.id];
-    const matchedClass=dec&&dec!=='skip'?'pm-matched':dec==='skip'?'pm-skipped':'';
+    const isMatched=dec&&dec!=='skip';
+    const isSkipped=dec==='skip';
 
     const candHTML=candidates.slice(0,4).map(({snap,confidence,reason})=>{
       const isSelected=dec===snap.id;
-      return`<div class="pm-candidate ${isSelected?'pm-selected':''} ${confidence==='high'?'pm-auto':''}"
+      const col=isSelected?'var(--green)':confidence==='high'?'var(--gold)':'var(--border2)';
+      return`<div class="pm-candidate" style="border-color:${col};background:${isSelected?'rgba(0,229,153,0.08)':''};cursor:pointer"
         onclick="selectPhysMatch('${player.id}','${snap.id}')">
-        <div>
-          <span style="font-weight:600">${snap.fullName}</span>
-          <span style="color:var(--muted2);margin-left:6px;font-size:10px">${snap.shortName}</span>
+        <div style="flex:1;min-width:0;overflow:hidden">
+          <span style="font-weight:600;font-size:11px">${snap.fullName}</span>
+          <span style="color:var(--muted2);font-size:9px;margin-left:4px">${snap.birthdate||''}</span>
         </div>
-        <div style="text-align:right">
-          <div style="color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace">${reason}</div>
-          <div style="color:var(--accent);font-size:10px;font-family:'JetBrains Mono',monospace">${snap.season}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+          ${confidence==='high'?'<span style="color:var(--green);font-size:9px;font-family:JetBrains Mono,monospace">HIGH</span>':''}
+          ${isSelected?'<span style="color:var(--green);font-size:11px">✓</span>':''}
         </div>
       </div>`;
     }).join('');
 
-    return`<div class="pm-row ${matchedClass}" id="pmrow_${player.id}">
+    const rowBg=isMatched?'rgba(0,229,153,0.04)':isSkipped?'rgba(255,255,255,0.02)':'';
+    return`<div class="pm-row" style="background:${rowBg};opacity:${isSkipped?0.4:1}" id="pmrow_${player.id}">
       <div class="pm-phys">
-        <div class="pm-phys-name">${player.name}</div>
-        <div class="pm-phys-detail">${player.team||''} · <span class="pos-tag" style="font-size:9px">${player.pos}</span></div>
-        <div class="pm-phys-detail">Season: ${player.season||'—'} · Age: ${player.age||'—'} · Rating: ${player.rating?.toFixed(1)||'—'}</div>
+        <div class="pm-phys-name">${isMatched?'<span style="color:var(--green);margin-right:4px">✓</span>':''}${player.name}</div>
+        <div class="pm-phys-detail">${player.team||''} · <span class="pos-tag" style="font-size:9px">${player.pos}</span> · Age ${player.age||'—'}</div>
+        <div class="pm-phys-detail" style="color:var(--muted2)">${player.season||'—'} · ${player.rating?.toFixed(1)||'—'}</div>
       </div>
       <div class="pm-candidates">
-        ${candidates.length?candHTML:'<div class="pm-no-match">No physical candidates found</div>'}
-        <span class="pm-skip-btn" onclick="selectPhysMatch('${player.id}','skip')">Skip</span>
+        ${candidates.length?candHTML:'<div class="pm-no-match">No candidates found</div>'}
+        <span class="pm-skip-btn" onclick="selectPhysMatch('${player.id}','skip')">${isSkipped?'↩ Unskip':'Skip'}</span>
       </div>
     </div>`;
   }).join('');
