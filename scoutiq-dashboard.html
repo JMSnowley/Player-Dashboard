@@ -1958,7 +1958,7 @@ function getFiltered(){
   const [tlo,thi]=SLIDER_STATE.ptPriority;
   const [llo,lhi]=SLIDER_STATE.leaguePct||[0,100];
   const [alo,ahi]=SLIDER_STATE.age||[15,45];
-  if(rlo>0||rhi<100)list=list.filter(p=>p.rating!=null&&p.rating>=rlo&&p.rating<=rhi);
+  if(rlo>0||rhi<100)list=list.filter(p=>{ const dr=displayRating(p)??0; return dr>=rlo&&dr<=rhi; });
   if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
   if(tlo>0||thi<100)list=list.filter(p=>p.ptPriority!=null&&p.ptPriority>=tlo&&p.ptPriority<=thi);
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
@@ -2064,10 +2064,10 @@ function renderSidebar(){
 function renderStatsStrip(){
   // Always use full filtered dataset (never paged)
   const {allFiltered}=getFiltered();
-  const rated=allFiltered.filter(p=>p.rating!=null);
+  const rated=allFiltered.filter(p=>displayRating(p)!=null);
   const potted=allFiltered.filter(p=>p.potential!=null);
   const ptped=allFiltered.filter(p=>p.ptPriority!=null);
-  const avg=rated.length?(rated.reduce((s,p)=>s+p.rating,0)/rated.length).toFixed(1):'—';
+  const avg=rated.length?(rated.reduce((s,p)=>s+(displayRating(p)||0),0)/rated.length).toFixed(1):'—';
   const avgPot=potted.length?(potted.reduce((s,p)=>s+p.potential,0)/potted.length).toFixed(1):'—';
   const avgPtp=ptped.length?(ptped.reduce((s,p)=>s+p.ptPriority,0)/ptped.length).toFixed(1):'—';
   const lastCap=ST.players.length?[...ST.players].sort((a,b)=>new Date(b.capturedAt)-new Date(a.capturedAt))[0]:null;
@@ -2097,7 +2097,9 @@ function renderTable(){
   // 10-step gradient green→red based on rank within the FULL filtered dataset (not just this page)
   const gradientColor=(val,arr,field)=>{
     if(val==null||!arr.length) return 'var(--muted)';
-    const vals=[...arr.map(p=>p[field])].filter(v=>v!=null).sort((a,b)=>a-b);
+    const vals=field
+      ? [...arr.map(p=>p[field])].filter(v=>v!=null).sort((a,b)=>a-b)
+      : [...arr].filter(v=>v!=null).sort((a,b)=>a-b);
     if(!vals.length) return 'var(--muted)';
     const rank=vals.filter(v=>v<=val).length/vals.length;
     if(rank>=0.90) return '#00e599';
@@ -2113,9 +2115,9 @@ function renderTable(){
   };
 
   // Build colour lists from the FULL filtered dataset
-  const ratedList=allFiltered.filter(p=>p.rating!=null);
-  const potList=allFiltered.filter(p=>p.potential!=null);
-  const ptList=allFiltered.filter(p=>p.ptPriority!=null);
+  const ratedList=allFiltered.map(p=>displayRating(p)).filter(v=>v!=null);
+  const potList=allFiltered.map(p=>displayPotential(p)).filter(v=>v!=null);
+  const ptList=allFiltered.map(p=>displayPTP(p)).filter(v=>v!=null);
   const lgPctList=allFiltered.filter(p=>p.leaguePct!=null);
 
   // Page offset for rank numbers
@@ -2126,10 +2128,10 @@ function renderTable(){
     const r=displayRating(p), rc=ratingColor(r);
     const rankCell=`<td class="rank-cell">${rankOffset+i+1}</td>`;
     const hCount=p.history?.length||1;
-    const potColor=gradientColor(p.potential,potList,'potential');
-    const ptColor=gradientColor(p.ptPriority,ptList,'ptPriority');
+    const potColor=gradientColor(displayPotential(p),potList);
+    const ptColor=gradientColor(displayPTP(p),ptList);
     const lgPctColor=gradientColor(p.leaguePct,lgPctList,'leaguePct');
-    const ratingScaleColor=gradientColor(p.rating,ratedList,'rating');
+    const ratingScaleColor=gradientColor(displayRating(p),ratedList);
     const natF=(p.nationalities&&p.nationalities.length)?p.nationalities.map(natFlag).join(' '):'—';
     // League: flag + tier number
     const lgParts=(p.leagueTag||'').split(' ');
@@ -2450,7 +2452,7 @@ function renderToTable(){
     if(typeof av==='string')return _toSort.dir*String(av).localeCompare(String(bv));
     return _toSort.dir*(bv-av);
   });
-  const allR=rows.flatMap(r=>[r.top].filter(Boolean).map(p=>p.rating));
+  const allR=rows.flatMap(r=>[r.top].filter(Boolean).map(p=>displayRating(p)));
   const allP=rows.flatMap(r=>[r.topPot].filter(Boolean).map(p=>p.potential));
   const rc=(val,pool)=>{
     if(val==null)return'<td style="text-align:center">—</td>';
@@ -2524,7 +2526,7 @@ function runHypTransfer(pid){
   const title=`${player.name} → ${team}${season?' ('+season+')':''}`;
   document.getElementById('htTitle').textContent=title;
   // Build table
-  const allRatings=combined.filter(p=>p.rating!=null).map(p=>p.rating);
+  const allRatings=combined.filter(p=>displayRating(p)!=null).map(p=>displayRating(p));
   const allPots=combined.filter(p=>p.potential!=null).map(p=>p.potential);
   const htRingCell=(val,allVals)=>{
     if(val==null)return`<td style="text-align:center">—</td>`;
@@ -2557,7 +2559,7 @@ function runHypTransfer(pid){
       <td><span class="pos-tag">${p.pos}</span></td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.age||'—'}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
-      ${htRingCell(p.rating,allRatings)}
+      ${htRingCell(displayRating(p),allRatings)}
       ${htRingCell(p.potential,allPots)}
     </tr>`;
   });
@@ -2858,7 +2860,7 @@ function openPhysMatchModal(keepOpen=false){
   }).sort((a,b)=>{
     if(sortKey==='name') return (a.name||'').localeCompare(b.name||'');
     if(sortKey==='pos') return (a.pos||'').localeCompare(b.pos||'');
-    return (b.rating??-Infinity)-(a.rating??-Infinity);
+    return (displayRating(b)??-Infinity)-(displayRating(a)??-Infinity);
   });
   const matched=ST.players.filter(p=>!PHYS_EXCLUDED.includes(p.pos)&&PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null));
   document.getElementById('physMatchStatus').textContent=
@@ -3416,7 +3418,7 @@ function renderCompare(){
   });
 }
 function buildCmpOverview(p,opp,flip=false){
-  const rc=ratingColor(p.rating);
+  const rc=ratingColor(displayRating(p));
   const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
   const roles=posConf.roles||[];
   const topRole=roles.length?roles.map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v)[0]:null;
@@ -3425,7 +3427,7 @@ function buildCmpOverview(p,opp,flip=false){
     .filter(x=>(x.leagueTag===p.leagueTag||x.leagueTag===opp.leagueTag)&&(x.season===p.season||x.season===opp.season))
     .map(x=>x.minutes||0), 1000);
   const fields=[
-    {l:'Rating',    a:p.rating,    b:opp.rating,    mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'Rating',    a:displayRating(p),    b:displayRating(opp),    mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
     {l:'Potential', a:p.potential, b:opp.potential, mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
     {l:'PT Priority',a:p.ptPriority,b:opp.ptPriority,mn:0,mx:100,fmt:v=>v!=null?v.toFixed(1):'—'},
     {l:'League %ile',a:p.leaguePct, b:opp.leaguePct, mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
