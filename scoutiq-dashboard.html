@@ -3233,7 +3233,8 @@ function openXI(mode,keepFormation=false){
   document.getElementById('xiTitle').textContent=(mode==='best'?'Best XI':'Best Potential XI')+' ('+fmtLabel+')';
   const {allFiltered}=getFiltered();
   const scoreKey=mode==='best'?'rating':'potential';
-  const ranked=[...allFiltered].filter(p=>p[scoreKey]!=null).sort((a,b)=>b[scoreKey]-a[scoreKey]);
+  const scoreOf=p=>mode==='best'?displayRating(p):displayPotential(p);
+  const ranked=[...allFiltered].filter(p=>scoreOf(p)!=null).sort((a,b)=>(scoreOf(b)??0)-(scoreOf(a)??0));
   const hasPos=(p,...abbrs)=>{const wp=(p.wyscoutPositions||'').toUpperCase().split(',').map(s=>s.trim());return abbrs.some(a=>wp.includes(a));};
   const isPrimary=(p,pos)=>p.pos===pos;
   const slotPrimaryPos=slot=>({'GK':['GK'],'CB':['CB'],'LB':['FB'],'RB':['FB'],'LWB':['FB'],'RWB':['FB'],'LWB352':['FB','WF'],'RWB352':['FB','WF'],'MF':['DM','CM','AM'],'CM':['DM','CM','AM'],'LM':['WF','CM','AM'],'RM':['WF','CM','AM'],'LW':['WF'],'RW':['WF'],'CF':['CF'],'SS':['CF']})[slot]||[];
@@ -3262,7 +3263,7 @@ function openXI(mode,keepFormation=false){
   const buildPool=slot=>[...ranked].filter(p=>eligibleFor(p,slot)).sort((a,b)=>{
     const ap=slotPrimaryPos(slot),aPrim=ap.includes(a.pos)?1:0,bPrim=ap.includes(b.pos)?1:0;
     if(aPrim!==bPrim)return bPrim-aPrim;
-    return b[scoreKey]-a[scoreKey];
+    return (scoreOf(b)??0)-(scoreOf(a)??0);
   });
   const used=new Set();
   const pick=(slot,n=1)=>{
@@ -3286,7 +3287,7 @@ function openXI(mode,keepFormation=false){
     }
     while(out.length<n)out.push(null);
     // Sort filled slots by score descending for display
-    return out.sort((a,b)=>a&&b?b[scoreKey]-a[scoreKey]:0);
+    return out.sort((a,b)=>a&&b?(scoreOf(b)??0)-(scoreOf(a)??0):0);
   };
 
   let xi=[];
@@ -3354,8 +3355,8 @@ function renderXIPitch(xi,scoreKey){
     slots.forEach(({p,label},si)=>{
       const y=n===1?H/2:topMargin+si*spacing;
       const isEmpty=!p;
-      const score=p&&p[scoreKey]!=null?parseFloat(p[scoreKey]).toFixed(0):'—';
-      const sc=p&&p[scoreKey]!=null?parseFloat(p[scoreKey]):0;
+      const score=p&&scoreOf(p)!=null?parseFloat(scoreOf(p)).toFixed(0):'—';
+      const sc=p&&scoreOf(p)!=null?parseFloat(scoreOf(p)):0;
       const scColor=sc>=80?'#00e599':sc>=60?'#7fd97f':sc>=40?'#f5c842':sc>=20?'#ff8c42':sc>0?'#ff4d6a':'rgba(255,255,255,0.3)';
       const fullName=p?p.name:'—';
       const age=p&&p.age?String(p.age):'';
@@ -3428,7 +3429,7 @@ function buildCmpOverview(p,opp,flip=false){
     .map(x=>x.minutes||0), 1000);
   const fields=[
     {l:'Rating',    a:displayRating(p),    b:displayRating(opp),    mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'Potential', a:p.potential, b:opp.potential, mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
+    {l:'Potential', a:displayPotential(p), b:displayPotential(opp), mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
     {l:'PT Priority',a:p.ptPriority,b:opp.ptPriority,mn:0,mx:100,fmt:v=>v!=null?v.toFixed(1):'—'},
     {l:'League %ile',a:p.leaguePct, b:opp.leaguePct, mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
     {l:'Age',       a:p.age,       b:opp.age,       mn:15,mx:45,  fmt:v=>v!=null?v:'—'},
@@ -3567,7 +3568,7 @@ function renderPanel(){
     body.innerHTML=`
       <div class="big-r"><div class="big-num" style="color:${rc}">${r!=null?fmt(r):'—'}</div><div class="big-lbl">Rating · ${fmtDate(p.capturedAt)}</div></div>
       <div class="sg">
-        <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(p.potential)}</div></div>
+        <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(displayPotential(p))}</div></div>
         <div class="sg-item"><div class="sg-l">PT Priority</div><div class="sg-v" style="color:var(--gold)">${fmt(p.ptPriority)}</div></div>
         <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
         <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
