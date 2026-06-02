@@ -2397,14 +2397,22 @@ function computeMetricBonuses(){
     let bonusR=0,bonusPt=0;
     // Normal metrics
     Object.entries(p.nm||{}).forEach(([m,v])=>{
-      if(nm.t95[m]!=null&&v>=nm.t95[m]){bonusR+=0.5;bonusPt+=2;}
-      else if(nm.t90[m]!=null&&v>=nm.t90[m]){bonusR+=0.25;bonusPt+=1;}
+      if(nm.t95[m]!=null&&v>=nm.t95[m]){bonusR+=0.25;bonusPt+=0.5;}
+      else if(nm.t90[m]!=null&&v>=nm.t90[m]){bonusR+=0.125;bonusPt+=0.25;}
     });
     // PAdj metrics
     Object.entries(p.pm||{}).forEach(([m,v])=>{
-      if(pm.t95[m]!=null&&v>=pm.t95[m]){bonusR+=0.5;bonusPt+=2;}
-      else if(pm.t90[m]!=null&&v>=pm.t90[m]){bonusR+=0.25;bonusPt+=1;}
+      if(pm.t95[m]!=null&&v>=pm.t95[m]){bonusR+=0.25;bonusPt+=0.5;}
+      else if(pm.t90[m]!=null&&v>=pm.t90[m]){bonusR+=0.125;bonusPt+=0.25;}
     });
+    // Physical metrics — percentile already 0-100, threshold at 90/95
+    if(PHYS_PCT_CACHE[p.id]){
+      Object.entries(PHYS_PCT_CACHE[p.id]).forEach(([key,pct])=>{
+        if(pct==null) return;
+        if(pct>=95){bonusR+=0.25;bonusPt+=0.5;}
+        else if(pct>=90){bonusR+=0.125;bonusPt+=0.25;}
+      });
+    }
     // Apply minutes scaling
     bonusR=Math.round(bonusR*minScale*1000)/1000;
     bonusPt=Math.round(bonusPt*minScale*1000)/1000;
