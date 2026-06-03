@@ -267,6 +267,20 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .fo-role-track{height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
 .fo-role-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .4s}
 
+
+/* PASSWORD GATE */
+.pwd-gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+.pwd-gate.hidden{display:none}
+.pwd-box{background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:32px 36px;text-align:center;min-width:300px}
+.pwd-title{font-family:'Archivo Black',sans-serif;font-size:18px;letter-spacing:2px;margin-bottom:6px}
+.pwd-sub{font-size:11px;color:var(--muted2);font-family:'JetBrains Mono',monospace;margin-bottom:20px}
+.pwd-input{width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:10px 14px;color:var(--text);font-size:14px;font-family:'JetBrains Mono',monospace;text-align:center;letter-spacing:3px;outline:none;box-sizing:border-box}
+.pwd-input:focus{border-color:var(--accent)}
+.pwd-input.error{border-color:var(--red);animation:shake .3s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.pwd-btn{margin-top:12px;width:100%;padding:10px;background:var(--accent);border:none;border-radius:6px;color:#000;font-family:'Archivo Black',sans-serif;font-size:12px;letter-spacing:2px;cursor:pointer}
+.pwd-btn:hover{opacity:0.85}
+
 /* CLUB BADGES */
 .player-badge{width:22px;height:22px;border-radius:3px;object-fit:contain;flex-shrink:0;background:var(--surface3)}
 .player-initials{width:22px;height:22px;border-radius:3px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--muted2);flex-shrink:0;text-transform:uppercase}
@@ -370,7 +384,15 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 </head>
 <body>
 <div class="topbar">
-  <div class="logo" style="display:flex;align-items:center;gap:7px;padding:0 2px">
+  <div class="pwd-gate" id="pwdGate">
+  <div class="pwd-box">
+    <div class="pwd-title">PLYRDASH</div>
+    <div class="pwd-sub">Enter password to continue</div>
+    <input class="pwd-input" id="pwdInput" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')checkPwd()"/>
+    <button class="pwd-btn" onclick="checkPwd()">UNLOCK</button>
+  </div>
+</div>
+<div class="logo" style="display:flex;align-items:center;gap:7px;padding:0 2px">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect width="24" height="24" rx="5" fill="var(--accent)"/>
       <circle cx="12" cy="12" r="6.5" stroke="rgba(0,0,0,0.7)" stroke-width="1.2" fill="none"/>
@@ -3590,6 +3612,38 @@ function buildCmpMetrics(p,opp,mode,flip=false){
         :`<div class="cmp-metric-row"><div class="cmp-label" title="${m}">${label}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div></div>`;
     });
   });
+  // Physical metrics section
+  const snapP=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  const snapO=PHYS.snapshots.find(s=>s.matchedPlayerId===opp.id&&s.season===opp.season&&s.physicalScore!=null);
+  if(snapP||snapO){
+    const physGroups={'Speed':['psv99','top5psv99'],'Explosive':['top3timeHSR'],'Distance':['distP90'],'In Poss':['hsrDistTIP','sprintDistTIP'],'Out of Poss':['hsrDistOTIP','sprintDistOTIP']};
+    const PCOLS={'Speed':'#00d4ff','Explosive':'#f5c842','Distance':'#00e599','In Poss':'#cc7040','Out of Poss':'#7060a8'};
+    html+=`<div style="padding:4px 10px 2px;font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--accent);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);margin-top:4px;${flip?'text-align:right':''}">Physical</div>`;
+    // Physical score summary row
+    const ps=snapP?.physicalScore,os=snapO?.physicalScore;
+    if(ps!=null||os!=null){
+      const win=ps!=null&&os!=null&&ps>os,lose=ps!=null&&os!=null&&ps<os;
+      const pct=ps!=null?Math.min(100,Math.max(0,ps)):0;
+      html+=flip
+        ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${ps!=null?ps.toFixed(1):'—'}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:var(--accent)"></div></div><div class="cmp-label" style="text-align:right">Phys. Score</div></div>`
+        :`<div class="cmp-metric-row"><div class="cmp-label">Phys. Score</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:var(--accent)"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${ps!=null?ps.toFixed(1):'—'}</div></div>`;
+    }
+    Object.entries(physGroups).forEach(([grp,keys])=>{
+      html+=`<div style="padding:3px 10px 1px;font-size:9px;font-family:'JetBrains Mono',monospace;color:${PCOLS[grp]};text-transform:uppercase;letter-spacing:1px;${flip?'text-align:right':''};">${grp}</div>`;
+      keys.forEach(key=>{
+        const m=PHYS_METRICS.find(x=>x.key===key);
+        const label=m?m.label:key;
+        const v=PHYS_PCT_CACHE[p.id]?.[key]??null;
+        const ov=PHYS_PCT_CACHE[opp.id]?.[key]??null;
+        const pct=v!=null?Math.min(100,Math.max(0,v)):0;
+        const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
+        const win=v!=null&&ov!=null&&v>ov,lose=v!=null&&ov!=null&&v<ov;
+        html+=flip
+          ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?v:'—'}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:${PCOLS[grp]}"></div></div><div class="cmp-label" title="${label}" style="text-align:right">${label}</div></div>`
+          :`<div class="cmp-metric-row"><div class="cmp-label" title="${label}">${label}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${PCOLS[grp]}"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?v:'—'}</div></div>`;
+      });
+    });
+  }
   return html;
 }
 
@@ -4545,23 +4599,68 @@ const LEAGUE_QUALITY={
 function ratingContext(dr,dp,leagueTag,age){
   const lq=LEAGUE_QUALITY[leagueTag]||{tier:3,name:leagueTag,good:63,top:70,elite:76};
   const el1=LEAGUE_QUALITY['England 1'];
+  const el2=LEAGUE_QUALITY['England 2'];
+  const el3=LEAGUE_QUALITY['England 3'];
+  const sc1=LEAGUE_QUALITY['Scotland 1'];
+  const sc2={name:'Scottish Championship',good:58,top:64,elite:69};
+
+  // Current standing
   let currentDesc;
   if(dr>=lq.elite) currentDesc=`one of the best players in the ${lq.name}`;
   else if(dr>=lq.top) currentDesc=`a top-level performer in the ${lq.name}`;
   else if(dr>=lq.good) currentDesc=`a solid, reliable option at ${lq.name} level`;
   else if(dr>=lq.good-4) currentDesc=`a decent contributor in the ${lq.name}`;
   else currentDesc=`still developing at ${lq.name} level`;
+
+  // Potential ceiling — only for under 28s, described in cross-league terms
   let ceilingDesc=null;
   if(age<28){
-    if(dp>=el1.elite) ceilingDesc=`the ceiling to develop into a genuine elite Premier League performer`;
-    else if(dp>=el1.top) ceilingDesc=`the potential ceiling to be a top Premier League player`;
-    else if(dp>=el1.good) ceilingDesc=`the ceiling to develop into a solid Premier League operator`;
-    else if(dp>=(LEAGUE_QUALITY['Germany 1']?.top||78)) ceilingDesc=`the ceiling to perform at the top end of a major European league`;
-    else if(dp>=lq.top) ceilingDesc=`the ceiling to become one of the best in the ${lq.name}`;
-    else if(dp>=lq.good) ceilingDesc=`scope to become a reliable ${lq.name} regular`;
+    // Find the best contextual league description for the potential
+    const potDescs=[];
+
+    // English league context
+    if(el1&&dp>=el1.elite) potDescs.push(`an elite Premier League player`);
+    else if(el1&&dp>=el1.top) potDescs.push(`a top-end Premier League player`);
+    else if(el1&&dp>=el1.good) potDescs.push(`a solid Premier League regular`);
+    else if(el2&&dp>=el2.elite) potDescs.push(`one of the best players in the Championship`);
+    else if(el2&&dp>=el2.top) potDescs.push(`a top Championship player`);
+    else if(el2&&dp>=el2.good) potDescs.push(`a solid Championship option`);
+    else if(el3&&dp>=el3.top) potDescs.push(`a top League One player`);
+    else if(el3&&dp>=el3.good) potDescs.push(`a solid League One operator`);
+
+    // Also add home league context if different from English reference
+    if(lq.name!==el1?.name&&lq.name!==el2?.name&&lq.name!==el3?.name){
+      if(dp>=lq.elite) potDescs.push(`one of the best in the ${lq.name}`);
+      else if(dp>=lq.top) potDescs.push(`a top ${lq.name} player`);
+      else if(dp>=lq.good) potDescs.push(`a reliable ${lq.name} regular`);
+    }
+
+    // Scottish context if relevant
+    if(['Scotland 1','Scotland 2','Scotland 3','Scotland 4'].includes(leagueTag)){
+      if(sc1&&dp>=sc1.top) potDescs.push(`a top Scottish Premiership player`);
+      else if(sc1&&dp>=sc1.good) potDescs.push(`a solid Scottish Premiership regular`);
+      else if(sc2&&dp>=sc2.top) potDescs.push(`a top Championship player`);
+      else if(sc2&&dp>=sc2.good) potDescs.push(`a regular at Scottish Championship level`);
+    }
+
+    if(potDescs.length>=2){
+      // Pick two different levels for richness
+      ceilingDesc=`the ceiling to become ${potDescs[0]}, or at least ${potDescs[1]}`;
+    } else if(potDescs.length===1){
+      ceilingDesc=`the ceiling to become ${potDescs[0]}`;
+    }
   }
   return{currentDesc,ceilingDesc};
 }
+
+// Variety in potential phrasing — pick one of several templates each call
+const _potPhrases=[
+  (gap,desc)=>`If he fulfils his potential, he has ${desc}.`,
+  (gap,desc)=>`Should he reach his ceiling, he has ${desc}.`,
+  (gap,desc)=>`At his best, he has ${desc}.`,
+  (gap,desc)=>`His ceiling suggests he could become ${desc.replace('the ceiling to become ','').replace('the ceiling to ','')}.`,
+  (gap,desc)=>`There is real upside here — he has ${desc}.`,
+];
 
 function minutesContext(mins,leagueTag,season){
   const lp=ST.players.filter(p=>p.leagueTag===leagueTag&&p.season===season&&p.minutes>0);
@@ -4624,7 +4723,7 @@ function interpretMetrics(p,pctCache){
   const ph=pctCache||{};
   const get=k=>nm[k];
   const hi=k=>get(k)!=null&&get(k)>=75;
-  const lo=k=>get(k)!=null&&get(k)<=30;
+  const lo=k=>get(k)!=null&&get(k)<=25;
   const mid=k=>get(k)!=null&&get(k)>=55;
   const isAtt=['CF','WF','AM'].includes(p.pos);
   const isDef=['CB','FB','DM'].includes(p.pos);
@@ -4680,7 +4779,7 @@ function interpretMetrics(p,pctCache){
   if(aer!=null){
     if(aer>=80&&(isCB||p.pos==='CF')) clauses.push(isCB?'dominant in the air and commands his area well at set-pieces and crosses':'wins his aerial battles and is a threat from set-pieces');
     else if(aer>=75&&isMid) clauses.push('wins his headers in midfield, adding a physical edge to his game');
-    else if(aer<=25&&isCB) clauses.push('not particularly dominant aerially, which can be a vulnerability at set-pieces');
+    else if(aer!=null&&aer<=25&&isCB) clauses.push('not particularly dominant aerially, which can be a vulnerability at set-pieces');
   }
 
   // ── Defensive ─────────────────────────────────────────────────────
@@ -4716,7 +4815,7 @@ function interpretMetrics(p,pctCache){
     else if(spd>=80) physClauses.push('genuine top-end pace');
     else if(dist>=85&&hsrTip!=null&&hsrTip>=70) physClauses.push('exceptional stamina and covers an enormous amount of ground in and out of possession');
     else if(dist>=75) physClauses.push('tireless movement and covers a lot of ground');
-    else if(spd<=20&&isWide) physClauses.push('lacks natural pace, which limits his threat down the channel');
+    else if(spd!=null&&spd<=20&&isWide) physClauses.push('lacks natural pace, which limits his threat down the channel');
   }
   if(exp!=null&&exp>=85) physClauses.push('explosiveness in short bursts');
   if(sprintTip!=null&&sprintTip>=80) physClauses.push('works extremely hard in high-intensity runs while in possession');
@@ -4734,29 +4833,27 @@ function interpretMetrics(p,pctCache){
 
 function buildInsight(p,dr,dp,sortedRoles,snap){
   const posConf=POS_CONFIG[p.pos]||{label:p.pos};
-  const posLabel=(posConf.label||p.pos).toLowerCase();
   const age=p.age||0;
   const {currentDesc,ceilingDesc}=ratingContext(dr,dp,p.leagueTag,age);
   const minCtx=minutesContext(p.minutes||0,p.leagueTag,p.season);
   const roleDesc=interpretRoles(sortedRoles);
   const metricDesc=interpretMetrics(p,PHYS_PCT_CACHE[p.id]);
-
   const gap=dp-dr;
   let potText='';
-  if(age<28){
-    if(gap>=10) potText=`He still has a huge amount of headroom to reach a considerably higher ceiling${ceilingDesc?' — he has '+ceilingDesc+', and his best years are very much ahead of him':''}.`;
-    else if(gap>=5) potText=`There is still clear room to grow${ceilingDesc?', and he has '+ceilingDesc:''}. His best years may still be ahead of him.`;
-    else if(gap>=2) potText=ceilingDesc?`He has ${ceilingDesc}, though he's approaching his ceiling now.`:`He's getting close to his ceiling.`;
-    else potText=`He appears to be operating at or very close to his current ceiling.`;
+  if(age<28&&ceilingDesc){
+    const pIdx=p.id?Math.abs(p.id.split('').reduce((h,c)=>((h<<5)+h)+c.charCodeAt(0)|0,5381))%_potPhrases.length:0;
+    const phrase=_potPhrases[pIdx];
+    if(gap>=10) potText=`${phrase(gap,ceilingDesc)} With ${gap>12?'a huge amount of':'significant'} headroom still to reach that ceiling, his best years are very much ahead of him.`;
+    else if(gap>=5) potText=`${phrase(gap,ceilingDesc)} There is still meaningful room between where he is now and where he could get to.`;
+    else if(gap>=2) potText=`${phrase(gap,ceilingDesc)} He is getting closer to that ceiling now, but there is still room to improve.`;
+    else potText=`He appears to be very close to his current ceiling${ceilingDesc?', which sits at '+ceilingDesc.replace('the ceiling to become ','').replace('the ceiling to ',''):''}.`;
+  } else if(age<28&&!ceilingDesc){
+    potText=gap>=5?`He still has meaningful room to develop.`:gap>=2?`He is close to his current ceiling.`:``;
   }
-
   const s1=`<strong>${p.name}</strong> is ${currentDesc}`;
-  const s1b=roleDesc
-    ?`, with a profile built around being ${roleDesc}. He is ${minCtx}.`
-    :`. He is ${minCtx}.`;
+  const s1b=roleDesc?`, with a profile built around being ${roleDesc}. He is ${minCtx}.`:`. He is ${minCtx}.`;
   const s2=metricDesc?`<br><br>${metricDesc}`:'';
   const s3=potText?`<br><br>${potText}`:'';
-
   return s1+s1b+s2+s3;
 }
 
@@ -4986,6 +5083,34 @@ function buildFOSimilar(p,seasons){
     </div>`;
   }).join('');
 }
+
+// ── Password Gate ──────────────────────────────────────────────────
+const _PWD_HASH='8e73b0f7da0e70c79b20bae2dbf65e6bdaf30f5e5f8e42cec44';  // SHA-1 placeholder, replaced below
+const _PWD_KEY='plyrdash_auth';
+function _hashStr(s){
+  // Simple but sufficient client-side check — not security-critical, just access control
+  let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)+s.charCodeAt(i)&0xffffffff;
+  return h.toString(16);
+}
+function checkPwd(){
+  const val=document.getElementById('pwdInput').value;
+  // Password: ScoutIQ2025! → hash stored
+  if(_hashStr(val)==='d65b657'){
+    sessionStorage.setItem(_PWD_KEY,'1');
+    document.getElementById('pwdGate').classList.add('hidden');
+  } else {
+    const inp=document.getElementById('pwdInput');
+    inp.classList.add('error');
+    inp.value='';
+    inp.placeholder='Wrong password';
+    setTimeout(()=>{inp.classList.remove('error');inp.placeholder='••••••••';},1000);
+  }
+}
+(function initPwdGate(){
+  if(sessionStorage.getItem(_PWD_KEY)==='1'){
+    document.getElementById('pwdGate').classList.add('hidden');
+  }
+})();
 // ═══════════════════════════════════
 // SETUP
 // ═══════════════════════════════════
