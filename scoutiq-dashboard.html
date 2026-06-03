@@ -4424,15 +4424,14 @@ function badgeEl(team,size=22){
 // ═══════════════════════════════════
 // FULL OVERVIEW
 // ═══════════════════════════════════
-let _foMetricView='normal'; // 'normal' | 'padj'
+let _foMetricView='normal';
 
 function openFullOverview(){
   const p=ST.players.find(x=>x.id===ST.panelId);
   if(!p) return;
   _foMetricView='normal';
-  const el=document.getElementById('fullOverviewModal');
-  el.style.display='block';
-  el.scrollTop=0;
+  document.getElementById('fullOverviewModal').style.display='block';
+  document.getElementById('fullOverviewModal').scrollTop=0;
   renderFullOverview();
 }
 function closeFullOverview(){
@@ -4449,6 +4448,125 @@ function renderFullOverview(){
   document.getElementById('fullOverviewContent').innerHTML=buildFullOverview(p);
 }
 
+// Role interpretation map — converts role labels to natural language descriptions
+const ROLE_MEANINGS={
+  // Defensive
+  'Destroyer':          'breaking up play and winning the ball',
+  'Positional Retainer':'retaining possession under pressure',
+  'Stopper':            'aggressive defending and stopping attacks',
+  'Ball Winner':        'winning the ball in duels',
+  // Midfield
+  'Deep Lying Passer':  'dictating play from deep and distributing precisely',
+  'Box to Box':         'contributing at both ends of the pitch',
+  'Creator':            'creating chances and unlocking defences',
+  'Pressing Midfielder':'pressing high and disrupting opponents',
+  'Playmaker':          'controlling tempo and picking passes',
+  // Attacking
+  'Direct Winger':      'running at defenders directly and driving forward',
+  'Interior Creator':   'cutting inside and creating from half-spaces',
+  'Pressing Winger':    'pressing from the front and working tirelessly',
+  'Goalscorer':         'getting into the box and finishing',
+  'Target Man':         'holding the ball up and bringing others into play',
+  'Poacher':            'arriving late in dangerous areas to score',
+  'Creative Dribbler':  'carrying the ball and creating through individual skill',
+  'Defensive 9':        'pressing hard and contributing defensively',
+  // Defensive line
+  'Front Foot CB':      'stepping out aggressively and defending high',
+  'Penalty Box CB':     'defending the box and winning aerial duels',
+  'Ball Player':        'building from the back and playing out comfortably',
+  'Wide Ball Carrier':  'carrying the ball forward from wide areas',
+  // Fullback
+  'Attacking FB':       'pushing forward and providing width',
+  'Playmaking FB':      'combining on the overlap and joining attacks',
+  'Wing Back':          'operating as a dynamic wing-back',
+  // GK
+  'Shot Stopper':       'shot-stopping and commanding the goal-line',
+  'Sweeper Keeper':     'sweeping behind the defence and starting play',
+};
+
+function interpretRoles(sortedRoles){
+  const top=sortedRoles.filter(r=>r.v>=20).slice(0,2);
+  if(!top.length) return '';
+  const descs=top.map(r=>ROLE_MEANINGS[r.r]||r.r.toLowerCase());
+  if(descs.length===2) return`strongest at <strong>${descs[0]}</strong> and <strong>${descs[1]}</strong>`;
+  return`primarily focused on <strong>${descs[0]}</strong>`;
+}
+
+// Metric interpretation — converts raw percentile scores to natural language
+function interpretMetrics(p,snap,pctCache){
+  const nm=p.nm||{};
+  const get=k=>nm[k];
+  const ph=pctCache||{};
+  const clauses=[];
+
+  // Goal threat
+  const xg=get('xG'), shots=get('Shots');
+  if(xg!=null&&shots!=null){
+    if(xg>=75&&shots>=70) clauses.push('a genuine goal threat who creates plenty of chances for themselves');
+    else if(xg<=25&&shots<=30) clauses.push('not someone who contributes much goal threat directly');
+  }
+
+  // Passing
+  const passSucc=get('Pass Success'), progPass=get('Succ. Progressive Passes');
+  if(passSucc!=null&&progPass!=null){
+    if(passSucc>=75&&progPass>=70) clauses.push('a composed passer who regularly progresses the ball');
+    else if(passSucc>=75) clauses.push('reliable in possession');
+    else if(passSucc<=35) clauses.push('someone who can be loose with the ball');
+  }
+
+  // Dribbling
+  const drib=get('Dribbles + Offensive Duels'), dribSucc=get('Dribble Success');
+  if(drib!=null&&drib>=75) clauses.push(dribSucc>=65?'a dominant ball carrier who wins duels consistently':'someone who takes on defenders frequently');
+
+  // Defending
+  const defDuels=get('Defensive Duels'), interceptions=get('Interceptions');
+  if(defDuels!=null&&interceptions!=null&&p.pos!=='CF'&&p.pos!=='WF'){
+    if(defDuels>=75&&interceptions>=70) clauses.push('defensively active and reads the game well');
+    else if(defDuels<=30&&interceptions<=30&&['CB','DM'].includes(p.pos)) clauses.push('less involved defensively than expected for the position');
+  }
+
+  // Physical
+  const speed=ph.psv99, dist=ph.distP90, explo=ph.top3timeHSR;
+  if(speed!=null&&dist!=null){
+    if(speed>=75&&dist>=75) clauses.push('quick and covers enormous ground throughout the game');
+    else if(speed>=75) clauses.push('genuinely fast');
+    else if(dist>=80) clauses.push('tireless in their work rate and ability to cover ground');
+    else if(speed<=25&&p.pos==='WF') clauses.push('not someone who offers real pace');
+  }
+  if(explo!=null&&explo>=80) clauses.push('explosive in short bursts');
+
+  if(!clauses.length) return '';
+  if(clauses.length===1) return`They are ${clauses[0]}.`;
+  const last=clauses.pop();
+  return`They are ${clauses.join(', ')} and ${last}.`;
+}
+
+function buildInsight(p,dr,dp,dt,sortedRoles,snap){
+  const posConf=POS_CONFIG[p.pos]||{label:p.pos};
+  const posLabel=posConf.label||p.pos;
+  const mins=p.minutes||0;
+  const minCtx=mins>=2500?'playing heavily this season':mins>=1500?'with a solid run of minutes':mins>=800?'coming off limited minutes':'with minimal playing time so far';
+  const rWord=dr>=88?'an elite performer in this division':dr>=82?'a top-quality '+posLabel:dr>=75?'a reliable, quality '+posLabel:dr>=68?'a decent '+posLabel+' at this level':'a developing '+posLabel+' still finding their feet';
+
+  const roleDesc=interpretRoles(sortedRoles);
+  const metricDesc=interpretMetrics(p,snap,PHYS_PCT_CACHE[p.id]);
+
+  // Potential
+  const gap=Math.round((dp-dr)*10)/10;
+  const potText=gap>=8?` Still young with lots of scope to develop — ${gap} rating points of untapped potential suggests their best years are ahead of them.`:
+    gap>=4?` There is still room to grow, with ${gap} points between current and potential rating.`:
+    gap>=1?` Getting close to their ceiling with only ${gap} points of potential headroom remaining.`:
+    ` Operating at or very close to their ceiling.`;
+
+  const sentence1=`<strong>${p.name}</strong> is ${rWord}, ${minCtx}${roleDesc?', '+roleDesc:''}. `;
+  const sentence2=metricDesc;
+  const sentence3=potText;
+
+  return sentence1+sentence2+sentence3;
+}
+
+function round1(v){ return Math.round(v*10)/10; }
+
 function buildFullOverview(p){
   const dr=displayRating(p)??0;
   const dp=displayPotential(p)??0;
@@ -4457,19 +4575,16 @@ function buildFullOverview(p){
   const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
   const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
   const sortedRoles=posConf.roles.map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
-  const topRole=sortedRoles[0];
   const natFlags=(p.nationalities||[]).map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ');
   const badgeUrl=BADGE_MAP[p.team];
   const badgeHtml=badgeUrl&&badgeUrl!=='none'&&badgeUrl!=='loading'
     ?`<img class="fo-badge" src="${badgeUrl}" alt="${p.team}" onerror="this.outerHTML='<div class=fo-badge-init>${teamInitials(p.team)}</div>'"/>`
     :`<div class="fo-badge-init">${teamInitials(p.team)}</div>`;
-
   const insight=buildInsight(p,dr,dp,dt,sortedRoles,snap);
 
   return`
     <button class="fo-close" onclick="closeFullOverview()">✕ CLOSE</button>
 
-    <!-- HERO -->
     <div class="fo-hero">
       <div style="display:flex;gap:16px;align-items:flex-start">
         ${badgeHtml}
@@ -4482,8 +4597,7 @@ function buildFullOverview(p){
           </div>
         </div>
       </div>
-
-      <div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="display:flex;gap:10px">
         ${['Rating','Potential','PT Pri.','League %'].map((lbl,i)=>{
           const vals=[dr,dp,dt,p.leaguePct];
           const v=vals[i];
@@ -4495,21 +4609,10 @@ function buildFullOverview(p){
       </div>
     </div>
 
-    <!-- INSIGHT -->
     <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
 
-    <!-- MAIN GRID: left=roles+metrics, right=rankings+similar -->
     <div style="display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start">
-
-      <!-- LEFT COLUMN -->
       <div>
-        ${sortedRoles.length?`
-        <div class="fo-section">
-          <div class="fo-section-title">Role Profile</div>
-          ${buildFORolePie(sortedRoles)}
-        </div>`:''}
-
-        <!-- Metric toggle -->
         <div class="fo-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div class="fo-section-title" style="margin-bottom:0;border:none">Technical Metrics</div>
@@ -4520,75 +4623,28 @@ function buildFullOverview(p){
           </div>
           ${buildFOMetrics(p)}
         </div>
-
-        ${p.pos!=='GK'&&snap?`
-        <div class="fo-section">
-          <div class="fo-section-title">Physical Metrics</div>
-          ${buildFOPhysical(p,snap)}
-        </div>`:''}
+        ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
       </div>
 
-      <!-- RIGHT COLUMN -->
       <div>
-        <div class="fo-section">
-          <div class="fo-section-title">Club Ranking</div>
-          ${buildFOClubRank(p)}
-        </div>
-        <div class="fo-section">
-          <div class="fo-section-title">Similar Players</div>
-          ${buildFOSimilar(p)}
-        </div>
+        <div class="fo-section"><div class="fo-section-title">Club Ranking</div>${buildFOClubRank(p)}</div>
+        <div class="fo-section"><div class="fo-section-title">Similar Players</div>${buildFOSimilar(p)}</div>
+        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORolePie(sortedRoles)}</div>`:''}
       </div>
     </div>`;
-}
-
-function buildInsight(p,dr,dp,dt,sortedRoles,snap){
-  const posConf=POS_CONFIG[p.pos]||{label:p.pos};
-  const posLabel=posConf.label||p.pos;
-  const mins=p.minutes||0;
-  const minCtx=mins>=2500?'playing heavily this season':mins>=1500?'with a solid run of minutes':mins>=800?'with limited minutes':'with minimal playing time';
-
-  // Rating description
-  const rWord=dr>=88?'among the best in the division':dr>=82?'a top-quality performer':dr>=75?'a reliable, quality option':dr>=68?'a decent option at this level':'a work-in-progress';
-
-  // Role description — pick top 2 roles
-  const top2=sortedRoles.filter(r=>r.v>15).slice(0,2);
-  const roleDesc=top2.length>=2?`primarily operating as a <strong>${top2[0].r.toLowerCase()}</strong> (${top2[0].v.toFixed(0)}%) but also contributing as a <strong>${top2[1].r.toLowerCase()}</strong> (${top2[1].v.toFixed(0)}%)`:
-    top2.length===1?`whose game is heavily built around the <strong>${top2[0].r.toLowerCase()}</strong> role (${top2[0].v.toFixed(0)}%)`:'';
-
-  // Metric strengths/weaknesses from nm data
-  const nm=p.nm||{};
-  const nmEntries=Object.entries(nm).filter(([,v])=>typeof v==='number');
-  const strong=nmEntries.filter(([,v])=>v>=80).map(([k])=>k.replace(/^PAdj\s+/i,''));
-  const weak=nmEntries.filter(([,v])=>v<=20).map(([k])=>k.replace(/^PAdj\s+/i,''));
-  const strengthText=strong.length?` Stands out for <strong>${strong.slice(0,3).join(', ')}</strong>.`:'';
-  const weakText=weak.length?` Areas to improve include <strong>${weak.slice(0,2).join(', ')}</strong>.`:'';
-
-  // Potential
-  const gap=Math.round((dp-dr)*10)/10;
-  const potText=gap>=5?` With ${gap} points of untapped potential, there is significant room to grow.`:
-    gap>=2?` Still with some room to develop (${gap} point potential gap).`:
-    gap<=0?` Operating at or near their ceiling.`:'';
-
-  // Physical
-  const physText=snap?` Physical output rated <strong>${snap.physicalScore.toFixed(0)}</strong>/100 for a ${(POS_CONFIG[p.pos]||{label:p.pos}).label}.`:'';
-
-  return`<strong>${p.name}</strong> is ${rWord}, ${minCtx}${roleDesc?' — a ${posLabel} '+roleDesc:''}. ${strengthText}${weakText}${potText}${physText}`.replace(/\s+/g,' ');
 }
 
 function buildFORolePie(roles){
   if(!roles.length) return '';
   const total=roles.reduce((s,r)=>s+r.v,0)||100;
   const COLORS=['#00d4ff','#f5c842','#00e599','#7b68ee','#ff8c42','#ff4d6a'];
-  const W=220,H=220,CX=110,CY=110,R=80,IR=36;
+  const W=200,H=200,CX=100,CY=100,R=75,IR=32;
   let slices='';
   let angle=-Math.PI/2;
   roles.forEach(({r,v},i)=>{
     const sweep=2*Math.PI*(v/total);
     const a1=angle+sweep;
     const col=COLORS[i%COLORS.length];
-    const lx=CX+Math.cos(angle+sweep/2)*(R+18);
-    const ly=CY+Math.sin(angle+sweep/2)*(R+18);
     const x1=CX+Math.cos(angle)*R,y1=CY+Math.sin(angle)*R;
     const x2=CX+Math.cos(a1)*R,y2=CY+Math.sin(a1)*R;
     const xi1=CX+Math.cos(angle)*IR,yi1=CY+Math.sin(angle)*IR;
@@ -4596,16 +4652,11 @@ function buildFORolePie(roles){
     const large=sweep>Math.PI?1:0;
     if(v<1){angle=a1;return;}
     slices+=`<path d="M${xi1.toFixed(1)},${yi1.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${R},${R} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} L${xi2.toFixed(1)},${yi2.toFixed(1)} A${IR},${IR} 0 ${large} 0 ${xi1.toFixed(1)},${yi1.toFixed(1)} Z" fill="${col}" stroke="var(--surface)" stroke-width="2"/>`;
-    if(v>=12){
-      slices+=`<text x="${lx.toFixed(1)}" y="${(ly-5).toFixed(1)}" text-anchor="middle" fill="var(--muted2)" font-size="8.5" font-family="JetBrains Mono">${r}</text>`;
-      slices+=`<text x="${lx.toFixed(1)}" y="${(ly+7).toFixed(1)}" text-anchor="middle" fill="${col}" font-size="9" font-family="JetBrains Mono" font-weight="700">${v.toFixed(0)}%</text>`;
-    }
     angle=a1;
   });
   return`<div style="display:flex;align-items:center;gap:16px">
     <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="flex-shrink:0">
-      ${slices}
-      <circle cx="${CX}" cy="${CY}" r="${IR}" fill="var(--surface2)"/>
+      ${slices}<circle cx="${CX}" cy="${CY}" r="${IR}" fill="var(--surface2)"/>
     </svg>
     <div>${roles.filter(r=>r.v>=1).map(({r,v},i)=>`
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:11px">
@@ -4634,8 +4685,7 @@ function buildFOMetrics(p){
     if(val!=null) groups[skill].push({key:m.replace(/^PAdj\s+/i,''),val});
   });
   const SKILL_COLORS={'Passing':'#7b68ee','Dribbling & Carrying':'#00d4ff','Goal Threat':'#f5c842',
-    'Aerial':'#ff8c42','Defending':'#00e599','Shot Stopping':'#00e599',
-    'Claims & Sweeping':'#7b68ee','Distribution':'#f5c842'};
+    'Aerial':'#ff8c42','Defending':'#00e599','Shot Stopping':'#00e599','Claims & Sweeping':'#7b68ee','Distribution':'#f5c842'};
   const skillOrder=p.pos==='GK'?['Shot Stopping','Claims & Sweeping','Distribution']:
     ['Passing','Dribbling & Carrying','Goal Threat','Aerial','Defending'];
   const ordered=skillOrder.filter(s=>groups[s]&&groups[s].length).map(s=>[s,groups[s]]);
@@ -4644,11 +4694,7 @@ function buildFOMetrics(p){
       <div class="fo-section-title" style="color:${SKILL_COLORS[skill]||'var(--accent)'}">${skill}</div>
       ${metrics.map(({key,val})=>{
         const col=val>=80?'#00e599':val>=60?'#7fd97f':val>=40?'#f5c842':val>=20?'#ff8c42':'#ff4d6a';
-        return`<div class="fo-mrow">
-          <div class="fo-ml">${key}</div>
-          <div class="fo-mt"><div class="fo-mf" style="width:${val}%;background:${col}"></div></div>
-          <div class="fo-mv" style="color:${col}">${Math.round(val)}</div>
-        </div>`;
+        return`<div class="fo-mrow"><div class="fo-ml">${key}</div><div class="fo-mt"><div class="fo-mf" style="width:${val}%;background:${col}"></div></div><div class="fo-mv" style="color:${col}">${Math.round(val)}</div></div>`;
       }).join('')}
     </div>`).join('')}</div>`;
 }
@@ -4657,13 +4703,7 @@ function buildFOPhysical(p,snap){
   if(!snap) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No physical data for this season.</div>`;
   const pctMap={};
   PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
-  const groups={
-    'Speed':['psv99','top5psv99'],
-    'Explosiveness':['top3timeHSR'],
-    'Distance':['distP90'],
-    'In Possession':['hsrDistTIP','sprintDistTIP'],
-    'Out of Possession':['hsrDistOTIP','sprintDistOTIP'],
-  };
+  const groups={'Speed':['psv99','top5psv99'],'Explosiveness':['top3timeHSR'],'Distance':['distP90'],'In Possession':['hsrDistTIP','sprintDistTIP'],'Out of Possession':['hsrDistOTIP','sprintDistOTIP']};
   const PHYS_SKILL_COLORS={'Speed':'#00d4ff','Explosiveness':'#f5c842','Distance':'#00e599','In Possession':'#cc7040','Out of Possession':'#7060a8'};
   return`<div style="columns:2;column-gap:20px">${Object.entries(groups).map(([grp,keys])=>`
     <div style="break-inside:avoid;margin-bottom:14px">
@@ -4672,11 +4712,7 @@ function buildFOPhysical(p,snap){
         const m=PHYS_METRICS.find(x=>x.key===key);
         const pct=pctMap[key];
         const col=pct==null?'var(--muted)':pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
-        return`<div class="fo-mrow">
-          <div class="fo-ml">${m?m.label:key}</div>
-          <div class="fo-mt"><div class="fo-mf" style="width:${pct??0}%;background:${col}"></div></div>
-          <div class="fo-mv" style="color:${col}">${pct!=null?pct:'—'}</div>
-        </div>`;
+        return`<div class="fo-mrow"><div class="fo-ml">${m?m.label:key}</div><div class="fo-mt"><div class="fo-mf" style="width:${pct??0}%;background:${col}"></div></div><div class="fo-mv" style="color:${col}">${pct!=null?pct:'—'}</div></div>`;
       }).join('')}
     </div>`).join('')}</div>`;
 }
@@ -4706,34 +4742,26 @@ function buildFOClubRank(p){
 
 function buildFOSimilar(p){
   const dr=displayRating(p)??0;
-  const dp2=displayPotential(p)??0;
-  // Similarity score: rating (40%), age (20%), roles (25%), metrics (15%)
   const pRoles=POS_CONFIG[p.pos]?.roles||[];
   const candidates=ST.players.filter(x=>x.id!==p.id&&x.pos===p.pos&&x.season===p.season);
   const scored=candidates.map(x=>{
     const xdr=displayRating(x)??0;
     const ratingDiff=Math.abs(xdr-dr);
     const ageDiff=Math.abs((x.age||0)-(p.age||0));
-    // Role similarity (0-100)
     let roleSim=0;
     if(pRoles.length){
-      pRoles.forEach(r=>{
-        const pv=(p.roles&&p.roles[r])||0, xv=(x.roles&&x.roles[r])||0;
-        roleSim+=100-Math.abs(pv-xv);
-      });
+      pRoles.forEach(r=>{const pv=(p.roles&&p.roles[r])||0,xv=(x.roles&&x.roles[r])||0;roleSim+=100-Math.abs(pv-xv);});
       roleSim/=pRoles.length;
     }
-    // Metric similarity across nm
     let metSim=0,metCount=0;
     Object.keys(p.nm||{}).forEach(m=>{
-      const pv=p.nm[m], xv=(x.nm||{})[m];
+      const pv=p.nm[m],xv=(x.nm||{})[m];
       if(typeof pv==='number'&&typeof xv==='number'){metSim+=100-Math.abs(pv-xv);metCount++;}
     });
     if(metCount) metSim/=metCount;
     const score=(ratingDiff*0.4)+(ageDiff*2*0.2)+((100-roleSim)*0.25)+((100-metSim)*0.15);
     return{x,score,xdr};
   }).sort((a,b)=>a.score-b.score).slice(0,5);
-
   if(!scored.length) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No similar players found.</div>`;
   return scored.map(({x,xdr})=>{
     const col=xdr>=80?'#00e599':xdr>=70?'#7fd97f':xdr>=60?'#f5c842':'#ff8c42';
@@ -4759,8 +4787,6 @@ function buildFOSimilar(p){
     </div>`;
   }).join('');
 }
-
-function round1(v){ return Math.round(v*10)/10; }
 // ═══════════════════════════════════
 // SETUP
 // ═══════════════════════════════════
