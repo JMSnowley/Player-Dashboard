@@ -229,6 +229,12 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .pm-skip-btn{font-size:10px;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block}
 .pm-skip-btn:hover{color:var(--red)}
 
+/* SWARM PLOTS */
+.swarm-row{margin-bottom:16px}
+.swarm-skill-name{font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:baseline}
+.swarm-endpoints{font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace}
+.swarm-canvas{position:relative;height:28px;background:var(--surface2);border-radius:4px;overflow:hidden;border:1px solid var(--border)}
+.swarm-dot{position:absolute;top:50%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;transition:opacity .2s}
 /* FULL OVERVIEW */
 .fo-close{position:fixed;top:20px;right:28px;z-index:700;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 16px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
 .fo-close:hover{color:var(--text);border-color:var(--accent)}
@@ -4857,6 +4863,91 @@ function buildInsight(p,dr,dp,sortedRoles,snap){
   return s1+s1b+s2+s3;
 }
 
+function buildFOSwarms(p){
+  const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+  const skillMap=(METRIC_SKILLS[p.pos]||{}).nm||{};
+  const posConf=POS_CONFIG[p.pos];
+  if(!posConf) return '';
+
+  // Position group — DM/CM/AM share one pool
+  const MF_GROUP=['DM','CM','AM'];
+  const poolPos=MF_GROUP.includes(p.pos)?MF_GROUP:[p.pos];
+
+  // Get all peers: same league, same season, same position group, min 300 mins
+  const peers=ST.players.filter(x=>
+    x.leagueTag===p.leagueTag&&x.season===p.season&&
+    poolPos.includes(x.pos)&&(x.minutes||0)>=300&&x.nm
+  );
+
+  if(peers.length<4) return '';
+
+  // Build skill score for each player: average of their nm metrics in that skill
+  function skillScore(player,skill){
+    const nm=player.nm||{};
+    const vals=[];
+    Object.entries(skillMap).forEach(([metric,s])=>{
+      if(s===skill&&nm[metric]!=null) vals.push(nm[metric]);
+    });
+    // Also check the player's own pos skill map if pooling
+    if(MF_GROUP.includes(p.pos)&&player.pos!==p.pos){
+      const altMap=(METRIC_SKILLS[player.pos]||{}).nm||{};
+      Object.entries(altMap).forEach(([metric,s])=>{
+        if(s===skill&&nm[metric]!=null&&!vals.includes(nm[metric])) vals.push(nm[metric]);
+      });
+    }
+    return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  }
+
+  const rows=skillOrder.map(skill=>{
+    const scores=peers.map(x=>({id:x.id,score:skillScore(x,skill)}))
+      .filter(x=>x.score!=null)
+      .sort((a,b)=>a.score-b.score);
+    if(scores.length<3) return null;
+    const playerScore=skillScore(p,skill);
+    if(playerScore==null) return null;
+    const min=scores[0].score, max=scores[scores.length-1].score;
+    const range=max-min||1;
+    const color=(SKILL_COLORS[skill]||{color:'#8a9bb0'}).color;
+    // Find name of top and bottom performers
+    const topP=peers.find(x=>x.id===scores[scores.length-1].id);
+    const botP=peers.find(x=>x.id===scores[0].id);
+    const topName=topP?topP.name.split(' ').pop():'—';
+    const botName=botP?botP.name.split(' ').pop():'—';
+    const topScore=scores[scores.length-1].score;
+    const botScore=scores[0].score;
+
+    // Build dots HTML — vertical jitter using deterministic hash of player id
+    const dotsHtml=scores.map(s=>{
+      const isMe=s.id===p.id;
+      const pct=((s.score-min)/range)*92+4; // 4%–96% to keep dots inset
+      // Deterministic jitter 0–100% of 18px row height
+      const jitter=(parseInt(s.id?.slice(-4)||'0',16)%7)*2; // 0-12px offset
+      const top=7+jitter; // 7–19px within 28px height
+      if(isMe) return `<div class="swarm-dot" style="left:${pct.toFixed(1)}%;top:${top}px;width:8px;height:8px;background:#00d4ff;box-shadow:0 0 6px #00d4ff88;z-index:2;border:1.5px solid rgba(255,255,255,0.5)"></div>`;
+      return `<div class="swarm-dot" style="left:${pct.toFixed(1)}%;top:${top}px;width:5px;height:5px;background:${color};opacity:0.35"></div>`;
+    }).join('');
+
+    const playerPct=((playerScore-min)/range)*92+4;
+    return`<div class="swarm-row">
+      <div class="swarm-skill-name" style="color:${color}">
+        <span>${skill}</span>
+        <span style="color:var(--muted);font-size:8px">${scores.length} players · you: ${playerScore.toFixed(0)}</span>
+      </div>
+      <div class="swarm-canvas">${dotsHtml}</div>
+      <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace;margin-top:2px">
+        <span title="${botName}: ${botScore.toFixed(0)}">◀ ${botName} (${botScore.toFixed(0)})</span>
+        <span title="${topName}: ${topScore.toFixed(0)}">${topName} (${topScore.toFixed(0)}) ▶</span>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  if(!rows) return '';
+  return`<div class="fo-section">
+    <div class="fo-section-title">Skills — ${p.leagueTag} ${p.season} · ${poolPos.join('/')} (${peers.length} players)</div>
+    ${rows}
+  </div>`;
+}
+
 function round1(v){ return Math.round(v*10)/10; }
 
 // ── Similarity score (0–100, higher = more similar) ───────────────────
@@ -4971,7 +5062,8 @@ function buildFullOverview(p){
           ${buildFOSimilar(p,activeSeasonsArr)}
         </div>
       </div>
-    </div>`;
+    </div>
+    ${buildFOSwarms(p)}`;
 }
 
 function buildFORoleBar(roles){
