@@ -1134,7 +1134,7 @@ const PHYS={
 };
 
 // Physical weighting per position (% of rating that comes from physical score)
-const PHYS_RATING_WEIGHT={CB:0.15,FB:0.10,DM:0.10,CM:0.12,AM:0.08,WF:0.10,CF:0.10};
+const PHYS_RATING_WEIGHT={CB:0.15,FB:0.10,DM:0.10,CM:0.12,AM:0.12,WF:0.10,CF:0.10};
 
 // Metric weights per position (must sum to 1.0)
 const PHYS_METRIC_WEIGHTS={
@@ -4344,6 +4344,15 @@ function searchVariants(team){
 
 // Fetch badge for a team from TheSportsDB, cache result
 // retryNone=true allows re-fetching entries previously marked 'none'
+// For clubs where name search returns wrong results, use direct ID lookup
+// Format: teamName → TheSportsDB team ID
+const BADGE_ID_OVERRIDES={
+  'Internazionale':'133604',   // FC Internazionale Milano (not random Inter club)
+  'Bayern München':'133613',   // FC Bayern München football (not basketball)
+  'PSG':'133728',              // Paris Saint-Germain football (not eSports)
+  'Paris Saint-Germain':'133728',
+};
+
 async function fetchBadge(team, retryNone=false){
   const cached=BADGE_MAP[team];
   // Never treat 'loading' as a permanent cache — it means a previous fetch was interrupted
@@ -4356,6 +4365,23 @@ async function fetchBadge(team, retryNone=false){
   }
   BADGE_MAP[team]='loading';
   try{
+    // Use direct ID lookup if available — more reliable than name search
+    const teamId=BADGE_ID_OVERRIDES[team];
+    if(teamId){
+      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/lookupteam.php?id=${teamId}`);
+      if(r.ok){
+        const data=await r.json();
+        const t=(data.teams||[])[0];
+        if(t?.strBadge){
+          BADGE_MAP[team]=t.strBadge+'/preview';
+          _badgeMapDirty=true; scheduleBadgeMapSave();
+          document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
+            const img=document.createElement('img');img.className='player-badge';img.src=BADGE_MAP[team];img.alt=team;img.style.cssText=el.style.cssText;img.onerror=()=>{BADGE_MAP[team]='none';};el.replaceWith(img);
+          });
+          return BADGE_MAP[team];
+        }
+      }
+    }
     const variants=searchVariants(team);
     let bestMatch=null, bestScore=-999;
     for(const variant of variants){
