@@ -4661,11 +4661,11 @@ function ratingContext(dr,dp,leagueTag,age){
 
 // Variety in potential phrasing — pick one of several templates each call
 const _potPhrases=[
-  (gap,desc)=>`If he fulfils his potential, he has ${desc}.`,
-  (gap,desc)=>`Should he reach his ceiling, he has ${desc}.`,
-  (gap,desc)=>`At his best, he has ${desc}.`,
-  (gap,desc)=>`His ceiling suggests he could become ${desc.replace('the ceiling to become ','').replace('the ceiling to ','')}.`,
-  (gap,desc)=>`There is real upside here — he has ${desc}.`,
+  (gap,desc)=>{ const d=desc.replace('the ceiling to become ','').replace('the ceiling to ',''); return `If he fulfils his potential, he could become ${d}.`; },
+  (gap,desc)=>{ const d=desc.replace('the ceiling to become ','').replace('the ceiling to ',''); return `Should he reach his ceiling, he could be ${d}.`; },
+  (gap,desc)=>{ const d=desc.replace('the ceiling to become ','').replace('the ceiling to ',''); return `At his best, he has the ability to become ${d}.`; },
+  (gap,desc)=>{ const d=desc.replace('the ceiling to become ','').replace('the ceiling to ',''); return `His ceiling points to him eventually becoming ${d}.`; },
+  (gap,desc)=>{ const d=desc.replace('the ceiling to become ','').replace('the ceiling to ',''); return `There is real upside here — he could go on to become ${d}.`; },
 ];
 
 function minutesContext(mins,leagueTag,season){
@@ -4833,7 +4833,7 @@ function interpretMetrics(p,pctCache){
   if(!clauses.length) return '';
   // Join into flowing sentences — cap at 4 clauses to avoid over-stuffing
   const kept=clauses.slice(0,4);
-  const joined=kept.map((cl,i)=>i===0?cl.charAt(0).toUpperCase()+cl.slice(1):cl).join('. ');
+  const joined=kept.map(cl=>cl.charAt(0).toUpperCase()+cl.slice(1)).join('. ');
   return joined.endsWith('.')?joined:joined+'.';
 }
 
@@ -4865,7 +4865,8 @@ function buildInsight(p,dr,dp,sortedRoles,snap){
 
 function buildFOSwarms(p){
   const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
-  const skillMap=(METRIC_SKILLS[p.pos]||{}).nm||{};
+  const _swarmMode=_foMetricView==='padj'?'pm':'nm';
+  const skillMap=(METRIC_SKILLS[p.pos]||{})[_swarmMode]||{};
   const posConf=POS_CONFIG[p.pos];
   if(!posConf) return '';
 
@@ -4879,8 +4880,8 @@ function buildFOSwarms(p){
   if(peers.length<4) return '';
 
   function nmSkillScore(player,skill){
-    const nm=player.nm||{};
-    const posSkillMap=(METRIC_SKILLS[player.pos]||{}).nm||{};
+    const nm=(_swarmMode==='pm'?player.pm:player.nm)||{};
+    const posSkillMap=(METRIC_SKILLS[player.pos]||{})[_swarmMode]||{};
     const vals=[];
     Object.entries(posSkillMap).forEach(([metric,s])=>{ if(s===skill&&nm[metric]!=null) vals.push(nm[metric]); });
     // Also use the focal player's skill map when pooling MF
@@ -4899,7 +4900,7 @@ function buildFOSwarms(p){
 
   // Build skill list including Physical
   const skillsToShow=[...skillOrder,'Physical'];
-  const PHYS_COLOR='#a78bfa';
+  const PHYS_COLOR='#f472b6';
 
   const swarmCols=skillsToShow.map(skill=>{
     const isPhys=skill==='Physical';
@@ -4968,9 +4969,7 @@ function buildFOSwarms(p){
     <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:4px 0 8px">
       ${swarmCols}
     </div>
-    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:4px">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#00d4ff;vertical-align:middle;margin-right:4px"></span>You &nbsp;·&nbsp; Scores rescaled 0–100 within position pool · 300+ min players only
-    </div>
+
   </div>`;
 }
 
@@ -5063,7 +5062,7 @@ function buildFullOverview(p){
       </div>
     </div>
     <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
-    <div style="display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start">
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
       <div>
         <div class="fo-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -5076,9 +5075,9 @@ function buildFullOverview(p){
           ${buildFOMetrics(p)}
         </div>
         ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
-        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
       </div>
       <div>
+        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
         <div class="fo-section"><div class="fo-section-title">Club Ranking</div>${buildFOClubRank(p)}</div>
         <div class="fo-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
