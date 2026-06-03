@@ -4170,12 +4170,12 @@ function scheduleBadgeMapSave(){
 // Normalise a club name for fuzzy comparison
 function normClub(s){
   if(!s) return '';
-  // Manual character replacements before NFD (handles ø, ð, þ etc. that NFD doesn't strip cleanly)
   s=s.toLowerCase()
     .replace(/ø/g,'o').replace(/ð/g,'d').replace(/þ/g,'th')
     .replace(/ß/g,'ss').replace(/æ/g,'ae').replace(/œ/g,'oe');
   s=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  s=s.replace(/\b(fc|cf|afc|sc|ac|as|bsc|vfb|rb|rc|rcd|fk|sk|if|bk|vfl|tsv|hsv|svs|sv|nk|hk|fcs|ssc|us|ud|ca|cd|sd|ce|real|atletico|athletic|sporting|deportivo|club|football|soccer|united|city|town|rovers|wanderers|albion|county|hotspur|villa|palace)\b/g,'');
+  // Only strip pure organisational suffixes, NOT meaningful club words like real/united/athletic
+  s=s.replace(/\b(f\.?c\.?|a\.?f\.?c\.?|s\.?c\.?|c\.?f\.?|f\.?k\.?|s\.?k\.?|b\.?k\.?|n\.?k\.?)$/,'');
   s=s.replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
   return s;
 }
@@ -4186,49 +4186,71 @@ function matchScore(dbTeam,ourName){
   const on=normClub(ourName);
   if(!dn||!on) return 0;
   let score=0;
-  // Sport bonus
   if(['Soccer','Football'].includes(dbTeam.strSport)) score+=10;
-  // Exact normalised match
   if(dn===on) return score+100;
-  // One contains the other
-  if(dn.includes(on)||on.includes(dn)) score+=50;
-  // Word overlap score
-  const dWords=new Set(dn.split(' ').filter(w=>w.length>2));
-  const oWords=on.split(' ').filter(w=>w.length>2);
-  const overlap=oWords.filter(w=>dWords.has(w)).length;
-  score+=overlap*15;
-  // Penalise if no overlap at all
-  if(overlap===0&&!dn.includes(on)&&!on.includes(dn)) score-=20;
+  if(dn.includes(on)||on.includes(dn)) score+=60;
+  const dWords=new Set(dn.split(' ').filter(w=>w.length>1));
+  const oWords=on.split(' ').filter(w=>w.length>1);
+  const overlap=oWords.filter(w=>dWords.has(w));
+  score+=overlap.reduce((s,w)=>s+(w.length>3?20:10),0);
   return score;
 }
 
 // Generate search variants for a club name to maximise TheSportsDB hit rate
 function searchVariants(team){
+  const OVERRIDES={
+    // Dutch
+    'AZ':'AZ Alkmaar','PSV':'PSV Eindhoven','NEC':'NEC Nijmegen',
+    // Danish
+    'AGF':'AGF Aarhus','OB':'Odense Boldklub','FCK':'FC Copenhagen','København':'FC Copenhagen','FC København':'FC Copenhagen',
+    // Saudi
+    'Al Hilal':'Al-Hilal Saudi FC','Al Nassr':'Al-Nassr FC','Al Ittihad':'Al-Ittihad Club',
+    'Al Ahli':'Al-Ahli Saudi FC','Al Ettifaq':'Al-Ettifaq','Al Qadsiah':'Al-Qadsiah',
+    'Al Feiha':'Al-Feiha','Al Fateh':'Al-Fateh','Al Hazem':'Al-Hazem',
+    'Al Akhdoud':'Al-Akhdoud','Al Khaleej':'Al-Khaleej','Al Kholood':'Al-Kholood',
+    'Al Najma':'Al-Najma','Al Wahda':'Al-Wahda','Al Shabab':'Al-Shabab',
+    // Portuguese
+    'Porto':'FC Porto','Benfica':'SL Benfica','Sporting CP':'Sporting CP',
+    'Vitória SC':'Vitoria SC','Vitória SC':'Vitoria SC',
+    // English
+    'Man City':'Manchester City','Man Utd':'Manchester United',
+    'Spurs':'Tottenham Hotspur','Wolves':'Wolverhampton Wanderers',
+    'Nottm Forest':'Nottingham Forest','West Brom':'West Bromwich Albion',
+    'Sheff Utd':'Sheffield United','Sheff Wed':'Sheffield Wednesday',
+    'QPR':'Queens Park Rangers','Boro':'Middlesbrough',
+    'AFC Wimbledon':'AFC Wimbledon',
+    // Spanish
+    'Atlético Madrid':'Atletico Madrid','Atlético de Madrid':'Atletico Madrid',
+    'Celta Vigo':'Celta de Vigo',
+    // German
+    'Borussia Mgladbach':'Borussia Monchengladbach',
+    'RB Leipzig':'RasenBallsport Leipzig','Bayern München':'Bayern Munich',
+    'Köln':'1. FC Koln','Mainz 05':'1. FSV Mainz 05',
+    '1. FC Union Berlin':'Union Berlin','Union Berlin':'Union Berlin',
+    'Eintracht Frankfurt':'Eintracht Frankfurt',
+    // French
+    'PSG':'Paris Saint-Germain',
+    // Italian
+    'Inter':'Internazionale','Inter Milan':'Internazionale',
+    // Scottish
+    'St Mirren':'St. Mirren','St Johnstone':'St. Johnstone',
+    'Greenock Morton':'Morton FC',
+    // American
+    'LAFC':'Los Angeles FC','LA Galaxy':'LA Galaxy',
+    'NYCFC':'New York City FC','NY Red Bulls':'New York Red Bulls',
+    'Seattle Sounders':'Seattle Sounders FC','Portland Timbers':'Portland Timbers',
+  };
   const variants=[team];
-  // Strip common suffixes: FC, AFC, CF, etc.
+  const override=OVERRIDES[team];
+  if(override) variants.unshift(override);
+  // Strip trailing FC/AFC/SC/CF etc
   const stripped=team.replace(/\s+(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)$/i,'').trim();
-  if(stripped!==team) variants.push(stripped);
-  // Strip accent: Bayern München → Bayern Munchen
+  if(stripped!==team&&stripped.length>2) variants.push(stripped);
+  // Strip accents
   const noAccent=team.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   if(noAccent!==team) variants.push(noAccent);
-  // Common manual mappings
-  const OVERRIDES={
-    'Porto':'FC Porto',  // TheSportsDB has them as "FC Porto" not "Porto"
-    'FC Porto':'FC Porto',
-    'PSG':'Paris Saint-Germain','Man City':'Manchester City','Man Utd':'Manchester United',
-    'Spurs':'Tottenham Hotspur','Wolves':'Wolverhampton Wanderers','Leeds United':'Leeds',
-    'Nottm Forest':'Nottingham Forest',
-    'West Brom':'West Bromwich Albion','Sheff Utd':'Sheffield United',
-    'Sheff Wed':'Sheffield Wednesday','Luton':'Luton Town',
-    'QPR':'Queens Park Rangers','Huddersfield':'Huddersfield Town',
-    'Stoke':'Stoke City','Boro':'Middlesbrough','Blackburn':'Blackburn Rovers',
-    'Bolton':'Bolton Wanderers','Preston':'Preston North End',
-    'Atlético Madrid':'Atletico Madrid','Atlético de Madrid':'Atletico Madrid',
-    'Borussia Mgladbach':'Borussia Monchengladbach',
-    'RB Leipzig':'RasenBallsport Leipzig','Red Bull Leipzig':'RasenBallsport Leipzig',
-    'Al Hilal':'Al-Hilal','Al Nassr':'Al-Nassr','Al Ittihad':'Al-Ittihad',
-  };
-  if(OVERRIDES[team]) variants.unshift(OVERRIDES[team]);
+  // Add "FC " prefix variant for clubs that might be stored that way
+  if(!team.match(/^(FC|AFC|SC|CF)\s/i)) variants.push('FC '+team);
   return[...new Set(variants)];
 }
 
@@ -4252,7 +4274,7 @@ async function fetchBadge(team, retryNone=false){
         const score=matchScore(t,team);
         if(score>bestScore){ bestScore=score; bestMatch=t; }
       }
-      if(bestScore>=50) break;
+      if(bestScore>=60) break;
     }
     const url=bestScore>=10?bestMatch?.strBadge:null;
     BADGE_MAP[team]=url?url+'/preview':'none';
@@ -4264,10 +4286,11 @@ async function fetchBadge(team, retryNone=false){
 // Prefetch badges for all teams in background after load
 async function prefetchAllBadges(){
   const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
-  const missing=teams.filter(t=>BADGE_MAP[t]===undefined);
+  // Retry 'none' entries too — they may have failed due to network or bad matching
+  const missing=teams.filter(t=>BADGE_MAP[t]===undefined||BADGE_MAP[t]==='none');
   const BATCH=5; // concurrent requests
   for(let i=0;i<missing.length;i+=BATCH){
-    await Promise.allSettled(missing.slice(i,i+BATCH).map(t=>fetchBadge(t)));
+    await Promise.allSettled(missing.slice(i,i+BATCH).map(t=>fetchBadge(t,true)));
     await new Promise(r=>setTimeout(r,300)); // rate limit: 5 req per 300ms
   }
   // Re-render table to show newly loaded badges
