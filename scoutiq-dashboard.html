@@ -5186,6 +5186,34 @@ function buildFOClubRank(p){
   </div>`;
 }
 
+function calcSimilarity(p,x){
+  const pRoles=POS_CONFIG[p.pos]?.roles||[];
+  let roleSim=100;
+  if(pRoles.length){
+    let diff=0;
+    pRoles.forEach(r=>{diff+=Math.abs((p.roles&&p.roles[r]||0)-(x.roles&&x.roles[r]||0));});
+    roleSim=Math.max(0,100-(diff/pRoles.length));
+  }
+  const ageDiff=Math.abs((p.age||0)-(x.age||0));
+  const ageSim=Math.max(0,100-ageDiff*12);
+  let metSim=0,metCount=0;
+  Object.keys(p.nm||{}).forEach(m=>{
+    const pv=p.nm[m],xv=(x.nm||{})[m];
+    if(typeof pv==='number'&&typeof xv==='number'){metSim+=100-Math.abs(pv-xv);metCount++;}
+  });
+  const techSim=metCount?metSim/metCount:50;
+  const pPhys=PHYS_PCT_CACHE[p.id]||{};
+  const xPhys=PHYS_PCT_CACHE[x.id]||{};
+  const physKeys=Object.keys(pPhys).filter(k=>xPhys[k]!=null);
+  const physSim=physKeys.length>=3?physKeys.reduce((s,k)=>s+(100-Math.abs(pPhys[k]-xPhys[k])),0)/physKeys.length:50;
+  const pWy=(p.wyscoutPositions||p.pos).split(',').map(s=>s.trim());
+  const xWy=(x.wyscoutPositions||x.pos).split(',').map(s=>s.trim());
+  const wyOverlap=pWy.filter(wp=>xWy.includes(wp)).length;
+  const wyUnion=new Set([...pWy,...xWy]).size;
+  const wySim=wyUnion?Math.round(wyOverlap/wyUnion*100):50;
+  return Math.round(roleSim*0.35+techSim*0.30+physSim*0.15+ageSim*0.12+wySim*0.08);
+}
+
 function buildFOSimilar(p,seasons){
   const dr=displayRating(p)??0;
   // Hard filter: same primary pos, within ±6 rating points
