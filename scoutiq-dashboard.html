@@ -89,7 +89,7 @@ td.r{text-align:right;font-family:'JetBrains Mono',monospace}
 .rank-cell{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);width:34px}
 .rank-cell.top{color:var(--gold)}
 .pc{display:flex;align-items:center;gap:8px;min-width:150px}
-.av{width:27px;height:27px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--muted2);flex-shrink:0;font-family:'Archivo Black',sans-serif}
+.av{width:27px;height:27px;border-radius:5px;background:var(--surface3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--muted2);flex-shrink:0;font-family:'Archivo Black',sans-serif}
 .pn{font-weight:600;font-size:12px}
 .pc-club{font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace}
 .pos-tag{display:inline-block;background:var(--accent-dim);border:1px solid var(--accent-border);color:var(--accent);border-radius:3px;padding:2px 5px;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700}
@@ -120,7 +120,7 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .pp{position:fixed;right:0;top:0;bottom:0;width:520px;background:var(--surface);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:200;display:flex;flex-direction:column}
 .pp.open{transform:translateX(0)}
 .pp-top{display:flex;align-items:center;gap:9px;padding:13px 15px;border-bottom:1px solid var(--border);flex-shrink:0}
-.pp-av{width:38px;height:38px;border-radius:50%;background:var(--surface3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:13px;flex-shrink:0}
+.pp-av{width:38px;height:38px;border-radius:6px;background:var(--surface3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:'Archivo Black',sans-serif;font-size:13px;flex-shrink:0;overflow:hidden}
 .pp-name{font-family:'Archivo Black',sans-serif;font-size:13px;letter-spacing:.5px}
 .pp-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);margin-top:2px}
 .pp-close{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:17px;transition:color .15s;padding:3px;line-height:1}
@@ -228,6 +228,10 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .pm-no-match{font-size:11px;color:var(--muted);font-style:italic;padding:4px 0}
 .pm-skip-btn{font-size:10px;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block}
 .pm-skip-btn:hover{color:var(--red)}
+
+/* CLUB BADGES */
+.player-badge{width:22px;height:22px;border-radius:3px;object-fit:contain;flex-shrink:0;background:var(--surface3)}
+.player-initials{width:22px;height:22px;border-radius:3px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--muted2);flex-shrink:0;text-transform:uppercase}
 
 /* TEAM OVERVIEW */
 .to-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:350;display:none;align-items:center;justify-content:center}
@@ -1106,6 +1110,7 @@ const PHYS_MF_POSITIONS=['DM','CM','AM'];
 const PHYS_EXCLUDED=['GK'];
 
 
+loadBadgeMap(); // load badge map in background
 async function loadFromGitHub(){
   try{
     setSyncStatus('loading');
@@ -2152,7 +2157,7 @@ function renderTable(){
     return `<tr class="${checked?'row-selected':''}">
       ${cbCell}
       ${rankCell}
-      <td><div class="pc"><div class="av">${initials(p.name)}</div><div>
+      <td><div class="pc">${badgeEl(p.team,26)}<div>
         <div class="pn">${hl(p.name)}${!p.hasPhysical&&p.pos!=='GK'?'<span title="No physical data" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:middle;opacity:0.7"></span>':''}</div>
         <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
@@ -2429,8 +2434,17 @@ function openTeamOverview(){
     return el.reduce((s,p)=>s+(valFn(p)*p.minutes),0)/tot;
   };
   _toRows=Object.entries(teamMap).map(([team,players])=>{
-    const avgRating=wtAvg(players,p=>displayRating(p));
-    const avgPotential=wtAvg(players,p=>displayPotential(p));
+    // Best 10 non-GK by rating + best GK for avg rating
+    const nonGK=players.filter(p=>p.pos!=='GK').sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+    const gks=players.filter(p=>p.pos==='GK').sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+    const ratingPool=[...nonGK.slice(0,10),...gks.slice(0,1)];
+    // Best 10 non-GK by potential + best GK for avg potential
+    const nonGKPot=players.filter(p=>p.pos!=='GK').sort((a,b)=>(displayPotential(b)??0)-(displayPotential(a)??0));
+    const gksPot=players.filter(p=>p.pos==='GK').sort((a,b)=>(displayPotential(b)??0)-(displayPotential(a)??0));
+    const potPool=[...nonGKPot.slice(0,10),...gksPot.slice(0,1)];
+    const poolAvg=(pool,valFn)=>{ const v=pool.filter(p=>valFn(p)!=null).map(p=>valFn(p)); return v.length?v.reduce((s,x)=>s+x,0)/v.length:null; };
+    const avgRating=poolAvg(ratingPool,p=>displayRating(p));
+    const avgPotential=poolAvg(potPool,p=>displayPotential(p));
     const avgAge=wtAvg(players,p=>p.age);
     const rated=players.filter(p=>displayRating(p)!=null).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
     const potSorted=players.filter(p=>displayPotential(p)!=null).sort((a,b)=>(displayPotential(b)??0)-(displayPotential(a)??0));
@@ -3449,14 +3463,14 @@ function buildCmpOverview(p,opp,flip=false){
   }).join('');
   const hdr=flip
     ?`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:row-reverse;align-items:center;gap:8px">
-        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        ${badgeEl(p.team,36)}
         <div style="text-align:right">
           <div style="font-weight:700;font-size:13px">${p.name}</div>
           <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
         </div>
       </div>`
     :`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        ${badgeEl(p.team,36)}
         <div>
           <div style="font-weight:700;font-size:13px">${p.name}</div>
           <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
@@ -3477,11 +3491,11 @@ function buildCmpMetrics(p,opp,mode,flip=false){
   metrics.forEach(m=>{const s=skillMap[m]||skillOrder[skillOrder.length-1];if(!groups[s])groups[s]=[];if(!groups[s].includes(m))groups[s].push(m);});
   const mHdr=flip
     ?`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:row-reverse;align-items:center;gap:8px">
-        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        ${badgeEl(p.team,36)}
         <div style="text-align:right"><div style="font-weight:700;font-size:13px">${p.name}</div>
         <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div></div>`
     :`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-        <div class="av" style="width:36px;height:36px;font-size:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface3);border-radius:50%;color:var(--accent);font-weight:700">${initials(p.name)}</div>
+        ${badgeEl(p.team,36)}
         <div><div style="font-weight:700;font-size:13px">${p.name}</div>
         <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div></div>`;
   let html=mHdr;
@@ -3561,7 +3575,7 @@ function renderPanel(){
   const posConf=POS_CONFIG[p.pos]||POS_CONFIG.CF;
   const r=displayRating(p),rc=ratingColor(r);
   const flag=(p.nationalities&&p.nationalities.length)?p.nationalities.map(natFlag).join(' ')+' ':'';
-  document.getElementById('ppAv').textContent=initials(p.name);
+  document.getElementById('ppAv').innerHTML=badgeEl(p.team,38);
   document.getElementById('ppName').textContent=p.name;
   document.getElementById('ppSub').textContent=`${flag}${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''}${p.season?' · '+p.season:''}`;
   const body=document.getElementById('ppBody');
@@ -4077,9 +4091,11 @@ async function unmatchPhysical(playerId,snapId){
   if(player.history) player.history=player.history.filter(h=>!(h.type==='physical'&&h.season===snap.season));
   player.hasPhysical=false;
   delete player.skillcornerId;
+  snap.matchedPlayerId=null;
   snap.matchConfidence=null;
   snap.physicalAdj=null;
   snap.applied=false;
+  snap.physicalScore=null;
   computeMetricBonuses();
   computeAllLeaguePct();
   buildPhysPercentileCache();
@@ -4089,6 +4105,102 @@ async function unmatchPhysical(playerId,snapId){
   try{ await savePhysicalDB(); } catch(e){ console.warn('Physical save failed',e); }
 }
 
+
+// ═══════════════════════════════════
+// CLUB BADGE CACHE
+// Fetches from TheSportsDB (browser CORS-allowed), persists to badge_map.json in repo
+// ═══════════════════════════════════
+let BADGE_MAP={}; // teamName → url | 'none'  (loaded from repo + session cache)
+let _badgeMapLoaded=false;
+let _badgeMapDirty=false;
+
+// Load badge_map.json from repo on startup
+async function loadBadgeMap(){
+  try{
+    const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/badge_map.json?cb='+Date.now());
+    if(r.ok) BADGE_MAP=await r.json();
+  }catch(e){ BADGE_MAP={}; }
+  _badgeMapLoaded=true;
+}
+
+// Save badge_map.json back to repo (editor only, debounced)
+let _badgeSaveTimer=null;
+function scheduleBadgeMapSave(){
+  if(!GH.token||!_badgeMapDirty) return;
+  clearTimeout(_badgeSaveTimer);
+  _badgeSaveTimer=setTimeout(async()=>{
+    try{
+      const payload=JSON.stringify(BADGE_MAP,null,2);
+      const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
+      const owner='JMSnowley',repo='Player-Dashboard',path='badge_map.json',branch='main';
+      const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+      const tipSha=(await refR.json()).object.sha;
+      const commitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${tipSha}`,{headers});
+      const baseTree=(await commitR.json()).tree.sha;
+      const blobR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:payload,encoding:'utf-8'})});
+      const blobSha=(await blobR.json()).sha;
+      const treeR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
+      const newTreeSha=(await treeR.json()).sha;
+      const newCommitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'Badge map update',tree:newTreeSha,parents:[tipSha]})});
+      const newCommitSha=(await newCommitR.json()).sha;
+      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:newCommitSha})});
+      _badgeMapDirty=false;
+    }catch(e){ console.warn('Badge map save failed',e); }
+  }, 10000); // save after 10s of no new badge discoveries
+}
+
+// Fetch badge for a team from TheSportsDB, cache result
+async function fetchBadge(team){
+  if(BADGE_MAP[team]!==undefined) return BADGE_MAP[team];
+  BADGE_MAP[team]='loading';
+  try{
+    const q=encodeURIComponent(team);
+    const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${q}`);
+    const data=await r.json();
+    const teams=data.teams||[];
+    // Find best match - prefer soccer/football teams
+    const match=teams.find(t=>['Soccer','Football'].includes(t.strSport))||teams[0];
+    const url=match?.strBadge||null;
+    BADGE_MAP[team]=url?url+'/preview':'none';
+    if(url){ _badgeMapDirty=true; scheduleBadgeMapSave(); }
+  }catch(e){ BADGE_MAP[team]='none'; }
+  return BADGE_MAP[team];
+}
+
+// Generate initials from team name
+function teamInitials(name){
+  if(!name) return '?';
+  const words=name.trim().split(/\s+/);
+  if(words.length===1) return name.slice(0,2).toUpperCase();
+  return words.filter(w=>w.length>2).slice(0,2).map(w=>w[0].toUpperCase()).join('')||name.slice(0,2).toUpperCase();
+}
+
+// Render badge element: initials immediately, upgrades to badge asynchronously
+function badgeEl(team,size=22){
+  if(!team) return `<div class="player-initials" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px">?</div>`;
+  const initials=teamInitials(team);
+  const esc=team.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const cached=BADGE_MAP[team];
+  if(cached&&cached!=='loading'&&cached!=='none')
+    return `<img class="player-badge" src="${cached}" style="width:${size}px;height:${size}px" alt="${esc}" onerror="BADGE_MAP['${esc}']='none';this.replaceWith(Object.assign(document.createElement('div'),{className:'player-initials',textContent:'${initials}',style:'width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px'}))"/>`;
+  if(cached!=='loading'){
+    // Trigger async fetch and re-render when ready
+    fetchBadge(team).then(url=>{
+      if(url&&url!=='none'){
+        document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
+          const img=document.createElement('img');
+          img.className='player-badge';
+          img.src=url;
+          img.alt=team;
+          img.style.cssText=el.style.cssText;
+          img.onerror=()=>{ BADGE_MAP[team]='none'; };
+          el.replaceWith(img);
+        });
+      }
+    });
+  }
+  return `<div class="player-initials" data-badge-team="${esc}" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px" title="${esc}">${initials}</div>`;
+}
 // ═══════════════════════════════════
 // SETUP
 // ═══════════════════════════════════
