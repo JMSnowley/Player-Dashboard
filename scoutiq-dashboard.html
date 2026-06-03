@@ -4149,18 +4149,84 @@ function scheduleBadgeMapSave(){
   }, 10000); // save after 10s of no new badge discoveries
 }
 
+// Normalise a club name for fuzzy comparison
+function normClub(s){
+  return(s||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // strip accents
+    .replace(/\b(fc|cf|afc|sc|ac|as|bsc|vfb|rb|rc|rcd|fk|sk|if|bk|vfl|tsv|hsv|svs|sv|nk|hk|fcs|ssc|us|ud|ca|cd|sd|ce|real|atletico|athletic|sporting|deportivo|club|football|soccer|united|city|town|rovers|wanderers|albion|county|hotspur|villa|palace)\b/g,'')
+    .replace(/[^a-z0-9 ]/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+
+// Score how well a TheSportsDB team matches our club name (higher = better)
+function matchScore(dbTeam,ourName){
+  const dn=normClub(dbTeam.strTeam||'');
+  const on=normClub(ourName);
+  if(!dn||!on) return 0;
+  let score=0;
+  // Sport bonus
+  if(['Soccer','Football'].includes(dbTeam.strSport)) score+=10;
+  // Exact normalised match
+  if(dn===on) return score+100;
+  // One contains the other
+  if(dn.includes(on)||on.includes(dn)) score+=50;
+  // Word overlap score
+  const dWords=new Set(dn.split(' ').filter(w=>w.length>2));
+  const oWords=on.split(' ').filter(w=>w.length>2);
+  const overlap=oWords.filter(w=>dWords.has(w)).length;
+  score+=overlap*15;
+  // Penalise if no overlap at all
+  if(overlap===0&&!dn.includes(on)&&!on.includes(dn)) score-=20;
+  return score;
+}
+
+// Generate search variants for a club name to maximise TheSportsDB hit rate
+function searchVariants(team){
+  const variants=[team];
+  // Strip common suffixes: FC, AFC, CF, etc.
+  const stripped=team.replace(/\s+(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)$/i,'').trim();
+  if(stripped!==team) variants.push(stripped);
+  // Strip accent: Bayern München → Bayern Munchen
+  const noAccent=team.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(noAccent!==team) variants.push(noAccent);
+  // Common manual mappings
+  const OVERRIDES={
+    'PSG':'Paris Saint-Germain','Man City':'Manchester City','Man Utd':'Manchester United',
+    'Spurs':'Tottenham Hotspur','Wolves':'Wolverhampton Wanderers','Leeds United':'Leeds',
+    'Nottm Forest':'Nottingham Forest',
+    'West Brom':'West Bromwich Albion','Sheff Utd':'Sheffield United',
+    'Sheff Wed':'Sheffield Wednesday','Luton':'Luton Town',
+    'QPR':'Queens Park Rangers','Huddersfield':'Huddersfield Town',
+    'Stoke':'Stoke City','Boro':'Middlesbrough','Blackburn':'Blackburn Rovers',
+    'Bolton':'Bolton Wanderers','Preston':'Preston North End',
+    'Atlético Madrid':'Atletico Madrid','Atlético de Madrid':'Atletico Madrid',
+    'Borussia Mgladbach':'Borussia Monchengladbach',
+    'RB Leipzig':'RasenBallsport Leipzig','Red Bull Leipzig':'RasenBallsport Leipzig',
+    'Al Hilal':'Al-Hilal','Al Nassr':'Al-Nassr','Al Ittihad':'Al-Ittihad',
+  };
+  if(OVERRIDES[team]) variants.unshift(OVERRIDES[team]);
+  return[...new Set(variants)];
+}
+
 // Fetch badge for a team from TheSportsDB, cache result
 async function fetchBadge(team){
   if(BADGE_MAP[team]!==undefined) return BADGE_MAP[team];
   BADGE_MAP[team]='loading';
   try{
-    const q=encodeURIComponent(team);
-    const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${q}`);
-    const data=await r.json();
-    const teams=data.teams||[];
-    // Find best match - prefer soccer/football teams
-    const match=teams.find(t=>['Soccer','Football'].includes(t.strSport))||teams[0];
-    const url=match?.strBadge||null;
+    const variants=searchVariants(team);
+    let bestMatch=null, bestScore=-999;
+    for(const variant of variants){
+      const q=encodeURIComponent(variant);
+      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${q}`);
+      const data=await r.json();
+      const teams=data.teams||[];
+      for(const t of teams){
+        const score=matchScore(t,team);
+        if(score>bestScore){ bestScore=score; bestMatch=t; }
+      }
+      if(bestScore>=50) break; // good enough, stop trying variants
+    }
+    const url=bestScore>=10?bestMatch?.strBadge:null;
     BADGE_MAP[team]=url?url+'/preview':'none';
     if(url){ _badgeMapDirty=true; scheduleBadgeMapSave(); }
   }catch(e){ BADGE_MAP[team]='none'; }
