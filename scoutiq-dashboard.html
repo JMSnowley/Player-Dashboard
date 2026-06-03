@@ -4575,7 +4575,12 @@ function toggleFOSeason(season){
 function renderFullOverview(){
   const p=ST.players.find(x=>x.id===ST.panelId);
   if(!p) return;
-  document.getElementById('fullOverviewContent').innerHTML=buildFullOverview(p);
+  try{
+    document.getElementById('fullOverviewContent').innerHTML=buildFullOverview(p);
+  }catch(e){
+    document.getElementById('fullOverviewContent').innerHTML=`<div style="padding:40px;color:var(--red);font-family:'JetBrains Mono',monospace">Error rendering overview: ${e.message}<br><pre style="font-size:10px;margin-top:8px;color:var(--muted)">${e.stack?.split('\n').slice(0,5).join('\n')}</pre></div>`;
+    console.error('buildFullOverview error',e);
+  }
 }
 
 // ── League quality calibration ─────────────────────────────────────────
@@ -4924,7 +4929,7 @@ function buildInsight(p,dr,dp,sortedRoles,snap){
   const gap=dp-dr;
   let potText='';
   if(age<28&&ceilingDesc){
-    const pIdx=p.id?Math.abs(p.id.split('').reduce((h,c)=>((h<<5)+h)+c.charCodeAt(0)|0,5381))%_potPhrases.length:0;
+    const pIdx=p.id?Math.abs(String(p.id).split('').reduce((h,ch)=>((h<<5)+h)+ch.charCodeAt(0)|0,5381))%_potPhrases.length:0;
     const phrase=_potPhrases[pIdx];
     if(gap>=10) potText=`${phrase(gap,ceilingDesc)} With ${gap>12?'a huge amount of':'significant'} headroom still to reach that ceiling, his best years are very much ahead of him.`;
     else if(gap>=5) potText=`${phrase(gap,ceilingDesc)} There is still meaningful room between where he is now and where he could get to.`;
@@ -5048,7 +5053,7 @@ function buildFOSwarms(p){
       if(isMe) return ''; // player rendered on top
       const yPct=1-(s.score/100);
       const y=(TOP_PAD+yPct*CHART_H).toFixed(1);
-      const hash=s.id?s.id.split('').reduce((h,ch)=>((h<<5)+h)+ch.charCodeAt(0)|0,5381)&0x7fffffff:0;
+      const hash=s.id?String(s.id).split('').reduce((h,ch)=>((h<<5)+h)+ch.charCodeAt(0)|0,5381)&0x7fffffff:0;
       const jitter=((hash%22)-11);
       const x=(COL_W/2+jitter).toFixed(1);
       const tooltip=`${s.name} (${s.team}): ${s.score}`;
