@@ -4256,7 +4256,10 @@ function matchScore(dbTeam,ourName){
   const on=normClub(ourName);
   if(!dn||!on) return 0;
   let score=0;
-  if(['Soccer','Football'].includes(dbTeam.strSport)) score+=10;
+  // Sport scoring — only soccer/football counts; other sports get heavy penalty
+  const sport=dbTeam.strSport||'';
+  if(['Soccer','Football'].includes(sport)) score+=10;
+  else if(sport) score-=50; // basketball, esports etc. should never win
   if(dn===on) return score+100;
   if(dn.includes(on)||on.includes(dn)) score+=60;
   const dAll=dn.split().filter(w=>w.length>1);
@@ -4312,19 +4315,33 @@ function searchVariants(team){
     'Celta Vigo':'Celta de Vigo',
     // German
     'Borussia Mgladbach':'Borussia Monchengladbach',
-    'RB Leipzig':'RasenBallsport Leipzig','Bayern München':'Bayern Munich',
+    'RB Leipzig':'RasenBallsport Leipzig','Bayern München':'FC Bayern Munchen',
     'Köln':'1. FC Koln','Mainz 05':'1. FSV Mainz 05',
     '1. FC Union Berlin':'Union Berlin','Union Berlin':'Union Berlin',
     'Eintracht Frankfurt':'Eintracht Frankfurt',
     // French
-    'PSG':'Paris Saint-Germain',
+    'PSG':'Paris Saint-Germain Football Club',
     // Italian
-    'Inter':'Internazionale','Inter Milan':'Internazionale',
+    'Inter':'FC Internazionale','Inter Milan':'FC Internazionale','Internazionale':'FC Internazionale',
     // Scottish
     'St Mirren':'St. Mirren','St Johnstone':'St. Johnstone',
-    'Greenock Morton':'Morton FC',
+    'Greenock Morton':'Morton FC','Queen of the South':'Queen of the South FC',
+    // Belgian
+    'Anderlecht':'RSC Anderlecht','Mechelen':'KV Mechelen',
+    'Charleroi':'Sporting Charleroi','Zulte-Waregem':'Zulte Waregem',
+    'Sint-Truiden':'Sint-Truiden VV','Union Saint-Gilloise':'Royale Union Saint-Gilloise',
+    'La Louvière':'La Louviere Centre',
+    // English lower leagues
+    'Gateshead':'Gateshead FC','Boston United':'Boston United FC',
+    'Sutton United':'Sutton United FC','Wealdstone':'Wealdstone FC',
+    'Halifax Town':'FC Halifax Town','Woking':'Woking FC',
+    'Scunthorpe United':'Scunthorpe United FC',
+    // Czech
+    'Viktoria Plzeň':'Viktoria Plzen',
+    // Saudi
+    'Al Ittihad':'Al-Ittihad Club','Al Kholood':'Al-Kholood',
     // American
-    'LAFC':'Los Angeles FC','LA Galaxy':'LA Galaxy',
+    'New England':'New England Revolution',
     'NYCFC':'New York City FC','NY Red Bulls':'New York Red Bulls',
     'Seattle Sounders':'Seattle Sounders FC','Portland Timbers':'Portland Timbers',
   };
@@ -4344,15 +4361,6 @@ function searchVariants(team){
 
 // Fetch badge for a team from TheSportsDB, cache result
 // retryNone=true allows re-fetching entries previously marked 'none'
-// For clubs where name search returns wrong results, use direct ID lookup
-// Format: teamName → TheSportsDB team ID
-const BADGE_ID_OVERRIDES={
-  'Internazionale':'133604',   // FC Internazionale Milano (not random Inter club)
-  'Bayern München':'133613',   // FC Bayern München football (not basketball)
-  'PSG':'133728',              // Paris Saint-Germain football (not eSports)
-  'Paris Saint-Germain':'133728',
-};
-
 async function fetchBadge(team, retryNone=false){
   const cached=BADGE_MAP[team];
   // Never treat 'loading' as a permanent cache — it means a previous fetch was interrupted
@@ -4365,23 +4373,6 @@ async function fetchBadge(team, retryNone=false){
   }
   BADGE_MAP[team]='loading';
   try{
-    // Use direct ID lookup if available — more reliable than name search
-    const teamId=BADGE_ID_OVERRIDES[team];
-    if(teamId){
-      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/lookupteam.php?id=${teamId}`);
-      if(r.ok){
-        const data=await r.json();
-        const t=(data.teams||[])[0];
-        if(t?.strBadge){
-          BADGE_MAP[team]=t.strBadge+'/preview';
-          _badgeMapDirty=true; scheduleBadgeMapSave();
-          document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
-            const img=document.createElement('img');img.className='player-badge';img.src=BADGE_MAP[team];img.alt=team;img.style.cssText=el.style.cssText;img.onerror=()=>{BADGE_MAP[team]='none';};el.replaceWith(img);
-          });
-          return BADGE_MAP[team];
-        }
-      }
-    }
     const variants=searchVariants(team);
     let bestMatch=null, bestScore=-999;
     for(const variant of variants){
@@ -4964,8 +4955,9 @@ function buildFOClubRank(p){
 function buildFOSimilar(p,seasons){
   const dr=displayRating(p)??0;
   // Hard filter: same primary pos, within ±6 rating points
+  const cutoff=dr*0.05;
   const candidates=ST.players.filter(x=>
-    x.id!==p.id&&x.pos===p.pos&&seasons.includes(x.season)&&Math.abs((displayRating(x)??0)-dr)<=6
+    x.id!==p.id&&x.pos===p.pos&&seasons.includes(x.season)&&Math.abs((displayRating(x)??0)-dr)<=cutoff
   );
   if(!candidates.length) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No similar players found in the selected seasons.</div>`;
   const scored=candidates.map(x=>({x,sim:calcSimilarity(p,x)})).sort((a,b)=>b.sim-a.sim).slice(0,5);
