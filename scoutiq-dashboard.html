@@ -4579,6 +4579,83 @@ function renderFullOverview(){
 }
 
 // ── League quality calibration ─────────────────────────────────────────
+function buildFullOverview(p){
+  const dr=displayRating(p)??0;
+  const dp=displayPotential(p)??0;
+  const dt=displayPTP(p)??0;
+  const rc=v=>v>=80?'#00e599':v>=70?'#7fd97f':v>=60?'#f5c842':v>=50?'#ff8c42':'#ff4d6a';
+  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
+  const _foRoleKeys=Object.keys(p.roles||{});
+  const sortedRoles=(_foRoleKeys.length?_foRoleKeys:posConf.roles).map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
+  const natFlags=(p.nationalities||[]).map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ');
+  const badgeUrl=BADGE_MAP[p.team];
+  const badgeHtml=badgeUrl&&badgeUrl!=='none'&&badgeUrl!=='loading'
+    ?`<img class="fo-badge" src="${badgeUrl}" alt="${p.team}" onerror="this.outerHTML='<div class=fo-badge-init>${teamInitials(p.team)}</div>'"/>`
+    :`<div class="fo-badge-init">${teamInitials(p.team)}</div>`;
+  const insight=buildInsight(p,dr,dp,sortedRoles,snap);
+  const allSeasons=[...new Set(ST.players.map(x=>x.season).filter(Boolean))].sort().reverse();
+  const activeSeasonsArr=_foSeasons||[p.season];
+  const seasonPicker=`<div style="position:relative;display:inline-block">
+    <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();document.getElementById('foSeasonPicker').style.display=document.getElementById('foSeasonPicker').style.display==='block'?'none':'block'">Seasons ▾</span>
+    <div id="foSeasonPicker" style="display:none;position:absolute;right:0;top:18px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px;z-index:20;min-width:110px;box-shadow:0 4px 16px rgba(0,0,0,.3)">
+      ${allSeasons.map(s=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:10px;white-space:nowrap">
+        <input type="checkbox" ${activeSeasonsArr.includes(s)?'checked':''} onchange="toggleFOSeason('${s}')"/>
+        ${s}</label>`).join('')}
+    </div>
+  </div>`;
+
+  return`
+    <button class="fo-close" onclick="closeFullOverview()">✕ CLOSE</button>
+    <div class="fo-hero">
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        ${badgeHtml}
+        <div style="flex:1;min-width:0">
+          <div class="fo-name">${p.name}</div>
+          <div class="fo-sub">${natFlags} ${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''} · ${p.season||''}</div>
+          <div class="fo-tags">
+            <span class="fo-tag">Age ${p.age||'—'}</span>
+            <span class="fo-tag">${p.minutes?Math.round(p.minutes).toLocaleString()+' mins':'—'}</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        ${['Rating','Potential','PT Pri.','League %'].map((lbl,i)=>{
+          const vals=[dr,dp,dt,p.leaguePct];const v=vals[i];
+          return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
+      <div>
+        <div class="fo-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div class="fo-section-title" style="margin-bottom:0;border:none">Technical Metrics</div>
+            <div class="mtog" style="width:140px">
+              <div class="mtog-btn ${_foMetricView==='normal'?'active':''}" onclick="setFOMetricView('normal')">Normal</div>
+              <div class="mtog-btn ${_foMetricView==='padj'?'active':''}" onclick="setFOMetricView('padj')">PAdj</div>
+            </div>
+          </div>
+          ${buildFOMetrics(p)}
+        </div>
+        ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
+        ${buildFOSwarms(p)}
+      </div>
+      <div>
+        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
+        <div class="fo-section"><div class="fo-section-title">Club Ranking</div>${buildFOClubRank(p)}</div>
+        <div class="fo-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div class="fo-section-title" style="margin-bottom:0;border:none">Similar Players</div>
+            ${seasonPicker}
+          </div>
+          ${buildFOSimilar(p,activeSeasonsArr)}
+        </div>
+      </div>
+    </div>`;
+}
+
 const LEAGUE_QUALITY={
   'England 1':    {tier:1,name:'Premier League',      good:75,top:82,elite:87},
   'Germany 1':    {tier:1,name:'Bundesliga',           good:70,top:78,elite:83},
@@ -4863,233 +4940,171 @@ function buildInsight(p,dr,dp,sortedRoles,snap){
   return s1+s1b+s2+s3;
 }
 
-function buildFOSwarms(p){
-  const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
-  const _swarmMode=_foMetricView==='padj'?'pm':'nm';
-  const skillMap=(METRIC_SKILLS[p.pos]||{})[_swarmMode]||{};
-  const posConf=POS_CONFIG[p.pos];
-  if(!posConf) return '';
 
+function buildFOSwarms(p){
+  const isAdj=_foMetricView==='padj';
+  const mode=isAdj?'pm':'nm';
   const MF_GROUP=['DM','CM','AM'];
   const poolPos=MF_GROUP.includes(p.pos)?MF_GROUP:[p.pos];
 
+  // ── Custom skill definitions per position ──────────────────────────
+  // Each skill: { name, color, metrics:['nm_key',...], physMetrics:['psv99',...] }
+  // physMetrics are PHYS_PCT_CACHE percentile keys
+  // For PAdj mode, nm_key→'PAdj '+nm_key if available
+  const PADJ_MAP={
+    'Claims':'PAdj Claims','Sweeps':'PAdj Sweeps',
+    'Succ. Passes to F3rd':'PAdj Succ. Passes to F3rd',
+    'Succ. Progressive Passes':'PAdj Succ. Progressive Passes',
+    'Aerial Duels':'PAdj Aerial Duels','xG':'PAdj xG','Shots Blocked':'PAdj Shots Blocked',
+    'Defensive Duels':'PAdj Defensive Duels','Fouls (inv.)':'PAdj Fouls (inv.)',
+    'Interceptions':'PAdj Interceptions','Carries':'PAdj Carries',
+    'Dribbles + Offensive Duels':'PAdj Dribbles + Offensive Duels',
+  };
+
+  const SKILL_DEFS={
+    GK:[
+      {name:'Shot Stopping',   color:'#f5c842', metrics:['Goals Prevented','Save %']},
+      {name:'Claiming Crosses',color:'#00d4ff', metrics:['Claims','Claim Success']},
+      {name:'Sweeping Up',     color:'#00e599', metrics:['Sweeps']},
+      {name:'Playing Out',     color:'#7b68ee', metrics:['Pass Success']},
+      {name:'Playing Long',    color:'#ff8c42', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+    ],
+    CB:[
+      {name:'Ball Retention',  color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
+      {name:'Ball Progression',color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Passes to F3rd','Succ. Progressive Passes']},
+      {name:'Stepping In',     color:'#f5c842', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Aerial & Box',    color:'#ff8c42', metrics:['Aerial Duels','Aerial Duel Success','xG','Shots Blocked']},
+      {name:'1v1 Defending',   color:'#00e599', metrics:['Defensive Duels','Defensive Duel Success','Fouls (inv.)']},
+      {name:'Pace & Space',    color:'#f472b6', metrics:['Interceptions'],
+        physMetrics:['psv99','top5psv99','hsrDistOTIP','sprintDistOTIP']},
+    ],
+  };
+
+  // Fall back to generic skill groups for positions not yet defined
+  const defs=SKILL_DEFS[p.pos]||null;
+  const posConf=POS_CONFIG[p.pos];
+  if(!posConf) return '';
+
   const peers=ST.players.filter(x=>
     x.leagueTag===p.leagueTag&&x.season===p.season&&
-    poolPos.includes(x.pos)&&(x.minutes||0)>=300&&x.nm
+    poolPos.includes(x.pos)&&(x.minutes||0)>=300
   );
   if(peers.length<4) return '';
 
-  function nmSkillScore(player,skill){
-    const nm=(_swarmMode==='pm'?player.pm:player.nm)||{};
-    const posSkillMap=(METRIC_SKILLS[player.pos]||{})[_swarmMode]||{};
-    const vals=[];
-    Object.entries(posSkillMap).forEach(([metric,s])=>{ if(s===skill&&nm[metric]!=null) vals.push(nm[metric]); });
-    // Also use the focal player's skill map when pooling MF
-    if(player.pos!==p.pos){
-      Object.entries(skillMap).forEach(([metric,s])=>{ if(s===skill&&nm[metric]!=null&&!vals.length) vals.push(nm[metric]); });
-    }
-    return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  function metricVal(player,key){
+    const adjKey=isAdj&&PADJ_MAP[key]?PADJ_MAP[key]:key;
+    const src=isAdj?(player.pm||player.nm||{}):(player.nm||{});
+    const v=src[adjKey];
+    if(v!=null) return v;
+    // fallback to nm if pm not available
+    const nm=player.nm||{};
+    return nm[adjKey]!=null?nm[adjKey]:(nm[key]!=null?nm[key]:null);
   }
 
-  function physSkillScore(player){
-    const pct=PHYS_PCT_CACHE[player.id];
-    if(!pct) return null;
-    const vals=Object.values(pct).filter(v=>v!=null);
-    return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  function skillScore(player, skill){
+    const nmVals=skill.metrics.map(m=>metricVal(player,m)).filter(v=>v!=null);
+    const physVals=(skill.physMetrics||[]).map(k=>{
+      const pct=PHYS_PCT_CACHE[player.id];
+      return pct&&pct[k]!=null?pct[k]:null;
+    }).filter(v=>v!=null);
+    const all=[...nmVals,...physVals];
+    return all.length?all.reduce((a,b)=>a+b,0)/all.length:null;
   }
 
-  // Build skill list including Physical
-  const skillsToShow=[...skillOrder,'Physical'];
-  const PHYS_COLOR='#f472b6';
+  // Use custom defs if available, otherwise generic
+  let skillList=[];
+  if(defs){
+    skillList=defs;
+  } else {
+    // Generic fallback using METRIC_SKILLS
+    const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+    const skillMap=(METRIC_SKILLS[p.pos]||{})[mode]||{};
+    const FALLBACK_COLORS=['#7b68ee','#00d4ff','#f5c842','#ff8c42','#00e599'];
+    skillList=skillOrder.map((skill,i)=>{
+      const metrics=Object.entries(skillMap).filter(([,s])=>s===skill).map(([m])=>m);
+      return{name:skill,color:FALLBACK_COLORS[i%FALLBACK_COLORS.length],metrics};
+    });
+  }
 
-  const swarmCols=skillsToShow.map(skill=>{
-    const isPhys=skill==='Physical';
-    const raw=peers.map(x=>({id:x.id,score:isPhys?physSkillScore(x):nmSkillScore(x,skill)}))
+  const COL_W=60, TOP_PAD=8, BOT_PAD=8, CHART_H=110;
+  const TOTAL_H=CHART_H+TOP_PAD+BOT_PAD;
+
+  const swarmCols=skillList.map(skill=>{
+    const raw=peers.map(x=>({id:x.id,name:x.name,team:x.team,score:skillScore(x,skill)}))
       .filter(x=>x.score!=null);
     if(raw.length<3) return null;
-    const playerRaw=isPhys?physSkillScore(p):nmSkillScore(p,skill);
+    const playerRaw=skillScore(p,skill);
 
-    // Rescale all scores to 0-100
     const rawScores=raw.map(x=>x.score);
-    const mn=Math.min(...rawScores), mx=Math.max(...rawScores);
-    const range=mx-mn||1;
+    const mn=Math.min(...rawScores), mx=Math.max(...rawScores), range=mx-mn||1;
     const rescale=v=>Math.round(((v-mn)/range)*100);
 
-    const scaled=raw.map(x=>({id:x.id,score:rescale(x.score)}));
+    const scaled=raw.map(x=>({...x,score:rescale(x.score)}));
     const playerScaled=playerRaw!=null?rescale(playerRaw):null;
 
-    const color=isPhys?PHYS_COLOR:(SKILL_COLORS[skill]||{color:'#8a9bb0'}).color;
-
-    // Build dots — vertical swarm: score maps to Y (100=top, 0=bottom)
-    // Horizontal jitter: deterministic per player id
-    const DOT_W=6; // px, smaller grey dots
-    const COL_W=52; // px total column width
-    const TOP_PAD=10, BOT_PAD=10;
-    const CHART_H=120; // px inner height
+    // Build SVG dots with tooltip data
     const dotsHtml=scaled.map(s=>{
       const isMe=s.id===p.id;
-      const yPct=1-(s.score/100); // 0=top, 1=bottom
-      const y=TOP_PAD+yPct*CHART_H;
-      // horizontal jitter within column — deterministic
-      const hash=s.id?s.id.split('').reduce((h,c)=>((h<<5)+h)+c.charCodeAt(0)|0,5381)&0x7fffffff:0;
-      const jitter=((hash%20)-10); // -10 to +10 px
-      const x=COL_W/2+jitter;
-      if(isMe&&playerScaled!=null)return''; // rendered separately on top
-      return`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${color}" opacity="0.35"/>`;
+      if(isMe) return ''; // player rendered on top
+      const yPct=1-(s.score/100);
+      const y=(TOP_PAD+yPct*CHART_H).toFixed(1);
+      const hash=s.id?s.id.split('').reduce((h,ch)=>((h<<5)+h)+ch.charCodeAt(0)|0,5381)&0x7fffffff:0;
+      const jitter=((hash%22)-11);
+      const x=(COL_W/2+jitter).toFixed(1);
+      const tooltip=`${s.name} (${s.team}): ${s.score}`;
+      return`<circle class="swarm-peer" cx="${x}" cy="${y}" r="3.5" fill="${skill.color}" opacity="0.38"
+        data-tip="${tooltip}" onmouseenter="showSwarmTip(event,'${tooltip.replace(/'/g,'&#39;')}')" onmouseleave="hideSwarmTip()"/>`;
     }).join('');
 
     // Player dot
     let playerDot='';
     if(playerScaled!=null){
       const yPct=1-(playerScaled/100);
-      const y=TOP_PAD+yPct*CHART_H;
-      playerDot=`<circle cx="${(COL_W/2).toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#00d4ff" opacity="1" filter="url(#glow)"/>`;
+      const y=(TOP_PAD+yPct*CHART_H).toFixed(1);
+      const tooltip=`${p.name}: ${playerScaled}`;
+      playerDot=`<circle cx="${(COL_W/2).toFixed(1)}" cy="${y}" r="5.5" fill="#00d4ff" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"
+        style="filter:drop-shadow(0 0 4px #00d4ff88)"
+        onmouseenter="showSwarmTip(event,'${tooltip.replace(/'/g,'&#39;')}')" onmouseleave="hideSwarmTip()"/>`;
     }
 
-    const TOTAL_H=CHART_H+TOP_PAD+BOT_PAD;
-    const skillLabel=skill==='Dribbling & Carrying'?'Dribbling':skill==='Goal Threat'?'Goal Threat':skill==='Claims & Sweeping'?'Claims':skill==='Shot Stopping'?'Stopping':skill==='Distribution'?'Distribution':skill;
-
-    return`<div style="display:flex;flex-direction:column;align-items:center;gap:4px">
-      <svg width="${COL_W}" height="${TOTAL_H}" viewBox="0 0 ${COL_W} ${TOTAL_H}" style="overflow:visible">
-        <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="2.5" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter></defs>
-        ${dotsHtml}
-        ${playerDot}
+    return`<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+      <svg width="${COL_W}" height="${TOTAL_H}" viewBox="0 0 ${COL_W} ${TOTAL_H}" style="overflow:visible;cursor:default">
+        <defs><filter id="sw-glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+        ${dotsHtml}${playerDot}
       </svg>
-      <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:${color};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1.2;max-width:${COL_W+4}px;word-break:break-word">${skillLabel}</div>
-      ${playerScaled!=null?`<div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:#00d4ff;font-weight:700">${playerScaled}</div>`:`<div style="font-size:9px;color:var(--muted)">—</div>`}
+      <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:${skill.color};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1.2;max-width:${COL_W+4}px">${skill.name}</div>
+      <div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:${playerScaled!=null?'#00d4ff':'var(--muted)'};font-weight:700">${playerScaled!=null?playerScaled:'—'}</div>
     </div>`;
   }).filter(Boolean).join('');
 
   if(!swarmCols) return '';
+  const poolLabel=poolPos.join('/')+(poolPos.length>1?' (MF pool)':'');
   return`<div class="fo-section">
-    <div class="fo-section-title">Skills — ${p.leagueTag} ${p.season} · ${poolPos.join('/')} pool (${peers.length} players)</div>
-    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:4px 0 8px">
+    <div class="fo-section-title">Skills — ${p.leagueTag} · ${poolLabel} · ${peers.length} players · ${isAdj?'PAdj':'Normal'}</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:4px 0">
       ${swarmCols}
     </div>
-
   </div>`;
 }
 
-function round1(v){ return Math.round(v*10)/10; }
-
-// ── Similarity score (0–100, higher = more similar) ───────────────────
-function calcSimilarity(p,x){
-  const pRoles=POS_CONFIG[p.pos]?.roles||[];
-  // Role similarity (0-100)
-  let roleSim=100;
-  if(pRoles.length){
-    let diff=0;
-    pRoles.forEach(r=>{diff+=Math.abs((p.roles&&p.roles[r]||0)-(x.roles&&x.roles[r]||0));});
-    roleSim=Math.max(0,100-(diff/pRoles.length));
+// Swarm tooltip
+let _swarmTipEl=null;
+function showSwarmTip(e,text){
+  if(!_swarmTipEl){
+    _swarmTipEl=document.createElement('div');
+    _swarmTipEl.style.cssText='position:fixed;z-index:9999;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;padding:5px 9px;font-size:10px;font-family:"JetBrains Mono",monospace;color:var(--text);pointer-events:none;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.4)';
+    document.body.appendChild(_swarmTipEl);
   }
-  // Age similarity (penalise >5yr gap)
-  const ageDiff=Math.abs((p.age||0)-(x.age||0));
-  const ageSim=Math.max(0,100-ageDiff*12);
-  // Technical metric similarity
-  let metSim=0,metCount=0;
-  Object.keys(p.nm||{}).forEach(m=>{
-    const pv=p.nm[m],xv=(x.nm||{})[m];
-    if(typeof pv==='number'&&typeof xv==='number'){metSim+=100-Math.abs(pv-xv);metCount++;}
-  });
-  const techSim=metCount?metSim/metCount:50;
-  // Physical similarity (only if both have physical)
-  const pPhys=PHYS_PCT_CACHE[p.id]||{};
-  const xPhys=PHYS_PCT_CACHE[x.id]||{};
-  const physKeys=Object.keys(pPhys).filter(k=>xPhys[k]!=null);
-  let physSim=50; // neutral if one lacks data
-  if(physKeys.length>=3){
-    physSim=physKeys.reduce((s,k)=>s+(100-Math.abs(pPhys[k]-xPhys[k])),0)/physKeys.length;
-  }
-  // Wyscout position similarity
-  const pWy=(p.wyscoutPositions||p.pos).split(',').map(s=>s.trim());
-  const xWy=(x.wyscoutPositions||x.pos).split(',').map(s=>s.trim());
-  const wyOverlap=pWy.filter(wp=>xWy.includes(wp)).length;
-  const wyUnion=new Set([...pWy,...xWy]).size;
-  const wySim=wyUnion?Math.round(wyOverlap/wyUnion*100):50;
-  // Weighted composite: roles 35%, tech 30%, physical 15%, age 12%, wyPos 8%
-  return Math.round(roleSim*0.35+techSim*0.30+physSim*0.15+ageSim*0.12+wySim*0.08);
+  _swarmTipEl.textContent=text;
+  _swarmTipEl.style.display='block';
+  _swarmTipEl.style.left=(e.clientX+12)+'px';
+  _swarmTipEl.style.top=(e.clientY-28)+'px';
+}
+function hideSwarmTip(){
+  if(_swarmTipEl) _swarmTipEl.style.display='none';
 }
 
-function buildFullOverview(p){
-  const dr=displayRating(p)??0;
-  const dp=displayPotential(p)??0;
-  const dt=displayPTP(p)??0;
-  const rc=v=>v>=80?'#00e599':v>=70?'#7fd97f':v>=60?'#f5c842':v>=50?'#ff8c42':'#ff4d6a';
-  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
-  const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
-  // Use actual player role keys — Wyscout role schemas vary by league
-  const _rawRoleKeys=Object.keys(p.roles||{});
-  const sortedRoles=(_rawRoleKeys.length?_rawRoleKeys:posConf.roles).map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
-  const natFlags=(p.nationalities||[]).map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ');
-  const badgeUrl=BADGE_MAP[p.team];
-  const badgeHtml=badgeUrl&&badgeUrl!=='none'&&badgeUrl!=='loading'
-    ?`<img class="fo-badge" src="${badgeUrl}" alt="${p.team}" onerror="this.outerHTML='<div class=fo-badge-init>${teamInitials(p.team)}</div>'"/>`
-    :`<div class="fo-badge-init">${teamInitials(p.team)}</div>`;
-  const insight=buildInsight(p,dr,dp,sortedRoles,snap);
-  const allSeasons=[...new Set(ST.players.map(x=>x.season).filter(Boolean))].sort().reverse();
-  const activeSeasonsArr=_foSeasons||[p.season];
-  const seasonPicker=`<div style="position:relative;display:inline-block">
-    <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();document.getElementById('foSeasonPicker').style.display=document.getElementById('foSeasonPicker').style.display==='block'?'none':'block'">Seasons ▾</span>
-    <div id="foSeasonPicker" style="display:none;position:absolute;right:0;top:18px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px;z-index:20;min-width:110px;box-shadow:0 4px 16px rgba(0,0,0,.3)">
-      ${allSeasons.map(s=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:10px;white-space:nowrap">
-        <input type="checkbox" ${activeSeasonsArr.includes(s)?'checked':''} onchange="toggleFOSeason('${s}')"/>
-        ${s}</label>`).join('')}
-    </div>
-  </div>`;
 
-  return`
-    <button class="fo-close" onclick="closeFullOverview()">✕ CLOSE</button>
-    <div class="fo-hero">
-      <div style="display:flex;gap:16px;align-items:flex-start">
-        ${badgeHtml}
-        <div style="flex:1;min-width:0">
-          <div class="fo-name">${p.name}</div>
-          <div class="fo-sub">${natFlags} ${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''} · ${p.season||''}</div>
-          <div class="fo-tags">
-            <span class="fo-tag">Age ${p.age||'—'}</span>
-            <span class="fo-tag">${p.minutes?Math.round(p.minutes).toLocaleString()+' mins':'—'}</span>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;gap:10px">
-        ${['Rating','Potential','PT Pri.','League %'].map((lbl,i)=>{
-          const vals=[dr,dp,dt,p.leaguePct];const v=vals[i];
-          return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
-        }).join('')}
-      </div>
-    </div>
-    <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
-    <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
-      <div>
-        <div class="fo-section">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-            <div class="fo-section-title" style="margin-bottom:0;border:none">Technical Metrics</div>
-            <div class="mtog" style="width:140px">
-              <div class="mtog-btn ${_foMetricView==='normal'?'active':''}" onclick="setFOMetricView('normal')">Normal</div>
-              <div class="mtog-btn ${_foMetricView==='padj'?'active':''}" onclick="setFOMetricView('padj')">PAdj</div>
-            </div>
-          </div>
-          ${buildFOMetrics(p)}
-        </div>
-        ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
-      </div>
-      <div>
-        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
-        <div class="fo-section"><div class="fo-section-title">Club Ranking</div>${buildFOClubRank(p)}</div>
-        <div class="fo-section">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-            <div class="fo-section-title" style="margin-bottom:0;border:none">Similar Players</div>
-            ${seasonPicker}
-          </div>
-          ${buildFOSimilar(p,activeSeasonsArr)}
-        </div>
-      </div>
-    </div>
-    ${buildFOSwarms(p)}`;
-}
 
 function buildFORoleBar(roles){
   if(!roles.length) return '';
