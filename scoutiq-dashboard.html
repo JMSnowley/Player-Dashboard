@@ -4425,7 +4425,7 @@ function badgeEl(team,size=22){
 // FULL OVERVIEW
 // ═══════════════════════════════════
 let _foMetricView='normal';
-let _foSeasons=null; // null = current season only
+let _foSeasons=null;
 
 function openFullOverview(){
   const p=ST.players.find(x=>x.id===ST.panelId);
@@ -4436,14 +4436,12 @@ function openFullOverview(){
   document.getElementById('fullOverviewModal').scrollTop=0;
   renderFullOverview();
 }
-function closeFullOverview(){
-  document.getElementById('fullOverviewModal').style.display='none';
-}
+function closeFullOverview(){ document.getElementById('fullOverviewModal').style.display='none'; }
 function setFOMetricView(v){ _foMetricView=v; renderFullOverview(); }
 function toggleFOSeason(season){
   const p=ST.players.find(x=>x.id===ST.panelId);
   if(!p) return;
-  if(_foSeasons===null) _foSeasons=[p.season]; // start with current
+  if(_foSeasons===null) _foSeasons=[p.season];
   const idx=_foSeasons.indexOf(season);
   if(idx>=0){ if(_foSeasons.length>1) _foSeasons.splice(idx,1); }
   else _foSeasons.push(season);
@@ -4455,190 +4453,235 @@ function renderFullOverview(){
   document.getElementById('fullOverviewContent').innerHTML=buildFullOverview(p);
 }
 
-// ── League quality calibration (approximate displayed rating thresholds) ─
+// ── League quality calibration ─────────────────────────────────────────
 const LEAGUE_QUALITY={
-  'England 1':  {tier:1,name:'Premier League',     good:75,top:82,elite:87},
-  'Germany 1':  {tier:1,name:'Bundesliga',          good:70,top:78,elite:83},
-  'Spain 1':    {tier:1,name:'La Liga',             good:70,top:77,elite:83},
-  'Italy 1':    {tier:1,name:'Serie A',             good:70,top:76,elite:82},
-  'France 1':   {tier:1,name:'Ligue 1',             good:69,top:76,elite:81},
-  'Belgium 1':  {tier:2,name:'Belgian Pro League',  good:66,top:73,elite:78},
-  'England 2':  {tier:2,name:'Championship',        good:66,top:72,elite:77},
-  'Denmark 1':  {tier:2,name:'Danish Superliga',    good:65,top:72,elite:77},
-  'Netherlands 1':{tier:2,name:'Eredivisie',        good:64,top:72,elite:77},
-  'Portugal 1': {tier:2,name:'Primeira Liga',       good:63,top:70,elite:75},
-  'Brazil 1':   {tier:2,name:'Brasileirão',         good:64,top:70,elite:75},
-  'Austria 1':  {tier:3,name:'Austrian Bundesliga', good:62,top:68,elite:73},
-  'Scotland 1': {tier:3,name:'Scottish Premiership',good:62,top:69,elite:74},
-  'Switzerland 1':{tier:3,name:'Swiss Super League',good:61,top:68,elite:73},
-  'Poland 1':   {tier:3,name:'Ekstraklasa',         good:61,top:67,elite:72},
-  'USA 1':      {tier:3,name:'MLS',                 good:61,top:67,elite:72},
-  'England 3':  {tier:3,name:'League One',          good:62,top:67,elite:72},
-  'England 4':  {tier:4,name:'League Two',          good:59,top:64,elite:68},
-  'England 5':  {tier:4,name:'National League',     good:57,top:62,elite:66},
-  'Saudi Arabia 1':{tier:3,name:'Saudi Pro League', good:59,top:66,elite:72},
+  'England 1':    {tier:1,name:'Premier League',      good:75,top:82,elite:87},
+  'Germany 1':    {tier:1,name:'Bundesliga',           good:70,top:78,elite:83},
+  'Spain 1':      {tier:1,name:'La Liga',              good:70,top:77,elite:83},
+  'Italy 1':      {tier:1,name:'Serie A',              good:70,top:76,elite:82},
+  'France 1':     {tier:1,name:'Ligue 1',              good:69,top:76,elite:81},
+  'Belgium 1':    {tier:2,name:'Belgian Pro League',   good:66,top:73,elite:78},
+  'England 2':    {tier:2,name:'Championship',         good:66,top:72,elite:77},
+  'Denmark 1':    {tier:2,name:'Danish Superliga',     good:65,top:72,elite:77},
+  'Netherlands 1':{tier:2,name:'Eredivisie',           good:64,top:72,elite:77},
+  'Portugal 1':   {tier:2,name:'Primeira Liga',        good:63,top:70,elite:75},
+  'Brazil 1':     {tier:2,name:'Brasileirão',          good:64,top:70,elite:75},
+  'Austria 1':    {tier:3,name:'Austrian Bundesliga',  good:62,top:68,elite:73},
+  'Scotland 1':   {tier:3,name:'Scottish Premiership', good:62,top:69,elite:74},
+  'Switzerland 1':{tier:3,name:'Swiss Super League',   good:61,top:68,elite:73},
+  'Poland 1':     {tier:3,name:'Ekstraklasa',          good:61,top:67,elite:72},
+  'USA 1':        {tier:3,name:'MLS',                  good:61,top:67,elite:72},
+  'England 3':    {tier:3,name:'League One',           good:62,top:67,elite:72},
+  'England 4':    {tier:4,name:'League Two',           good:59,top:64,elite:68},
+  'England 5':    {tier:4,name:'National League',      good:57,top:62,elite:66},
+  'Saudi Arabia 1':{tier:3,name:'Saudi Pro League',    good:59,top:66,elite:72},
 };
 
-function ratingContext(dr, dp, leagueTag){
+function ratingContext(dr,dp,leagueTag,age){
   const lq=LEAGUE_QUALITY[leagueTag]||{tier:3,name:leagueTag,good:63,top:70,elite:76};
   const el1=LEAGUE_QUALITY['England 1'];
-
-  // Current standing in own league
   let currentDesc;
   if(dr>=lq.elite) currentDesc=`one of the best players in the ${lq.name}`;
   else if(dr>=lq.top) currentDesc=`a top-level performer in the ${lq.name}`;
   else if(dr>=lq.good) currentDesc=`a solid, reliable option at ${lq.name} level`;
   else if(dr>=lq.good-4) currentDesc=`a decent contributor in the ${lq.name}`;
   else currentDesc=`still developing at ${lq.name} level`;
-
-  // Potential ceiling in broader context
-  let ceilingDesc='';
-  if(dp>=el1.elite) ceilingDesc=`the ceiling to develop into a genuine elite Premier League performer`;
-  else if(dp>=el1.top) ceilingDesc=`the potential ceiling to be a top Premier League player`;
-  else if(dp>=el1.good) ceilingDesc=`the ceiling to develop into a solid Premier League operator`;
-  else if(dp>=LEAGUE_QUALITY['Germany 1']?.top||78) ceilingDesc=`the ceiling to perform at the top end of a major European league`;
-  else if(dp>=lq.top) ceilingDesc=`the ceiling to become one of the best players in the ${lq.name}`;
-  else if(dp>=lq.good) ceilingDesc=`scope to become a reliable ${lq.name} regular`;
-  else ceilingDesc=null;
-
-  return{currentDesc, ceilingDesc};
+  let ceilingDesc=null;
+  if(age<28){
+    if(dp>=el1.elite) ceilingDesc=`the ceiling to develop into a genuine elite Premier League performer`;
+    else if(dp>=el1.top) ceilingDesc=`the potential ceiling to be a top Premier League player`;
+    else if(dp>=el1.good) ceilingDesc=`the ceiling to develop into a solid Premier League operator`;
+    else if(dp>=(LEAGUE_QUALITY['Germany 1']?.top||78)) ceilingDesc=`the ceiling to perform at the top end of a major European league`;
+    else if(dp>=lq.top) ceilingDesc=`the ceiling to become one of the best in the ${lq.name}`;
+    else if(dp>=lq.good) ceilingDesc=`scope to become a reliable ${lq.name} regular`;
+  }
+  return{currentDesc,ceilingDesc};
 }
 
-function minutesContext(mins, leagueTag, season){
-  // Compare to median minutes for players in same league+season
-  const leaguePlayers=ST.players.filter(p=>p.leagueTag===leagueTag&&p.season===season&&p.minutes>0);
-  if(!leaguePlayers.length) return minutesSimple(mins);
-  const sorted=leaguePlayers.map(p=>p.minutes).sort((a,b)=>a-b);
+function minutesContext(mins,leagueTag,season){
+  const lp=ST.players.filter(p=>p.leagueTag===leagueTag&&p.season===season&&p.minutes>0);
+  const name=(LEAGUE_QUALITY[leagueTag]?.name)||leagueTag;
+  if(!lp.length){
+    return mins>=2500?`playing heavily this season`:mins>=1500?`getting a good run of games`:mins>=800?`with limited minutes`:`with minimal appearances`;
+  }
+  const sorted=lp.map(p=>p.minutes).sort((a,b)=>a-b);
   const median=sorted[Math.floor(sorted.length/2)];
   const p75=sorted[Math.floor(sorted.length*0.75)];
-  if(mins>=p75) return`one of the more heavily used players in the ${LEAGUE_QUALITY[leagueTag]?.name||leagueTag} this season`;
-  if(mins>=median) return`playing a reasonable amount relative to his peers in the ${LEAGUE_QUALITY[leagueTag]?.name||leagueTag}`;
-  if(mins>=median*0.6) return`getting limited minutes compared to most ${LEAGUE_QUALITY[leagueTag]?.name||leagueTag} players this season`;
-  return`making only sporadic appearances in the ${LEAGUE_QUALITY[leagueTag]?.name||leagueTag} this season`;
-}
-function minutesSimple(mins){
-  return mins>=2500?'playing heavily this season':mins>=1500?'getting a good run of minutes':mins>=800?'with limited minutes':'with very limited minutes so far';
+  if(mins>=p75) return`one of the more heavily used players in the ${name} this season`;
+  if(mins>=median) return`getting a reasonable amount of game time relative to his peers in the ${name}`;
+  if(mins>=median*0.6) return`getting limited minutes compared to most ${name} players this season`;
+  return`making only sporadic appearances in the ${name} this season`;
 }
 
-// Role interpretation — natural language from role labels, context-aware
-const ROLE_MEANINGS={
-  'Destroyer':           ['breaking up play','disrupting opponents'],
-  'Positional Retainer': ['retaining shape and possession'],
-  'Stopper':             ['aggressive in the tackle','physical in defence'],
-  'Ball Winner':         ['winning the ball in duels'],
-  'Deep Lying Passer':   ['dictating from deep','precise in distribution'],
-  'Box to Box':          ['box-to-box'],
-  'Creator':             ['creating chances','unlocking defences'],
-  'Pressing Midfielder': ['pressing hard','disrupting higher up the pitch'],
-  'Playmaker':           ['controlling tempo','finding passes in tight areas'],
-  'Direct Winger':       ['direct and pace-oriented','running at defenders'],
-  'Interior Creator':    ['cutting inside','creative from half-spaces'],
-  'Pressing Winger':     ['high-energy','pressing from the front'],
-  'Goalscorer':          ['goalscoring instinct','arriving in dangerous areas'],
-  'Target Man':          ['a physical presence','linking play effectively'],
-  'Poacher':             ['clinical in the box'],
-  'Creative Dribbler':   ['creative with the ball','taking on defenders'],
-  'Defensive 9':         ['pressing relentlessly','contributing defensively'],
-  'Front Foot CB':       ['stepping out aggressively to defend higher','comfortable on the ball'],
-  'Penalty Box CB':      ['dominant in the air','commanding in his box'],
-  'Ball Player':         ['comfortable building from the back','technically assured'],
-  'Wide Ball Carrier':   ['carrying from wide areas','driving forward'],
-  'Attacking FB':        ['attacking','getting forward to provide width'],
-  'Playmaking FB':       ['technically sound and creative','combining on the overlap'],
-  'Wing Back':           ['dynamic as a wing-back'],
-  'Shot Stopper':        ['commanding between the posts'],
-  'Sweeper Keeper':      ['commanding off his line','comfortable with the ball at his feet'],
+// ── Role trait map — each role → array of natural language traits ─────
+const ROLE_TRAITS={
+  'Destroyer':           ['breaks up play','presses opponents aggressively'],
+  'Positional Retainer': ['excellent at retaining the ball under pressure','disciplined in his positioning'],
+  'Stopper':             ['physical and aggressive in the tackle','wins his defensive duels'],
+  'Ball Winner':         ['strong in the duel','consistently wins the ball back'],
+  'Deep Lying Passer':   ['comfortable with the ball deep','dictates play with precise distribution'],
+  'Box to Box':          ['gets around the pitch effectively','contributes at both ends'],
+  'Creator':             ['creative eye for a pass','unlocks defences with his movement and vision'],
+  'Pressing Midfielder': ['presses relentlessly high up the pitch','wins the ball in advanced areas'],
+  'Playmaker':           ['controls the tempo of play','picks out passes in tight areas'],
+  'Direct Winger':       ['direct and pace-oriented when in possession','likes to run in behind and stretch defences'],
+  'Interior Creator':    ['likes to cut inside and create from half-spaces','technically inventive'],
+  'Pressing Winger':     ['high-energy and tireless in pressing from the front'],
+  'Goalscorer':          ['sharp in the box','has a real instinct for arriving in dangerous areas'],
+  'Target Man':          ['a physical presence in the channel','links play well and brings others in'],
+  'Poacher':             ['clinical around the box','great at arriving late in dangerous areas'],
+  'Creative Dribbler':   ['carries the ball with intent','takes on defenders and creates through individual skill'],
+  'Defensive 9':         ['presses relentlessly','tucks in and contributes defensively more than most forwards'],
+  'Front Foot CB':       ['steps out aggressively to defend higher up','comfortable with the ball at his feet'],
+  'Penalty Box CB':      ['dominant in the air','commands his penalty area well'],
+  'Ball Player':         ['technically assured on the ball','comfortable playing out from the back'],
+  'Wide Ball Carrier':   ['carries from wide defensive areas','drives forward with the ball'],
+  'Attacking FB':        ['gets forward regularly to provide width','a constant attacking outlet'],
+  'Playmaking FB':       ['technically sound and creative','comfortable combining on the overlap and finding passes'],
+  'Wing Back':           ['dynamic in the wing-back role','effective in both phases'],
+  'Shot Stopper':        ['commanding between the posts','reliable shot-stopper'],
+  'Sweeper Keeper':      ['comfortable off his line','confident with the ball at his feet and helps build from the back'],
 };
 
-function interpretRoles(sortedRoles,pos){
-  const top=sortedRoles.filter(r=>r.v>=18).slice(0,3);
+function interpretRoles(sortedRoles){
+  const top=sortedRoles.filter(r=>r.v>=18).slice(0,2);
   if(!top.length) return '';
-  // Build combined description rather than listing role names
-  const descs=top.flatMap(r=>ROLE_MEANINGS[r.r]||[r.r.toLowerCase()]);
-  // Deduplicate
-  const unique=[...new Set(descs)].slice(0,4);
-  if(unique.length>=3) return`${unique.slice(0,-1).join(', ')} and ${unique[unique.length-1]}`;
-  if(unique.length===2) return`${unique[0]} and ${unique[1]}`;
+  const traits=top.flatMap(r=>(ROLE_TRAITS[r.r]||[r.r.toLowerCase()]));
+  const unique=[...new Set(traits)].slice(0,4);
+  if(unique.length>=3) return unique.slice(0,-1).join(', ')+' and '+unique[unique.length-1];
+  if(unique.length===2) return unique[0]+' and '+unique[1];
   return unique[0]||'';
 }
 
+// ── Metric interpretation ─────────────────────────────────────────────
 function interpretMetrics(p,pctCache){
   const nm=p.nm||{};
   const ph=pctCache||{};
-  const clauses=[];
   const get=k=>nm[k];
+  const clauses=[];
+  const isAttacking=['CF','WF','AM'].includes(p.pos);
+  const isDefending=['CB','DM'].includes(p.pos);
+  const isMid=['CM','DM','AM'].includes(p.pos);
+
+  // Passing strength/weakness
+  const ps=get('Pass Success'),pp=get('Succ. Progressive Passes'),tb=get('Succ. Through Balls');
+  const passingMetrics=[ps,pp,tb].filter(v=>v!=null);
+  const passingAvg=passingMetrics.length?passingMetrics.reduce((a,b)=>a+b,0)/passingMetrics.length:null;
+  if(passingAvg!=null){
+    if(passingAvg>=75) clauses.push('technically strong in possession, passing with good accuracy and regularly progressing the ball');
+    else if(passingAvg>=60&&pp>=70) clauses.push('a capable ball progressor who moves the ball forward effectively');
+    else if(ps!=null&&ps<=35&&(isDefending||isMid)) clauses.push('someone who can be loose with the ball at times');
+  }
 
   // Goal threat
-  const xg=get('xG'),shots=get('Shots'),tocBox=get('Touches in Box');
+  const xg=get('xG'),shots=get('Shots'),tib=get('Touches in Box');
   if(xg!=null&&shots!=null){
-    if(xg>=75&&shots>=70) clauses.push(`he poses a real goal threat and gets himself into dangerous positions regularly`);
-    else if(xg<=25&&shots<=30&&['CF','WF','AM'].includes(p.pos)) clauses.push(`he doesn't offer much directly in terms of attacking output`);
+    if(xg>=80&&shots>=75) clauses.push('a serious goal threat who gets into dangerous positions and finishes well');
+    else if(xg>=65&&tib>=65) clauses.push('gets himself into the box regularly and contributes to the goal threat');
+    else if(xg<=25&&shots<=30&&isAttacking) clauses.push('not a player who contributes heavily in front of goal');
   }
 
   // Chance creation
-  const xa=get('xA'),shotAssists=get('Shot Assists');
-  if(xa!=null&&shotAssists!=null&&xa>=75&&shotAssists>=70) clauses.push(`he's a genuine chance creator for his teammates`);
+  const xa=get('xA'),sa=get('Shot Assists');
+  if(xa!=null&&xa>=75&&sa!=null&&sa>=70) clauses.push('a real creator who regularly sets up goalscoring chances');
 
-  // Passing
-  const passSucc=get('Pass Success'),progPass=get('Succ. Progressive Passes');
-  if(passSucc!=null&&progPass!=null){
-    if(passSucc>=75&&progPass>=70) clauses.push(`he's tidy and progressive with the ball, regularly advancing play`);
-    else if(passSucc<=35&&['DM','CM','CB'].includes(p.pos)) clauses.push(`his passing can be an area for improvement`);
-  }
+  // Dribbling & carrying
+  const drib=get('Dribbles + Offensive Duels'),ds=get('Dribble Success'),carries=get('Carries');
+  if(carries!=null&&carries>=90) clauses.push('a direct ball carrier who covers ground with the ball at his feet');
+  else if(drib!=null&&drib>=75&&ds!=null&&ds>=70) clauses.push('strong in the dribble and tends to come out on top when taking on opponents');
+  else if(drib!=null&&drib>=75) clauses.push('willing to take on defenders and carry the ball forward');
 
-  // Dribbling
-  const drib=get('Dribbles + Offensive Duels'),dribSucc=get('Dribble Success');
-  if(drib!=null&&drib>=75) clauses.push(dribSucc>=65?`he wins his duels and is a strong ball carrier`:`he's willing to take on defenders and carry the ball forward`);
-
-  // Defending
-  const defDuels=get('Defensive Duels'),interceptions=get('Interceptions');
-  if(defDuels!=null&&interceptions!=null){
-    if(defDuels>=75&&interceptions>=70&&!['CF','WF'].includes(p.pos)) clauses.push(`he's defensively active and reads the game well`);
-    else if(defDuels<=30&&['CB','DM'].includes(p.pos)) clauses.push(`he's less involved defensively than you might expect for the position`);
+  // Defensive contribution
+  const dd=get('Defensive Duels'),inter=get('Interceptions'),sda=get('Succ. Defensive Actions');
+  if(dd!=null&&inter!=null&&!isAttacking){
+    if(dd>=80&&inter>=75) clauses.push('defensively excellent — active in the press, reads the game well and wins his duels');
+    else if(dd>=65&&inter>=60) clauses.push('solid defensively and contributes consistently to winning the ball back');
+    else if(dd<=25&&isDefending) clauses.push('less involved defensively than you might expect for the position');
   }
 
   // Physical
-  const speed=ph.psv99,dist=ph.distP90,explo=ph.top3timeHSR;
-  if(speed!=null&&dist!=null){
-    if(speed>=80&&dist>=75) clauses.push(`he's quick and covers an enormous amount of ground throughout the game`);
-    else if(speed>=75) clauses.push(`he has genuine pace`);
-    else if(dist>=80) clauses.push(`he covers a lot of ground and works tirelessly`);
-    else if(speed<=25&&['WF','FB'].includes(p.pos)) clauses.push(`pace isn't a major weapon in his game`);
+  const spd=ph.psv99,dist=ph.distP90,exp=ph.top3timeHSR,hsrTip=ph.hsrDistTIP;
+  if(spd!=null&&dist!=null){
+    if(spd>=80&&dist>=80) clauses.push('quick, with the ability to cover enormous ground — a real athletic weapon');
+    else if(spd>=80) clauses.push('genuinely quick');
+    else if(dist>=80&&hsrTip>=70) clauses.push('covers a huge amount of ground in and out of possession, showing real stamina');
+    else if(dist>=75) clauses.push('a tireless worker who covers a lot of ground throughout the game');
+    else if(spd<=25&&['WF','FB'].includes(p.pos)) clauses.push('not someone who offers real pace');
   }
-  if(explo!=null&&explo>=80) clauses.push(`he's explosive in short bursts`);
+  if(exp!=null&&exp>=85) clauses.push('explosive over short distances');
 
   if(!clauses.length) return '';
-  if(clauses.length===1) return clauses[0].charAt(0).toUpperCase()+clauses[0].slice(1)+'.';
-  const last=clauses.pop();
-  return(clauses[0].charAt(0).toUpperCase()+clauses[0].slice(1)+'; '+clauses.slice(1).join(', ')+(clauses.length?', ':'')+last+'.').replace(/^;\s*/,'');
+  const result=[clauses[0].charAt(0).toUpperCase()+clauses[0].slice(1),...clauses.slice(1)].join('. ');
+  return result.endsWith('.')?result:result+'.';
 }
 
 function buildInsight(p,dr,dp,sortedRoles,snap){
   const posConf=POS_CONFIG[p.pos]||{label:p.pos};
   const posLabel=(posConf.label||p.pos).toLowerCase();
-  const {currentDesc,ceilingDesc}=ratingContext(dr,dp,p.leagueTag);
+  const age=p.age||0;
+  const {currentDesc,ceilingDesc}=ratingContext(dr,dp,p.leagueTag,age);
   const minCtx=minutesContext(p.minutes||0,p.leagueTag,p.season);
-  const roleDesc=interpretRoles(sortedRoles,p.pos);
+  const roleDesc=interpretRoles(sortedRoles);
   const metricDesc=interpretMetrics(p,PHYS_PCT_CACHE[p.id]);
 
-  // Potential sentence
   const gap=dp-dr;
-  let potText;
-  if(gap>=10) potText=`He still has a lot of headroom to improve and his ceiling is considerably higher than where he is now — ${ceilingDesc?'he has '+ceilingDesc+'.':'there is plenty of scope to develop.'}`;
-  else if(gap>=5) potText=`${ceilingDesc?'He has '+ceilingDesc+', with room still to grow.':'There\'s still room to grow.'}`;
-  else if(gap>=2) potText=ceilingDesc?`He has ${ceilingDesc}, though he\'s close to reaching it.`:`He's close to his current ceiling.`;
-  else potText=`He appears to be operating at or very close to his ceiling.`;
+  let potText='';
+  if(age<28){
+    if(gap>=10) potText=`He still has a huge amount of headroom to reach a considerably higher ceiling${ceilingDesc?' — he has '+ceilingDesc+', and his best years are very much ahead of him':''}.`;
+    else if(gap>=5) potText=`There is still clear room to grow${ceilingDesc?', and he has '+ceilingDesc:''}. His best years may still be ahead of him.`;
+    else if(gap>=2) potText=ceilingDesc?`He has ${ceilingDesc}, though he's approaching his ceiling now.`:`He's getting close to his ceiling.`;
+    else potText=`He appears to be operating at or very close to his current ceiling.`;
+  }
 
   const s1=`<strong>${p.name}</strong> is ${currentDesc}`;
-  const s1b=roleDesc?`, with a profile built around being <strong>${roleDesc}</strong>. He is ${minCtx}.`
+  const s1b=roleDesc
+    ?`, with a profile built around being ${roleDesc}. He is ${minCtx}.`
     :`. He is ${minCtx}.`;
   const s2=metricDesc?`<br><br>${metricDesc}`:'';
-  const s3=`<br><br>${potText}`;
+  const s3=potText?`<br><br>${potText}`:'';
 
   return s1+s1b+s2+s3;
 }
 
 function round1(v){ return Math.round(v*10)/10; }
+
+// ── Similarity score (0–100, higher = more similar) ───────────────────
+function calcSimilarity(p,x){
+  const pRoles=POS_CONFIG[p.pos]?.roles||[];
+  // Role similarity (0-100)
+  let roleSim=100;
+  if(pRoles.length){
+    let diff=0;
+    pRoles.forEach(r=>{diff+=Math.abs((p.roles&&p.roles[r]||0)-(x.roles&&x.roles[r]||0));});
+    roleSim=Math.max(0,100-(diff/pRoles.length));
+  }
+  // Age similarity (penalise >5yr gap)
+  const ageDiff=Math.abs((p.age||0)-(x.age||0));
+  const ageSim=Math.max(0,100-ageDiff*12);
+  // Technical metric similarity
+  let metSim=0,metCount=0;
+  Object.keys(p.nm||{}).forEach(m=>{
+    const pv=p.nm[m],xv=(x.nm||{})[m];
+    if(typeof pv==='number'&&typeof xv==='number'){metSim+=100-Math.abs(pv-xv);metCount++;}
+  });
+  const techSim=metCount?metSim/metCount:50;
+  // Physical similarity (only if both have physical)
+  const pPhys=PHYS_PCT_CACHE[p.id]||{};
+  const xPhys=PHYS_PCT_CACHE[x.id]||{};
+  const physKeys=Object.keys(pPhys).filter(k=>xPhys[k]!=null);
+  let physSim=50; // neutral if one lacks data
+  if(physKeys.length>=3){
+    physSim=physKeys.reduce((s,k)=>s+(100-Math.abs(pPhys[k]-xPhys[k])),0)/physKeys.length;
+  }
+  // Wyscout position similarity
+  const pWy=(p.wyscoutPositions||p.pos).split(',').map(s=>s.trim());
+  const xWy=(x.wyscoutPositions||x.pos).split(',').map(s=>s.trim());
+  const wyOverlap=pWy.filter(wp=>xWy.includes(wp)).length;
+  const wyUnion=new Set([...pWy,...xWy]).size;
+  const wySim=wyUnion?Math.round(wyOverlap/wyUnion*100):50;
+  // Weighted composite: roles 35%, tech 30%, physical 15%, age 12%, wyPos 8%
+  return Math.round(roleSim*0.35+techSim*0.30+physSim*0.15+ageSim*0.12+wySim*0.08);
+}
 
 function buildFullOverview(p){
   const dr=displayRating(p)??0;
@@ -4654,23 +4697,19 @@ function buildFullOverview(p){
     ?`<img class="fo-badge" src="${badgeUrl}" alt="${p.team}" onerror="this.outerHTML='<div class=fo-badge-init>${teamInitials(p.team)}</div>'"/>`
     :`<div class="fo-badge-init">${teamInitials(p.team)}</div>`;
   const insight=buildInsight(p,dr,dp,sortedRoles,snap);
-
-  // Season selector for similar players
   const allSeasons=[...new Set(ST.players.map(x=>x.season).filter(Boolean))].sort().reverse();
   const activeSeasonsArr=_foSeasons||[p.season];
-  const seasonPillsHtml=`<div style="position:relative;display:inline-block">
-    <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="document.getElementById('foSeasonPicker').style.display=document.getElementById('foSeasonPicker').style.display==='block'?'none':'block'">Seasons ▾</span>
-    <div id="foSeasonPicker" style="display:none;position:absolute;right:0;top:18px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px;z-index:10;min-width:110px;box-shadow:0 4px 16px rgba(0,0,0,.3)">
+  const seasonPicker=`<div style="position:relative;display:inline-block">
+    <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();document.getElementById('foSeasonPicker').style.display=document.getElementById('foSeasonPicker').style.display==='block'?'none':'block'">Seasons ▾</span>
+    <div id="foSeasonPicker" style="display:none;position:absolute;right:0;top:18px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px;z-index:20;min-width:110px;box-shadow:0 4px 16px rgba(0,0,0,.3)">
       ${allSeasons.map(s=>`<label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:10px;white-space:nowrap">
-        <input type="checkbox" ${activeSeasonsArr.includes(s)?'checked':''} onchange="toggleFOSeason('${s}')" style="cursor:pointer"/>
-        ${s}
-      </label>`).join('')}
+        <input type="checkbox" ${activeSeasonsArr.includes(s)?'checked':''} onchange="toggleFOSeason('${s}')"/>
+        ${s}</label>`).join('')}
     </div>
   </div>`;
 
   return`
     <button class="fo-close" onclick="closeFullOverview()">✕ CLOSE</button>
-
     <div class="fo-hero">
       <div style="display:flex;gap:16px;align-items:flex-start">
         ${badgeHtml}
@@ -4685,18 +4724,12 @@ function buildFullOverview(p){
       </div>
       <div style="display:flex;gap:10px">
         ${['Rating','Potential','PT Pri.','League %'].map((lbl,i)=>{
-          const vals=[dr,dp,dt,p.leaguePct];
-          const v=vals[i];
-          return`<div class="fo-score-card">
-            <div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div>
-            <div class="fo-score-lbl">${lbl}</div>
-          </div>`;
+          const vals=[dr,dp,dt,p.leaguePct];const v=vals[i];
+          return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
         }).join('')}
       </div>
     </div>
-
     <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
-
     <div style="display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start">
       <div>
         <div class="fo-section">
@@ -4716,7 +4749,7 @@ function buildFullOverview(p){
         <div class="fo-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div class="fo-section-title" style="margin-bottom:0;border:none">Similar Players</div>
-            ${seasonPillsHtml}
+            ${seasonPicker}
           </div>
           ${buildFOSimilar(p,activeSeasonsArr)}
         </div>
@@ -4730,25 +4763,22 @@ function buildFORoleBar(roles){
   const total=roles.reduce((s,r)=>s+r.v,0)||100;
   const COLORS=['#00d4ff','#f5c842','#00e599','#7b68ee','#ff8c42','#ff4d6a'];
   const filtered=roles.filter(r=>r.v>=1);
-  const barHtml=`<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;width:100%;margin-bottom:12px">
-    ${filtered.map(({r,v},i)=>`<div title="${r}: ${v.toFixed(1)}%" style="width:${(v/total*100).toFixed(2)}%;background:${COLORS[i%COLORS.length]};transition:width .3s"></div>`).join('')}
-  </div>`;
-  const legendHtml=`<div style="display:flex;flex-wrap:wrap;gap:8px 14px">
+  return`<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;width:100%;margin-bottom:12px">
+    ${filtered.map(({r,v},i)=>`<div title="${r}: ${v.toFixed(1)}%" style="width:${(v/total*100).toFixed(2)}%;background:${COLORS[i%COLORS.length]}"></div>`).join('')}
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px 14px">
     ${filtered.map(({r,v},i)=>`<div style="display:flex;align-items:center;gap:5px;font-size:10px">
       <div style="width:9px;height:9px;border-radius:2px;background:${COLORS[i%COLORS.length]};flex-shrink:0"></div>
       <span style="color:var(--muted2)">${r}</span>
       <span style="font-family:'JetBrains Mono',monospace;color:${COLORS[i%COLORS.length]}">${v.toFixed(0)}%</span>
     </div>`).join('')}
   </div>`;
-  return barHtml+legendHtml;
 }
 
 function buildFOMetrics(p){
-  const posConf=POS_CONFIG[p.pos];
-  if(!posConf) return '';
+  const posConf=POS_CONFIG[p.pos];if(!posConf) return '';
   const useAdj=_foMetricView==='padj';
-  const data=useAdj?p.pm:p.nm;
-  if(!data) return '';
+  const data=useAdj?p.pm:p.nm;if(!data) return '';
   const skillMap=METRIC_SKILLS[p.pos]||{};
   const skillMapKey=useAdj?'pm':'nm';
   const metricList=useAdj?posConf.pm:posConf.nm;
@@ -4756,18 +4786,14 @@ function buildFOMetrics(p){
   metricList.forEach(m=>{
     const skill=(skillMap[skillMapKey]&&skillMap[skillMapKey][m])||'Other';
     if(!groups[skill]) groups[skill]=[];
-    const val=data[m];
-    if(val!=null) groups[skill].push({key:m.replace(/^PAdj\s+/i,''),val});
+    const val=data[m];if(val!=null) groups[skill].push({key:m.replace(/^PAdj\s+/i,''),val});
   });
-  const SKILL_COLORS={'Passing':'#7b68ee','Dribbling & Carrying':'#00d4ff','Goal Threat':'#f5c842',
-    'Aerial':'#ff8c42','Defending':'#00e599','Shot Stopping':'#00e599','Claims & Sweeping':'#7b68ee','Distribution':'#f5c842'};
-  const skillOrder=p.pos==='GK'?['Shot Stopping','Claims & Sweeping','Distribution']:
-    ['Passing','Dribbling & Carrying','Goal Threat','Aerial','Defending'];
-  const ordered=skillOrder.filter(s=>groups[s]&&groups[s].length).map(s=>[s,groups[s]]);
-  return`<div style="columns:2;column-gap:20px">${ordered.map(([skill,metrics])=>`
+  const SKILL_COLORS={'Passing':'#7b68ee','Dribbling & Carrying':'#00d4ff','Goal Threat':'#f5c842','Aerial':'#ff8c42','Defending':'#00e599','Shot Stopping':'#00e599','Claims & Sweeping':'#7b68ee','Distribution':'#f5c842'};
+  const skillOrder=p.pos==='GK'?['Shot Stopping','Claims & Sweeping','Distribution']:['Passing','Dribbling & Carrying','Goal Threat','Aerial','Defending'];
+  return`<div style="columns:2;column-gap:20px">${skillOrder.filter(s=>groups[s]?.length).map(s=>`
     <div style="break-inside:avoid;margin-bottom:14px">
-      <div class="fo-section-title" style="color:${SKILL_COLORS[skill]||'var(--accent)'}">${skill}</div>
-      ${metrics.map(({key,val})=>{
+      <div class="fo-section-title" style="color:${SKILL_COLORS[s]||'var(--accent)'}">${s}</div>
+      ${groups[s].map(({key,val})=>{
         const col=val>=80?'#00e599':val>=60?'#7fd97f':val>=40?'#f5c842':val>=20?'#ff8c42':'#ff4d6a';
         return`<div class="fo-mrow"><div class="fo-ml">${key}</div><div class="fo-mt"><div class="fo-mf" style="width:${val}%;background:${col}"></div></div><div class="fo-mv" style="color:${col}">${Math.round(val)}</div></div>`;
       }).join('')}
@@ -4776,16 +4802,14 @@ function buildFOMetrics(p){
 
 function buildFOPhysical(p,snap){
   if(!snap) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No physical data for this season.</div>`;
-  const pctMap={};
-  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
+  const pctMap={};PHYS_METRICS.forEach(({key})=>{pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null;});
   const groups={'Speed':['psv99','top5psv99'],'Explosiveness':['top3timeHSR'],'Distance':['distP90'],'In Possession':['hsrDistTIP','sprintDistTIP'],'Out of Possession':['hsrDistOTIP','sprintDistOTIP']};
-  const PHYS_SKILL_COLORS={'Speed':'#00d4ff','Explosiveness':'#f5c842','Distance':'#00e599','In Possession':'#cc7040','Out of Possession':'#7060a8'};
+  const PCOLS={'Speed':'#00d4ff','Explosiveness':'#f5c842','Distance':'#00e599','In Possession':'#cc7040','Out of Possession':'#7060a8'};
   return`<div style="columns:2;column-gap:20px">${Object.entries(groups).map(([grp,keys])=>`
     <div style="break-inside:avoid;margin-bottom:14px">
-      <div class="fo-section-title" style="color:${PHYS_SKILL_COLORS[grp]||'var(--accent)'}">${grp}</div>
+      <div class="fo-section-title" style="color:${PCOLS[grp]||'var(--accent)'}">${grp}</div>
       ${keys.map(key=>{
-        const m=PHYS_METRICS.find(x=>x.key===key);
-        const pct=pctMap[key];
+        const m=PHYS_METRICS.find(x=>x.key===key),pct=pctMap[key];
         const col=pct==null?'var(--muted)':pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
         return`<div class="fo-mrow"><div class="fo-ml">${m?m.label:key}</div><div class="fo-mt"><div class="fo-mf" style="width:${pct??0}%;background:${col}"></div></div><div class="fo-mv" style="color:${col}">${pct!=null?pct:'—'}</div></div>`;
       }).join('')}
@@ -4793,22 +4817,16 @@ function buildFOPhysical(p,snap){
 }
 
 function buildFOClubRank(p){
-  const teammates=ST.players.filter(x=>x.team===p.team&&x.season===p.season&&x.pos!=='GK')
-    .sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
-  const idx=teammates.findIndex(x=>x.id===p.id);
-  const rank=idx+1;
+  const teammates=ST.players.filter(x=>x.team===p.team&&x.season===p.season&&x.pos!=='GK').sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+  const idx=teammates.findIndex(x=>x.id===p.id),rank=idx+1;
   const start=Math.max(0,idx-3),end=Math.min(teammates.length,idx+4);
-  return`<div class="fo-rank-card">
-    <div class="fo-rank-title">#${rank} of ${teammates.length} outfield</div>
+  return`<div class="fo-rank-card"><div class="fo-rank-title">#${rank} of ${teammates.length} outfield</div>
     ${teammates.slice(start,end).map((x,i)=>{
-      const xdr=displayRating(x)??0;
-      const isCurrent=x.id===p.id;
+      const xdr=displayRating(x)??0,isCurrent=x.id===p.id;
       const col=xdr>=80?'#00e599':xdr>=70?'#7fd97f':xdr>=60?'#f5c842':'#ff8c42';
       return`<div class="fo-rank-row" style="${isCurrent?'background:var(--accent-dim);border-radius:4px;padding:2px 4px;margin:2px -4px':''}">
         <div class="fo-rank-num" style="${isCurrent?'color:var(--accent)':''}">${start+i+1}</div>
-        <div class="fo-rank-name" style="${isCurrent?'color:var(--accent);font-weight:700':''}">
-          <span class="pos-tag" style="font-size:7px;margin-right:3px">${x.pos}</span>${x.name.split(' ').pop()}
-        </div>
+        <div class="fo-rank-name" style="${isCurrent?'color:var(--accent);font-weight:700':''}"><span class="pos-tag" style="font-size:7px;margin-right:3px">${x.pos}</span>${x.name.split(' ').pop()}</div>
         <div class="fo-rank-val" style="color:${col}">${xdr.toFixed(1)}</div>
       </div>`;
     }).join('')}
@@ -4817,40 +4835,21 @@ function buildFOClubRank(p){
 
 function buildFOSimilar(p,seasons){
   const dr=displayRating(p)??0;
-  const pRoles=POS_CONFIG[p.pos]?.roles||[];
+  // Hard filter: same primary pos, within ±6 rating points
   const candidates=ST.players.filter(x=>
-    x.id!==p.id&&x.pos===p.pos&&seasons.includes(x.season)
+    x.id!==p.id&&x.pos===p.pos&&seasons.includes(x.season)&&Math.abs((displayRating(x)??0)-dr)<=6
   );
-  const scored=candidates.map(x=>{
+  if(!candidates.length) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No similar players found in the selected seasons.</div>`;
+  const scored=candidates.map(x=>({x,sim:calcSimilarity(p,x)})).sort((a,b)=>b.sim-a.sim).slice(0,5);
+  return scored.map(({x,sim})=>{
     const xdr=displayRating(x)??0;
-    const ratingDiff=Math.abs(xdr-dr);
-    const ageDiff=Math.abs((x.age||0)-(p.age||0));
-    let roleSim=0;
-    if(pRoles.length){
-      pRoles.forEach(r=>{const pv=(p.roles&&p.roles[r])||0,xv=(x.roles&&x.roles[r])||0;roleSim+=100-Math.abs(pv-xv);});
-      roleSim/=pRoles.length;
-    }
-    let metSim=0,metCount=0;
-    Object.keys(p.nm||{}).forEach(m=>{
-      const pv=p.nm[m],xv=(x.nm||{})[m];
-      if(typeof pv==='number'&&typeof xv==='number'){metSim+=100-Math.abs(pv-xv);metCount++;}
-    });
-    if(metCount) metSim/=metCount;
-    const score=(ratingDiff*0.4)+(ageDiff*2*0.2)+((100-roleSim)*0.25)+((100-metSim)*0.15);
-    return{x,score,xdr};
-  }).sort((a,b)=>a.score-b.score).slice(0,5);
-  if(!scored.length) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No similar players found.</div>`;
-  return scored.map(({x,xdr})=>{
     const col=xdr>=80?'#00e599':xdr>=70?'#7fd97f':xdr>=60?'#f5c842':'#ff8c42';
-    const diff=Math.round((xdr-dr)*10)/10;
-    const diffStr=(diff>0?'+':'')+diff.toFixed(1);
-    const diffCol=diff>0?'var(--green)':diff<0?'var(--red)':'var(--muted)';
+    const simCol=sim>=80?'#00e599':sim>=65?'#7fd97f':sim>=50?'#f5c842':'#ff8c42';
     const xBadge=BADGE_MAP[x.team];
     const xBadgeHtml=xBadge&&xBadge!=='none'&&xBadge!=='loading'
       ?`<img style="width:18px;height:18px;border-radius:3px;object-fit:contain;flex-shrink:0" src="${xBadge}" onerror="this.style.display='none'"/>`
       :`<div style="width:18px;height:18px;border-radius:3px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--muted2)">${teamInitials(x.team)}</div>`;
-    // Wyscout positions
-    const posTags=(x.wyscoutPositions||x.pos).split(',').slice(0,2).map(pp=>`<span class="pos-tag" style="font-size:7px">${pp.trim()}</span>`).join(' ');
+    const posTags=(x.wyscoutPositions||x.pos).split(',').slice(0,3).map(pp=>`<span class="pos-tag" style="font-size:7px">${pp.trim()}</span>`).join(' ');
     return`<div class="fo-rank-card" style="cursor:pointer;margin-bottom:8px" onclick="closeFullOverview();openPanel('${x.id}')">
       <div style="display:flex;align-items:center;gap:8px">
         ${xBadgeHtml}
@@ -4861,7 +4860,7 @@ function buildFOSimilar(p,seasons){
         </div>
         <div style="text-align:right;flex-shrink:0">
           <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${col}">${xdr.toFixed(1)}</div>
-          <div style="font-size:9px;color:${diffCol};font-family:'JetBrains Mono',monospace">${diffStr}</div>
+          <div style="font-size:9px;color:${simCol};font-family:'JetBrains Mono',monospace">${sim}% match</div>
         </div>
       </div>
     </div>`;
