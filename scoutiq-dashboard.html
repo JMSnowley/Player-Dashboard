@@ -1242,8 +1242,10 @@ function queueGitHubSave(fn){
 async function saveToGitHub(){
   if(!GH.token){ showToast('Enter your GitHub token in Setup to save','error'); return; }
   setSyncStatus('saving');
-  // Ratings in memory are always clean (no bonus baked in) — save directly
-  const payload=JSON.stringify({players:ST.players,savedAt:new Date().toISOString()});
+  // Strip _metricBonus before saving — it's recalculated fresh on every load
+  // and thresholds shift as the player pool changes, so storing it causes stale display values
+  const savePlayers=ST.players.map(({_metricBonus,...rest})=>rest);
+  const payload=JSON.stringify({players:savePlayers,savedAt:new Date().toISOString()});
   const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
   const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
 
