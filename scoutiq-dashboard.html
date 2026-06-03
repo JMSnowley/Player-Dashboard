@@ -1110,8 +1110,7 @@ const PHYS_MF_POSITIONS=['DM','CM','AM'];
 const PHYS_EXCLUDED=['GK'];
 
 
-loadBadgeMap(); // load badge map in background
-async function loadFromGitHub(){
+async function loadFromGitHub(skipCacheBuild=false){
   try{
     setSyncStatus('loading');
     const resp = await fetch(GH.rawUrl + '?cb=' + Date.now());
@@ -1206,10 +1205,12 @@ async function loadFromGitHub(){
       ST.players.forEach(p=>{ if(p.ptPriority!=null&&p.ptPriority<0) p.ptPriority=0; migrated=true; });
       // Clear any stale _metricBonus — will be recalculated fresh by computeMetricBonuses
       ST.players.forEach(p=>{ delete p._metricBonus; });
-      // Metric bonuses first, then league %ile (so %ile reflects fully adjusted ratings)
-      computeMetricBonuses();
-      computeAllLeaguePct();
-      buildPhysPercentileCache();
+      if(!skipCacheBuild){
+        // Metric bonuses first, then league %ile (so %ile reflects fully adjusted ratings)
+        buildPhysPercentileCache();
+        computeMetricBonuses();
+        computeAllLeaguePct();
+      }
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
@@ -1943,7 +1944,12 @@ function initials(n){return(n||'?').split(' ').map(p=>p[0]).join('').slice(0,2).
 function fmt(v,d=1){if(v==null||v===''||isNaN(v))return'—';return parseFloat(v).toFixed(d);}
 function fmtDate(iso){if(!iso)return'?';try{return new Date(iso).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return'?';}}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-function leagueFlag(tag){const c=(tag||'').split(' ')[0];return COUNTRY_FLAGS[c]||'🌍';}
+function leagueFlag(tag){
+  if(!tag) return '🌍';
+  // Strip trailing number/tier (e.g. "Saudi Arabia 1" → "Saudi Arabia")
+  const country=(tag||'').replace(/\s+\d+$/, '').trim();
+  return COUNTRY_FLAGS[country]||COUNTRY_FLAGS[country.split(' ')[0]]||'🌍';
+}
 
 // ═══════════════════════════════════
 // RENDER
@@ -2000,6 +2006,11 @@ function getFiltered(){
     if(sk==='rating')return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
     if(sk==='potential')return ST.sortDir*((displayPotential(b)??-Infinity)-(displayPotential(a)??-Infinity));
     if(sk==='ptPriority')return ST.sortDir*((displayPTP(b)??-Infinity)-(displayPTP(a)??-Infinity));
+    if(sk==='leaguePct'){
+      const diff=(b.leaguePct??-Infinity)-(a.leaguePct??-Infinity);
+      if(diff!==0) return ST.sortDir*diff;
+      return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
+    }
     if(NUMERIC_FIELDS.has(sk)){
       const av=parseFloat(a[sk]??-Infinity), bv=parseFloat(b[sk]??-Infinity);
       return ST.sortDir*(bv-av);
@@ -3193,9 +3204,9 @@ function computeAndApplyPhysical(){
       p.hasPhysical=PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
   });
 
+  buildPhysPercentileCache();
   computeMetricBonuses();
   computeAllLeaguePct();
-  buildPhysPercentileCache();
   saveState();renderAll();
   return applied;
 }
@@ -4096,9 +4107,9 @@ async function unmatchPhysical(playerId,snapId){
   snap.physicalAdj=null;
   snap.applied=false;
   snap.physicalScore=null;
+  buildPhysPercentileCache();
   computeMetricBonuses();
   computeAllLeaguePct();
-  buildPhysPercentileCache();
   saveState(); renderPanel();
   showToast('Physical data unlinked','success');
   queueGitHubSave(saveData);
@@ -4151,11 +4162,15 @@ function scheduleBadgeMapSave(){
 
 // Normalise a club name for fuzzy comparison
 function normClub(s){
-  return(s||'').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // strip accents
-    .replace(/\b(fc|cf|afc|sc|ac|as|bsc|vfb|rb|rc|rcd|fk|sk|if|bk|vfl|tsv|hsv|svs|sv|nk|hk|fcs|ssc|us|ud|ca|cd|sd|ce|real|atletico|athletic|sporting|deportivo|club|football|soccer|united|city|town|rovers|wanderers|albion|county|hotspur|villa|palace)\b/g,'')
-    .replace(/[^a-z0-9 ]/g,' ')
-    .replace(/\s+/g,' ').trim();
+  if(!s) return '';
+  // Manual character replacements before NFD (handles ø, ð, þ etc. that NFD doesn't strip cleanly)
+  s=s.toLowerCase()
+    .replace(/ø/g,'o').replace(/ð/g,'d').replace(/þ/g,'th')
+    .replace(/ß/g,'ss').replace(/æ/g,'ae').replace(/œ/g,'oe');
+  s=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  s=s.replace(/\b(fc|cf|afc|sc|ac|as|bsc|vfb|rb|rc|rcd|fk|sk|if|bk|vfl|tsv|hsv|svs|sv|nk|hk|fcs|ssc|us|ud|ca|cd|sd|ce|real|atletico|athletic|sporting|deportivo|club|football|soccer|united|city|town|rovers|wanderers|albion|county|hotspur|villa|palace)\b/g,'');
+  s=s.replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  return s;
 }
 
 // Score how well a TheSportsDB team matches our club name (higher = better)
@@ -4191,6 +4206,8 @@ function searchVariants(team){
   if(noAccent!==team) variants.push(noAccent);
   // Common manual mappings
   const OVERRIDES={
+    'Porto':'FC Porto',  // TheSportsDB has them as "FC Porto" not "Porto"
+    'FC Porto':'FC Porto',
     'PSG':'Paris Saint-Germain','Man City':'Manchester City','Man Utd':'Manchester United',
     'Spurs':'Tottenham Hotspur','Wolves':'Wolverhampton Wanderers','Leeds United':'Leeds',
     'Nottm Forest':'Nottingham Forest',
@@ -4209,8 +4226,11 @@ function searchVariants(team){
 }
 
 // Fetch badge for a team from TheSportsDB, cache result
-async function fetchBadge(team){
-  if(BADGE_MAP[team]!==undefined) return BADGE_MAP[team];
+// retryNone=true allows re-fetching entries previously marked 'none'
+async function fetchBadge(team, retryNone=false){
+  const cached=BADGE_MAP[team];
+  if(cached!==undefined && cached!=='loading' && !(retryNone && cached==='none')) return cached;
+  if(BADGE_MAP[team]==='loading') return 'loading';
   BADGE_MAP[team]='loading';
   try{
     const variants=searchVariants(team);
@@ -4218,19 +4238,33 @@ async function fetchBadge(team){
     for(const variant of variants){
       const q=encodeURIComponent(variant);
       const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${q}`);
+      if(!r.ok) continue;
       const data=await r.json();
       const teams=data.teams||[];
       for(const t of teams){
         const score=matchScore(t,team);
         if(score>bestScore){ bestScore=score; bestMatch=t; }
       }
-      if(bestScore>=50) break; // good enough, stop trying variants
+      if(bestScore>=50) break;
     }
     const url=bestScore>=10?bestMatch?.strBadge:null;
     BADGE_MAP[team]=url?url+'/preview':'none';
     if(url){ _badgeMapDirty=true; scheduleBadgeMapSave(); }
   }catch(e){ BADGE_MAP[team]='none'; }
   return BADGE_MAP[team];
+}
+
+// Prefetch badges for all teams in background after load
+async function prefetchAllBadges(){
+  const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
+  const missing=teams.filter(t=>BADGE_MAP[t]===undefined);
+  const BATCH=5; // concurrent requests
+  for(let i=0;i<missing.length;i+=BATCH){
+    await Promise.allSettled(missing.slice(i,i+BATCH).map(t=>fetchBadge(t)));
+    await new Promise(r=>setTimeout(r,300)); // rate limit: 5 req per 300ms
+  }
+  // Re-render table to show newly loaded badges
+  if(missing.length>0) renderAll();
 }
 
 // Generate initials from team name
@@ -4384,17 +4418,30 @@ function showToast(msg,type='info'){
 // ═══════════════════════════════════
 // INIT
 // ═══════════════════════════════════
+// ═══════════════════════════════════
+// INIT
+// ═══════════════════════════════════
 loadState();
-ST.sortKey='name';
-ST.sortDir=1;
+ST.sortKey='rating';
+ST.sortDir=-1;
 applyStoredTheme();
-// Don't auto-load Google scripts — only load when user explicitly clicks Connect
 initSliders();
 renderAll();
 if(!ST.players.length)document.getElementById('emptyState').style.display='flex';
-// Auto-load from GitHub on startup — open CORS, works on all devices without auth
-loadFromGitHub();
-loadPhysicalDB();
+// Load both DBs, then build caches once both are ready
+(async()=>{
+  await Promise.all([loadFromGitHub(true), loadPhysicalDB()]);
+  // Now both ST.players and PHYS.snapshots are populated — build caches together
+  buildPhysPercentileCache();
+  computeMetricBonuses();
+  computeAllLeaguePct();
+  ST.sortKey='rating';
+  ST.sortDir=-1;
+  renderAll();
+  await loadBadgeMap();
+  // Prefetch badges for all teams in background
+  prefetchAllBadges();
+})();
 </script>
 </body>
 </html> 
