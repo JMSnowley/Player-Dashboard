@@ -4143,10 +4143,16 @@ async function loadBadgeMap(){
 
 // Save badge_map.json back to repo (editor only, debounced)
 let _badgeSaveTimer=null;
+let _badgeSaveCount=0;
 function scheduleBadgeMapSave(){
   if(!GH.token||!_badgeMapDirty) return;
+  _badgeSaveCount++;
+  // Save immediately after every 20 new badges found, or after 5s of inactivity
   clearTimeout(_badgeSaveTimer);
-  _badgeSaveTimer=setTimeout(async()=>{
+  if(_badgeSaveCount>=20){ _badgeSaveCount=0; _doSaveBadgeMap(); return; }
+  _badgeSaveTimer=setTimeout(()=>{ _badgeSaveCount=0; _doSaveBadgeMap(); }, 5000);
+}
+async function _doSaveBadgeMap(){
     try{
       const payload=JSON.stringify(BADGE_MAP,null,2);
       const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
@@ -4164,7 +4170,6 @@ function scheduleBadgeMapSave(){
       await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:newCommitSha})});
       _badgeMapDirty=false;
     }catch(e){ console.warn('Badge map save failed',e); }
-  }, 10000); // save after 10s of no new badge discoveries
 }
 
 // Normalise a club name for fuzzy comparison
@@ -4283,18 +4288,58 @@ async function fetchBadge(team, retryNone=false){
   return BADGE_MAP[team];
 }
 
-// Prefetch badges for all teams in background after load
+// Prefetch badges using TheSportsDB league bulk lookups + per-team fallback
+// League bulk lookup gets all teams in a league with ONE request
 async function prefetchAllBadges(){
   const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
-  // Retry 'none' entries too — they may have failed due to network or bad matching
+
+  // Step 1: Bulk fetch by league (much more efficient — 1 req per league vs 1 per team)
+  const LEAGUE_IDS={
+    'England 1':'4328','England 2':'4329','England 3':'4330','England 4':'4331',
+    'Spain 1':'4335','Italy 1':'4332','Germany 1':'4331','France 1':'4334',
+    'Scotland 1':'4480','Netherlands 1':'4337','Portugal 1':'4344',
+    'Belgium 1':'4396','Turkey 1':'4481','Greece 1':'4482',
+  };
+  const leagueTags=[...new Set(ST.players.map(p=>p.leagueTag).filter(Boolean))];
+  for(const tag of leagueTags){
+    const lid=LEAGUE_IDS[tag];
+    if(!lid) continue;
+    try{
+      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/lookup_all_teams.php?id=${lid}`);
+      if(!r.ok) continue;
+      const data=await r.json();
+      const sdbTeams=data.teams||[];
+      // Match each returned team against our team names
+      for(const sdbTeam of sdbTeams){
+        if(!sdbTeam.strBadge) continue;
+        // Find best matching team in our db
+        let bestTeam=null, bestScore=-999;
+        for(const ourTeam of teams){
+          if(BADGE_MAP[ourTeam]&&BADGE_MAP[ourTeam]!=='none') continue; // already found
+          const score=matchScore(sdbTeam, ourTeam);
+          if(score>bestScore){ bestScore=score; bestTeam=ourTeam; }
+        }
+        if(bestTeam&&bestScore>=20){
+          BADGE_MAP[bestTeam]=sdbTeam.strBadge+'/preview';
+          _badgeMapDirty=true;
+        }
+      }
+      await new Promise(r=>setTimeout(r,1000)); // 1 sec between league requests
+    }catch(e){ /* ignore */ }
+  }
+
+  // Step 2: Per-team fallback for anything still missing, at a slow rate
   const missing=teams.filter(t=>BADGE_MAP[t]===undefined||BADGE_MAP[t]==='none');
-  const BATCH=5; // concurrent requests
+  const BATCH=2; // only 2 concurrent
   for(let i=0;i<missing.length;i+=BATCH){
     await Promise.allSettled(missing.slice(i,i+BATCH).map(t=>fetchBadge(t,true)));
-    await new Promise(r=>setTimeout(r,300)); // rate limit: 5 req per 300ms
+    await new Promise(r=>setTimeout(r,1500)); // 1.5 sec between batches = ~1.3 req/sec
   }
-  // Re-render table to show newly loaded badges
-  if(missing.length>0) renderAll();
+
+  if(_badgeMapDirty){
+    scheduleBadgeMapSave();
+    renderAll();
+  }
 }
 
 // Generate initials from team name
