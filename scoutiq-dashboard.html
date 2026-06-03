@@ -4869,82 +4869,108 @@ function buildFOSwarms(p){
   const posConf=POS_CONFIG[p.pos];
   if(!posConf) return '';
 
-  // Position group — DM/CM/AM share one pool
   const MF_GROUP=['DM','CM','AM'];
   const poolPos=MF_GROUP.includes(p.pos)?MF_GROUP:[p.pos];
 
-  // Get all peers: same league, same season, same position group, min 300 mins
   const peers=ST.players.filter(x=>
     x.leagueTag===p.leagueTag&&x.season===p.season&&
     poolPos.includes(x.pos)&&(x.minutes||0)>=300&&x.nm
   );
-
   if(peers.length<4) return '';
 
-  // Build skill score for each player: average of their nm metrics in that skill
-  function skillScore(player,skill){
+  function nmSkillScore(player,skill){
     const nm=player.nm||{};
+    const posSkillMap=(METRIC_SKILLS[player.pos]||{}).nm||{};
     const vals=[];
-    Object.entries(skillMap).forEach(([metric,s])=>{
-      if(s===skill&&nm[metric]!=null) vals.push(nm[metric]);
-    });
-    // Also check the player's own pos skill map if pooling
-    if(MF_GROUP.includes(p.pos)&&player.pos!==p.pos){
-      const altMap=(METRIC_SKILLS[player.pos]||{}).nm||{};
-      Object.entries(altMap).forEach(([metric,s])=>{
-        if(s===skill&&nm[metric]!=null&&!vals.includes(nm[metric])) vals.push(nm[metric]);
-      });
+    Object.entries(posSkillMap).forEach(([metric,s])=>{ if(s===skill&&nm[metric]!=null) vals.push(nm[metric]); });
+    // Also use the focal player's skill map when pooling MF
+    if(player.pos!==p.pos){
+      Object.entries(skillMap).forEach(([metric,s])=>{ if(s===skill&&nm[metric]!=null&&!vals.length) vals.push(nm[metric]); });
     }
     return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
   }
 
-  const rows=skillOrder.map(skill=>{
-    const scores=peers.map(x=>({id:x.id,score:skillScore(x,skill)}))
-      .filter(x=>x.score!=null)
-      .sort((a,b)=>a.score-b.score);
-    if(scores.length<3) return null;
-    const playerScore=skillScore(p,skill);
-    if(playerScore==null) return null;
-    const min=scores[0].score, max=scores[scores.length-1].score;
-    const range=max-min||1;
-    const color=(SKILL_COLORS[skill]||{color:'#8a9bb0'}).color;
-    // Find name of top and bottom performers
-    const topP=peers.find(x=>x.id===scores[scores.length-1].id);
-    const botP=peers.find(x=>x.id===scores[0].id);
-    const topName=topP?topP.name.split(' ').pop():'—';
-    const botName=botP?botP.name.split(' ').pop():'—';
-    const topScore=scores[scores.length-1].score;
-    const botScore=scores[0].score;
+  function physSkillScore(player){
+    const pct=PHYS_PCT_CACHE[player.id];
+    if(!pct) return null;
+    const vals=Object.values(pct).filter(v=>v!=null);
+    return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  }
 
-    // Build dots HTML — vertical jitter using deterministic hash of player id
-    const dotsHtml=scores.map(s=>{
+  // Build skill list including Physical
+  const skillsToShow=[...skillOrder,'Physical'];
+  const PHYS_COLOR='#a78bfa';
+
+  const swarmCols=skillsToShow.map(skill=>{
+    const isPhys=skill==='Physical';
+    const raw=peers.map(x=>({id:x.id,score:isPhys?physSkillScore(x):nmSkillScore(x,skill)}))
+      .filter(x=>x.score!=null);
+    if(raw.length<3) return null;
+    const playerRaw=isPhys?physSkillScore(p):nmSkillScore(p,skill);
+
+    // Rescale all scores to 0-100
+    const rawScores=raw.map(x=>x.score);
+    const mn=Math.min(...rawScores), mx=Math.max(...rawScores);
+    const range=mx-mn||1;
+    const rescale=v=>Math.round(((v-mn)/range)*100);
+
+    const scaled=raw.map(x=>({id:x.id,score:rescale(x.score)}));
+    const playerScaled=playerRaw!=null?rescale(playerRaw):null;
+
+    const color=isPhys?PHYS_COLOR:(SKILL_COLORS[skill]||{color:'#8a9bb0'}).color;
+
+    // Build dots — vertical swarm: score maps to Y (100=top, 0=bottom)
+    // Horizontal jitter: deterministic per player id
+    const DOT_W=6; // px, smaller grey dots
+    const COL_W=52; // px total column width
+    const TOP_PAD=10, BOT_PAD=10;
+    const CHART_H=120; // px inner height
+    const dotsHtml=scaled.map(s=>{
       const isMe=s.id===p.id;
-      const pct=((s.score-min)/range)*92+4; // 4%–96% to keep dots inset
-      // Deterministic jitter 0–100% of 18px row height
-      const jitter=(parseInt(s.id?.slice(-4)||'0',16)%7)*2; // 0-12px offset
-      const top=7+jitter; // 7–19px within 28px height
-      if(isMe) return `<div class="swarm-dot" style="left:${pct.toFixed(1)}%;top:${top}px;width:8px;height:8px;background:#00d4ff;box-shadow:0 0 6px #00d4ff88;z-index:2;border:1.5px solid rgba(255,255,255,0.5)"></div>`;
-      return `<div class="swarm-dot" style="left:${pct.toFixed(1)}%;top:${top}px;width:5px;height:5px;background:${color};opacity:0.35"></div>`;
+      const yPct=1-(s.score/100); // 0=top, 1=bottom
+      const y=TOP_PAD+yPct*CHART_H;
+      // horizontal jitter within column — deterministic
+      const hash=s.id?s.id.split('').reduce((h,c)=>((h<<5)+h)+c.charCodeAt(0)|0,5381)&0x7fffffff:0;
+      const jitter=((hash%20)-10); // -10 to +10 px
+      const x=COL_W/2+jitter;
+      if(isMe&&playerScaled!=null)return''; // rendered separately on top
+      return`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${color}" opacity="0.35"/>`;
     }).join('');
 
-    const playerPct=((playerScore-min)/range)*92+4;
-    return`<div class="swarm-row">
-      <div class="swarm-skill-name" style="color:${color}">
-        <span>${skill}</span>
-        <span style="color:var(--muted);font-size:8px">${scores.length} players · you: ${playerScore.toFixed(0)}</span>
-      </div>
-      <div class="swarm-canvas">${dotsHtml}</div>
-      <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace;margin-top:2px">
-        <span title="${botName}: ${botScore.toFixed(0)}">◀ ${botName} (${botScore.toFixed(0)})</span>
-        <span title="${topName}: ${topScore.toFixed(0)}">${topName} (${topScore.toFixed(0)}) ▶</span>
-      </div>
+    // Player dot
+    let playerDot='';
+    if(playerScaled!=null){
+      const yPct=1-(playerScaled/100);
+      const y=TOP_PAD+yPct*CHART_H;
+      playerDot=`<circle cx="${(COL_W/2).toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#00d4ff" opacity="1" filter="url(#glow)"/>`;
+    }
+
+    const TOTAL_H=CHART_H+TOP_PAD+BOT_PAD;
+    const skillLabel=skill==='Dribbling & Carrying'?'Dribbling':skill==='Goal Threat'?'Goal Threat':skill==='Claims & Sweeping'?'Claims':skill==='Shot Stopping'?'Stopping':skill==='Distribution'?'Distribution':skill;
+
+    return`<div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <svg width="${COL_W}" height="${TOTAL_H}" viewBox="0 0 ${COL_W} ${TOTAL_H}" style="overflow:visible">
+        <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter></defs>
+        ${dotsHtml}
+        ${playerDot}
+      </svg>
+      <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:${color};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1.2;max-width:${COL_W+4}px;word-break:break-word">${skillLabel}</div>
+      ${playerScaled!=null?`<div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:#00d4ff;font-weight:700">${playerScaled}</div>`:`<div style="font-size:9px;color:var(--muted)">—</div>`}
     </div>`;
   }).filter(Boolean).join('');
 
-  if(!rows) return '';
+  if(!swarmCols) return '';
   return`<div class="fo-section">
-    <div class="fo-section-title">Skills — ${p.leagueTag} ${p.season} · ${poolPos.join('/')} (${peers.length} players)</div>
-    ${rows}
+    <div class="fo-section-title">Skills — ${p.leagueTag} ${p.season} · ${poolPos.join('/')} pool (${peers.length} players)</div>
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:4px 0 8px">
+      ${swarmCols}
+    </div>
+    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:4px">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#00d4ff;vertical-align:middle;margin-right:4px"></span>You &nbsp;·&nbsp; Scores rescaled 0–100 within position pool · 300+ min players only
+    </div>
   </div>`;
 }
 
