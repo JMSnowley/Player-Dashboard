@@ -4593,61 +4593,113 @@ function interpretMetrics(p,pctCache){
   const nm=p.nm||{};
   const ph=pctCache||{};
   const get=k=>nm[k];
-  const clauses=[];
-  const isAttacking=['CF','WF','AM'].includes(p.pos);
-  const isDefending=['CB','DM'].includes(p.pos);
+  const hi=k=>get(k)!=null&&get(k)>=75;
+  const lo=k=>get(k)!=null&&get(k)<=30;
+  const mid=k=>get(k)!=null&&get(k)>=55;
+  const isAtt=['CF','WF','AM'].includes(p.pos);
+  const isDef=['CB','FB','DM'].includes(p.pos);
   const isMid=['CM','DM','AM'].includes(p.pos);
+  const isWide=['WF','FB'].includes(p.pos);
+  const isCB=p.pos==='CB';
+  const isFB=p.pos==='FB';
+  const isGK=p.pos==='GK';
+  const clauses=[];
 
-  // Passing strength/weakness
-  const ps=get('Pass Success'),pp=get('Succ. Progressive Passes'),tb=get('Succ. Through Balls');
-  const passingMetrics=[ps,pp,tb].filter(v=>v!=null);
-  const passingAvg=passingMetrics.length?passingMetrics.reduce((a,b)=>a+b,0)/passingMetrics.length:null;
-  if(passingAvg!=null){
-    if(passingAvg>=75) clauses.push('technically strong in possession, passing with good accuracy and regularly progressing the ball');
-    else if(passingAvg>=60&&pp>=70) clauses.push('a capable ball progressor who moves the ball forward effectively');
-    else if(ps!=null&&ps<=35&&(isDefending||isMid)) clauses.push('someone who can be loose with the ball at times');
+  // ── Passing ────────────────────────────────────────────────────────
+  const ps=get('Pass Success'),pp=get('Succ. Progressive Passes'),xa=get('xA'),sa=get('Shot Assists'),tb=get('Succ. Through Balls');
+  const passMets=[ps,pp].filter(v=>v!=null);
+  const passAvg=passMets.length?passMets.reduce((a,b)=>a+b,0)/passMets.length:null;
+  if(passAvg!=null){
+    if(passAvg>=80&&hi('Succ. Progressive Passes')) clauses.push('technically assured in possession — his passing is accurate and he consistently moves the ball forward into dangerous areas');
+    else if(passAvg>=70) clauses.push('comfortable on the ball and reliable in his distribution');
+    else if(passAvg<40&&isDef) clauses.push('can be loose with his passing, which will need to improve at the next level');
   }
-
-  // Goal threat
-  const xg=get('xG'),shots=get('Shots'),tib=get('Touches in Box');
-  if(xg!=null&&shots!=null){
-    if(xg>=80&&shots>=75) clauses.push('a serious goal threat who gets into dangerous positions and finishes well');
-    else if(xg>=65&&tib>=65) clauses.push('gets himself into the box regularly and contributes to the goal threat');
-    else if(xg<=25&&shots<=30&&isAttacking) clauses.push('not a player who contributes heavily in front of goal');
-  }
-
+  // Through balls & creativity
+  if(hi('Succ. Through Balls')&&xa!=null&&xa>=65) clauses.push('has an eye for the killer pass and can unlock defences with incisive through balls');
   // Chance creation
-  const xa=get('xA'),sa=get('Shot Assists');
-  if(xa!=null&&xa>=75&&sa!=null&&sa>=70) clauses.push('a real creator who regularly sets up goalscoring chances');
+  if(xa!=null&&sa!=null){
+    if(xa>=80&&sa>=75) clauses.push('a genuinely elite chance creator who regularly puts teammates into goalscoring positions');
+    else if(xa>=65&&sa>=60) clauses.push('creative in the final third and a consistent source of assists');
+  }
+  // Box delivery (crosses)
+  const cross=get('Succ. Passes to Box');
+  if(cross!=null&&cross>=75&&isWide) clauses.push('an effective deliverer of the ball into the box from wide areas');
 
-  // Dribbling & carrying
-  const drib=get('Dribbles + Offensive Duels'),ds=get('Dribble Success'),carries=get('Carries');
-  if(carries!=null&&carries>=90) clauses.push('a direct ball carrier who covers ground with the ball at his feet');
-  else if(drib!=null&&drib>=75&&ds!=null&&ds>=70) clauses.push('strong in the dribble and tends to come out on top when taking on opponents');
-  else if(drib!=null&&drib>=75) clauses.push('willing to take on defenders and carry the ball forward');
-
-  // Defensive contribution
-  const dd=get('Defensive Duels'),inter=get('Interceptions'),sda=get('Succ. Defensive Actions');
-  if(dd!=null&&inter!=null&&!isAttacking){
-    if(dd>=80&&inter>=75) clauses.push('defensively excellent — active in the press, reads the game well and wins his duels');
-    else if(dd>=65&&inter>=60) clauses.push('solid defensively and contributes consistently to winning the ball back');
-    else if(dd<=25&&isDefending) clauses.push('less involved defensively than you might expect for the position');
+  // ── Goal threat ────────────────────────────────────────────────────
+  const xg=get('xG'),shots=get('Shots'),tib=get('Touches in Box'),shotAcc=get('Shots on Target');
+  if(xg!=null&&shots!=null){
+    if(xg>=85&&shots>=80) clauses.push('a constant goal threat — he gets into the right areas, shoots often and finishes at a high level');
+    else if(xg>=70&&hi('Shots')) clauses.push('a real danger in front of goal with the movement and end product to score regularly');
+    else if(xg>=65&&tib!=null&&tib>=65) clauses.push('gets himself into the box regularly and creates genuine goal threat');
+    else if(hi('Shots')&&shotAcc!=null&&shotAcc>=70) clauses.push('shoots frequently and finds the target at a good rate');
+    else if(lo('xG')&&lo('Shots')&&isAtt) clauses.push('not particularly prolific in front of goal, with his contribution lying elsewhere');
   }
 
-  // Physical
-  const spd=ph.psv99,dist=ph.distP90,exp=ph.top3timeHSR,hsrTip=ph.hsrDistTIP;
+  // ── Dribbling & carrying ───────────────────────────────────────────
+  const drib=get('Dribbles + Offensive Duels'),ds=get('Dribble Success'),carries=get('Carries'),foulWon=get('Fouls Won');
+  const dribHi=drib!=null&&drib>=75;
+  const dsGood=ds!=null&&ds>=65;
+  if(carries!=null&&carries>=85&&dribHi&&dsGood) clauses.push('a direct and powerful ball carrier — he drives at defenders, wins his duels and carries the ball into dangerous areas with real intent');
+  else if(dribHi&&dsGood) clauses.push('direct and effective in one-on-one situations, winning more of his duels than he loses');
+  else if(dribHi) clauses.push('willing to take defenders on, though his success rate in duels has room to improve');
+  else if(carries!=null&&carries>=80) clauses.push('likes to carry the ball forward and progresses the play through driving runs');
+  if(foulWon!=null&&foulWon>=80&&dribHi) clauses.push('also good at drawing fouls when in possession');
+
+  // ── Aerial ─────────────────────────────────────────────────────────
+  const aer=get('Aerial Duel Success');
+  if(aer!=null){
+    if(aer>=80&&(isCB||p.pos==='CF')) clauses.push(isCB?'dominant in the air and commands his area well at set-pieces and crosses':'wins his aerial battles and is a threat from set-pieces');
+    else if(aer>=75&&isMid) clauses.push('wins his headers in midfield, adding a physical edge to his game');
+    else if(aer<=25&&isCB) clauses.push('not particularly dominant aerially, which can be a vulnerability at set-pieces');
+  }
+
+  // ── Defensive ─────────────────────────────────────────────────────
+  const dd=get('Defensive Duels'),inter=get('Interceptions'),sda=get('Succ. Defensive Actions'),clears=get('Clearances'),shotBlk=get('Shots Blocked');
+  if(!isGK){
+    if(hi('Defensive Duels')&&hi('Interceptions')&&hi('Succ. Defensive Actions')){
+      clauses.push(isCB?'exceptional defensively — he reads the game superbly, wins his duels and is always in the right place':'defensively excellent, pressing with intensity and consistently winning the ball back');
+    } else if(hi('Defensive Duels')&&mid('Interceptions')){
+      clauses.push('strong in the defensive phase, winning his duels and getting around the pitch to win the ball');
+    } else if(hi('Interceptions')&&!isAtt){
+      clauses.push('sharp in reading the play and cutting out passes before they reach their target');
+    }
+    if(clears!=null&&clears>=80&&isCB) clauses.push('puts his body on the line regularly, clearing danger from his box');
+    if(shotBlk!=null&&shotBlk>=80) clauses.push('throws himself in front of shots and defends the box with real commitment');
+    if(lo('Defensive Duels')&&isDef) clauses.push('tends to sit off opponents rather than engage directly, preferring positional defending');
+  }
+
+  // ── GK specifics ───────────────────────────────────────────────────
+  if(isGK){
+    const saves=get('Save Rate'),sweeping=get('Sweeping Actions');
+    if(saves!=null&&saves>=75) clauses.push('an excellent shot-stopper who commands his goal well');
+    if(sweeping!=null&&sweeping>=75) clauses.push('reads the game well off his line and is effective as a sweeper-keeper');
+    const distGK=get('Avg. Pass Length'),passGK=get('Pass Success');
+    if(passGK!=null&&passGK>=70) clauses.push('comfortable with the ball at his feet and helps his team build from the back');
+  }
+
+  // ── Physical ──────────────────────────────────────────────────────
+  const spd=ph.psv99,dist=ph.distP90,exp=ph.top3timeHSR,hsrTip=ph.hsrDistTIP,sprintTip=ph.sprintDistTIP;
+  const physClauses=[];
   if(spd!=null&&dist!=null){
-    if(spd>=80&&dist>=80) clauses.push('quick, with the ability to cover enormous ground — a real athletic weapon');
-    else if(spd>=80) clauses.push('genuinely quick');
-    else if(dist>=80&&hsrTip>=70) clauses.push('covers a huge amount of ground in and out of possession, showing real stamina');
-    else if(dist>=75) clauses.push('a tireless worker who covers a lot of ground throughout the game');
-    else if(spd<=25&&['WF','FB'].includes(p.pos)) clauses.push('not someone who offers real pace');
+    if(spd>=85&&dist>=80) physClauses.push('blistering pace and the engine to cover enormous ground all game');
+    else if(spd>=80&&dist>=70) physClauses.push('real pace and strong work rate throughout the ninety minutes');
+    else if(spd>=80) physClauses.push('genuine top-end pace');
+    else if(dist>=85&&hsrTip!=null&&hsrTip>=70) physClauses.push('exceptional stamina and covers an enormous amount of ground in and out of possession');
+    else if(dist>=75) physClauses.push('tireless movement and covers a lot of ground');
+    else if(spd<=20&&isWide) physClauses.push('lacks natural pace, which limits his threat down the channel');
   }
-  if(exp!=null&&exp>=85) clauses.push('explosive over short distances');
+  if(exp!=null&&exp>=85) physClauses.push('explosiveness in short bursts');
+  if(sprintTip!=null&&sprintTip>=80) physClauses.push('works extremely hard in high-intensity runs while in possession');
+  if(physClauses.length){
+    const phyStr=physClauses.length>=2?physClauses.slice(0,-1).join(', ')+' and '+physClauses[physClauses.length-1]:physClauses[0];
+    clauses.push(`physically he brings ${phyStr}`);
+  }
 
   if(!clauses.length) return '';
-  const result=[clauses[0].charAt(0).toUpperCase()+clauses[0].slice(1),...clauses.slice(1)].join('. ');
-  return result.endsWith('.')?result:result+'.';
+  // Join into flowing sentences — cap at 4 clauses to avoid over-stuffing
+  const kept=clauses.slice(0,4);
+  const joined=kept.map((cl,i)=>i===0?cl.charAt(0).toUpperCase()+cl.slice(1):cl).join('. ');
+  return joined.endsWith('.')?joined:joined+'.';
 }
 
 function buildInsight(p,dr,dp,sortedRoles,snap){
