@@ -2218,15 +2218,16 @@ function renderTable(){
     const lgTier=lgParts.length>1?lgParts[lgParts.length-1]:'';
     const lgFlag=leagueFlag(p.leagueTag);
     const posConf=POS_CONFIG[p.pos];
-    const topRole=posConf?posConf.roles.map(role=>[role.replace(' %',''),p.roles[role]||0]).sort((a,b)=>b[1]-a[1])[0]:null;
-    const topRoleLabel=topRole&&topRole[1]>0?topRole[0]:'—';
-    // Role colorbar
+    // Use actual player roles (not POS_CONFIG which may not match this league's role schema)
+    const playerRoleKeys=Object.keys(p.roles||{});
+    const playerRolesSorted=playerRoleKeys.map(r=>[r.replace(' %',''),p.roles[r]||0]).sort((a,b)=>b[1]-a[1]);
+    const topRoleLabel=playerRolesSorted.length&&playerRolesSorted[0][1]>0?playerRolesSorted[0][0]:'—';
     const roleColors=['#5bb8cc','#c9a832','#3db87a','#cc7040','#7060a8'];
-    const roleSegs=posConf&&posConf.roles?posConf.roles.map((role,i)=>{
+    const roleSegs=playerRoleKeys.map((role,i)=>{
       const v=p.roles[role]||0;
       const w=Math.max(1,Math.round(v));
       return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" data-tip="${role.replace(' %','')}: ${fmt(v,1)}%" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
-    }).join(''):'';
+    }).join('');
     const checked=ST.selectedIds.has(p.id);
     const cbCell=`<td class="col-check"><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this)" style="accent-color:var(--accent);cursor:pointer"></td>`;
     return `<tr class="${checked?'row-selected':''}">
@@ -4789,7 +4790,9 @@ function buildFullOverview(p){
   const rc=v=>v>=80?'#00e599':v>=70?'#7fd97f':v>=60?'#f5c842':v>=50?'#ff8c42':'#ff4d6a';
   const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
   const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
-  const sortedRoles=posConf.roles.map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
+  // Use actual player role keys — Wyscout role schemas vary by league
+  const _rawRoleKeys=Object.keys(p.roles||{});
+  const sortedRoles=(_rawRoleKeys.length?_rawRoleKeys:posConf.roles).map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
   const natFlags=(p.nationalities||[]).map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ');
   const badgeUrl=BADGE_MAP[p.team];
   const badgeHtml=badgeUrl&&badgeUrl!=='none'&&badgeUrl!=='loading'
@@ -5100,15 +5103,17 @@ if(!ST.players.length)document.getElementById('emptyState').style.display='flex'
   computeMetricBonuses();
   // Re-apply physical for any players whose hasPhysical flag is missing/wrong
   // (happens when Wyscout capture happened after physical was applied)
+  // Re-apply if: snap matched but not applied, OR applied but hasPhysical flag missing
   const needsPhysical=ST.players.filter(p=>{
     if(p.pos==='GK') return false;
-    const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null&&s.applied);
-    return snap&&!p.hasPhysical;
+    const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.matchedPlayerId);
+    return snap&&(!snap.applied||!p.hasPhysical);
   });
   if(needsPhysical.length>0){
-    console.log(`Re-applying physical for ${needsPhysical.length} players missing hasPhysical flag`);
+    console.log(`Re-applying physical for ${needsPhysical.length} players`);
     computeAndApplyPhysical();
     queueGitHubSave(saveData);
+    queueGitHubSave(savePhysicalDB);
   }
   computeAllLeaguePct();
   ST.sortKey='rating';
