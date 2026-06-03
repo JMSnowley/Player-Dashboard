@@ -4437,7 +4437,7 @@ async function prefetchAllBadges(){
           const score=matchScore(sdbTeam,ourTeam);
           if(score>bestScore){bestScore=score;bestTeam=ourTeam;}
         }
-        if(bestTeam&&bestScore>=20){
+        if(bestTeam&&bestScore>=20&&(!BADGE_MAP[bestTeam]||BADGE_MAP[bestTeam]==='none')){
           BADGE_MAP[bestTeam]=sdbTeam.strBadge+'/preview';
           _badgeMapDirty=true;
           newBadgesThisRound++;
