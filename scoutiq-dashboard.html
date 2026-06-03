@@ -4237,6 +4237,7 @@ function normClub(s){
 }
 
 // Score how well a TheSportsDB team matches our club name (higher = better)
+const BADGE_COMMON_WORDS=new Set(['united','city','town','rovers','wanderers','albion','county','club','football','soccer','hotspur','villa','palace','forest','dynamo','olympic','olympique','nacional','wednesday']);
 function matchScore(dbTeam,ourName){
   const dn=normClub(dbTeam.strTeam||'');
   const on=normClub(ourName);
@@ -4245,10 +4246,28 @@ function matchScore(dbTeam,ourName){
   if(['Soccer','Football'].includes(dbTeam.strSport)) score+=10;
   if(dn===on) return score+100;
   if(dn.includes(on)||on.includes(dn)) score+=60;
-  const dWords=new Set(dn.split(' ').filter(w=>w.length>1));
-  const oWords=on.split(' ').filter(w=>w.length>1);
+  const dAll=dn.split().filter(w=>w.length>1);
+  const oAll=on.split(' ').filter(w=>w.length>1);
+  const dDist=dAll.filter(w=>!BADGE_COMMON_WORDS.has(w));
+  const oDist=oAll.filter(w=>!BADGE_COMMON_WORDS.has(w));
+  const dCommon=dAll.filter(w=>BADGE_COMMON_WORDS.has(w));
+  const oCommon=oAll.filter(w=>BADGE_COMMON_WORDS.has(w));
+  const dWords=new Set(dDist.length?dDist:dAll);
+  const oWords=oDist.length?oDist:oAll;
   const overlap=oWords.filter(w=>dWords.has(w));
-  score+=overlap.reduce((s,w)=>s+(w.length>3?20:10),0);
+  if(oWords.length>=2&&dWords.size>=2){
+    const allMatch=overlap.length===oWords.length&&overlap.length===dWords.size;
+    if(allMatch) score+=overlap.reduce((s,w)=>s+(w.length>4?25:15),0);
+    else if(!overlap.length) score-=40;
+    else if(overlap.length/Math.max(oWords.length,dWords.size)>=0.8) score+=overlap.reduce((s,w)=>s+15,0);
+    else score-=20;
+  } else if(oWords.length===1){
+    if(overlap.length){
+      score+=(overlap[0].length>4?25:15);
+      // Penalise if common qualifiers differ (Man United vs Man City)
+      if(oCommon.length&&dCommon.length&&oCommon.join()!==dCommon.join()) score-=25;
+    } else score-=30;
+  }
   return score;
 }
 
