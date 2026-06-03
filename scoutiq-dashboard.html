@@ -229,6 +229,44 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .pm-skip-btn{font-size:10px;color:var(--muted);cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block}
 .pm-skip-btn:hover{color:var(--red)}
 
+/* FULL OVERVIEW */
+.fo-close{position:fixed;top:20px;right:28px;z-index:700;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 16px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;letter-spacing:1px;transition:all .15s}
+.fo-close:hover{color:var(--text);border-color:var(--accent)}
+.fo-hero{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:start;margin-bottom:32px;padding-bottom:28px;border-bottom:1px solid var(--border)}
+.fo-badge{width:64px;height:64px;border-radius:8px;object-fit:contain;background:var(--surface2);flex-shrink:0}
+.fo-badge-init{width:64px;height:64px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--muted2);font-family:'Archivo Black',sans-serif;flex-shrink:0}
+.fo-name{font-size:32px;font-weight:900;letter-spacing:-1px;line-height:1;margin-bottom:6px;font-family:'Archivo Black',sans-serif}
+.fo-sub{font-size:12px;color:var(--muted2);font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;margin-bottom:12px}
+.fo-tags{display:flex;gap:8px;flex-wrap:wrap}
+.fo-tag{padding:4px 10px;border-radius:20px;font-size:10px;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;border:1px solid var(--border2);color:var(--muted2)}
+.fo-tag.hi{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.fo-scores{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+.fo-score-card{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:14px;text-align:center}
+.fo-score-val{font-size:28px;font-weight:900;font-family:'Archivo Black',sans-serif;line-height:1}
+.fo-score-lbl{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1.5px;margin-top:4px}
+.fo-section{margin-bottom:28px}
+.fo-section-title{font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.fo-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.fo-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.fo-insight{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:16px;font-size:13px;line-height:1.65;color:var(--muted2);border-left:3px solid var(--accent)}
+.fo-insight strong{color:var(--text)}
+.fo-rank-card{background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:14px}
+.fo-rank-title{font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px}
+.fo-rank-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:11px}
+.fo-rank-num{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:22px;text-align:right;flex-shrink:0}
+.fo-rank-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fo-rank-name.current{color:var(--accent);font-weight:700}
+.fo-rank-val{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);flex-shrink:0}
+.fo-mrow{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:11px}
+.fo-ml{flex:1;color:var(--muted2);font-size:10px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fo-mt{flex:2;height:5px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.fo-mf{height:100%;border-radius:3px}
+.fo-mv{font-family:'JetBrains Mono',monospace;font-size:10px;width:28px;text-align:right;flex-shrink:0}
+.fo-role-bar{margin-bottom:8px}
+.fo-role-label{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+.fo-role-track{height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.fo-role-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .4s}
+
 /* CLUB BADGES */
 .player-badge{width:22px;height:22px;border-radius:3px;object-fit:contain;flex-shrink:0;background:var(--surface3)}
 .player-initials{width:22px;height:22px;border-radius:3px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--muted2);flex-shrink:0;text-transform:uppercase}
@@ -489,6 +527,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div style="min-width:0"><div class="pp-name" id="ppName"></div><div class="pp-sub" id="ppSub"></div></div>
     <button class="pp-close" onclick="closePanel()">✕</button>
   </div>
+  <div style="padding:8px 14px 0;display:flex;justify-content:flex-end"><button class="btn btn-ghost" style="font-size:9px;padding:3px 10px;letter-spacing:1px;font-family:'JetBrains Mono',monospace" onclick="openFullOverview()">⊞ FULL OVERVIEW</button></div>
   <div class="pp-tabs">
     <div class="pp-tab active" onclick="setPPTab('overview',this)">Overview</div>
     <div class="pp-tab" onclick="setPPTab('roles',this)">Roles</div>
@@ -633,6 +672,12 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 </div>
 
 
+
+
+<!-- FULL OVERVIEW MODAL -->
+<div id="fullOverviewModal" style="display:none;position:fixed;inset:0;z-index:600;background:var(--surface);overflow-y:auto;font-family:'Archivo',sans-serif">
+  <div id="fullOverviewContent" style="max-width:1100px;margin:0 auto;padding:32px 40px 60px"></div>
+</div>
 
 <!-- PANEL PHYSICAL MATCH MODAL -->
 <div class="mb" id="panelPhysMatchModal" style="z-index:600">
@@ -4376,6 +4421,231 @@ function badgeEl(team,size=22){
   }
   return `<div class="player-initials" data-badge-team="${esc}" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px" title="${esc}">${initials}</div>`;
 }
+// ═══════════════════════════════════
+// FULL OVERVIEW
+// ═══════════════════════════════════
+function openFullOverview(){
+  const p=ST.players.find(x=>x.id===ST.panelId);
+  if(!p) return;
+  const el=document.getElementById('fullOverviewModal');
+  const content=document.getElementById('fullOverviewContent');
+  content.innerHTML=buildFullOverview(p);
+  el.style.display='block';
+  el.scrollTop=0;
+}
+function closeFullOverview(){
+  document.getElementById('fullOverviewModal').style.display='none';
+}
+
+function buildFullOverview(p){
+  const dr=displayRating(p)??0;
+  const dp=displayPotential(p)??0;
+  const dt=displayPTP(p)??0;
+  const rColor=v=>v>=80?'#00e599':v>=70?'#7fd97f':v>=60?'#f5c842':v>=50?'#ff8c42':'#ff4d6a';
+
+  // ── Hero ──────────────────────────────────────────────────────────────
+  const badgeHtml=(()=>{
+    const url=BADGE_MAP[p.team];
+    if(url&&url!=='none'&&url!=='loading')
+      return`<img class="fo-badge" src="${url}" alt="${p.team}" onerror="this.outerHTML='<div class=fo-badge-init>${teamInitials(p.team)}</div>'"/>`;
+    return`<div class="fo-badge-init">${teamInitials(p.team)}</div>`;
+  })();
+  const natFlags=(p.nationalities||[]).map(n=>(COUNTRY_FLAGS[n]||'')).filter(Boolean).join(' ');
+  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+
+  // ── AI Insight ────────────────────────────────────────────────────────
+  const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
+  const sortedRoles=posConf.roles.map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
+  const topRole=sortedRoles[0];
+  const insight=buildInsight(p,dr,dp,dt,topRole,snap);
+
+  // ── Metric groups ─────────────────────────────────────────────────────
+  const metricGroupsHtml=buildFOMetrics(p);
+  const physHtml=p.pos!=='GK'?buildFOPhysical(p,snap):'';
+
+  // ── Club ranking ──────────────────────────────────────────────────────
+  const clubRankHtml=buildFOClubRank(p);
+  // ── Similar players ───────────────────────────────────────────────────
+  const similarHtml=buildFOSimilar(p);
+
+  return`
+    <button class="fo-close" onclick="closeFullOverview()">✕ CLOSE</button>
+
+    <div class="fo-hero">
+      <div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+          ${badgeHtml}
+          <div>
+            <div class="fo-name">${p.name}</div>
+            <div class="fo-sub">${natFlags} ${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''} · ${p.season||''}</div>
+            <div class="fo-tags">
+              <span class="fo-tag">Age ${p.age||'—'}</span>
+              <span class="fo-tag">${p.minutes?Math.round(p.minutes).toLocaleString()+' mins':'—'}</span>
+              ${p.contractExpires?`<span class="fo-tag">Contract ${p.contractExpires}</span>`:''}
+              ${snap?`<span class="fo-tag hi">⚡ Physical data</span>`:`<span class="fo-tag">No physical data</span>`}
+            </div>
+          </div>
+        </div>
+        <div class="fo-insight">${insight}</div>
+      </div>
+
+      <div class="fo-scores">
+        <div class="fo-score-card">
+          <div class="fo-score-val" style="color:${rColor(dr)}">${dr.toFixed(1)}</div>
+          <div class="fo-score-lbl">Rating</div>
+        </div>
+        <div class="fo-score-card">
+          <div class="fo-score-val" style="color:${rColor(dp)}">${dp.toFixed(1)}</div>
+          <div class="fo-score-lbl">Potential</div>
+        </div>
+        <div class="fo-score-card">
+          <div class="fo-score-val" style="color:${rColor(dt/100*70+30)}">${Math.round(dt)}</div>
+          <div class="fo-score-lbl">PT Priority</div>
+        </div>
+        <div class="fo-score-card">
+          <div class="fo-score-val" style="color:${rColor(p.leaguePct||0)}">${p.leaguePct!=null?p.leaguePct:'—'}</div>
+          <div class="fo-score-lbl">League %ile</div>
+        </div>
+      </div>
+    </div>
+
+    ${sortedRoles.length?`
+    <div class="fo-section">
+      <div class="fo-section-title">Role Profile</div>
+      <div class="fo-grid">
+        <div>${sortedRoles.map(({r,v})=>`
+          <div class="fo-role-bar">
+            <div class="fo-role-label"><span>${r}</span><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11px">${v.toFixed(1)}%</span></div>
+            <div class="fo-role-track"><div class="fo-role-fill" style="width:${v}%"></div></div>
+          </div>`).join('')}
+        </div>
+        ${clubRankHtml}
+      </div>
+    </div>`:''}
+
+    <div class="fo-section">
+      <div class="fo-section-title">Technical Metrics</div>
+      ${metricGroupsHtml}
+    </div>
+
+    ${physHtml?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${physHtml}</div>`:''}
+
+    <div class="fo-section">
+      <div class="fo-section-title">Similar Players</div>
+      ${similarHtml}
+    </div>`;
+}
+
+function buildInsight(p,dr,dp,dt,topRole,snap){
+  const ratingWord=dr>=90?'elite':dr>=80?'high-level':dr>=70?'solid':dr>=60?'developing':'raw';
+  const posLabel=(POS_CONFIG[p.pos]||{label:p.pos}).label||p.pos;
+  const potGap=round1(dp-dr);
+  const potText=potGap>=5?`With a potential of <strong>${dp.toFixed(1)}</strong>, there is significant room to grow.`:
+    potGap>=2?`Their potential of <strong>${dp.toFixed(1)}</strong> suggests further development is likely.`:
+    `Their potential rating of <strong>${dp.toFixed(1)}</strong> suggests they are close to their ceiling.`;
+  const roleText=topRole&&topRole.v>25?` Their dominant role profile is <strong>${topRole.r}</strong> (${topRole.v.toFixed(0)}%).`:'';
+  const physText=snap?` Physical data places their overall output at <strong>${snap.physicalScore.toFixed(1)}</strong>/100 for their position.`:'';
+  const ptText=dt>=70?` High PT Priority (<strong>${Math.round(dt)}</strong>) makes them a strong transfer target.`:
+    dt>=50?` A PT Priority of <strong>${Math.round(dt)}</strong> suggests moderate transfer interest.`:'';
+  return`<strong>${p.name}</strong> is a <strong>${ratingWord}</strong> ${posLabel} rated <strong>${dr.toFixed(1)}</strong>.${roleText} ${potText}${physText}${ptText}`;
+}
+
+function round1(v){ return Math.round(v*10)/10; }
+
+function buildFOMetrics(p){
+  const posConf=POS_CONFIG[p.pos];
+  if(!posConf) return '';
+  const skillMap=METRIC_SKILLS[p.pos]||{};
+  // Group nm metrics by skill
+  const groups={};
+  posConf.nm.forEach(m=>{
+    const skill=(skillMap.nm&&skillMap.nm[m])||'Other';
+    if(!groups[skill]) groups[skill]=[];
+    groups[skill].push({key:m,val:p.nm&&p.nm[m]!=null?p.nm[m]:null});
+  });
+  const SKILL_COLORS={'Passing':'#7b68ee','Dribbling & Carrying':'#00d4ff','Goal Threat':'#f5c842',
+    'Aerial':'#ff8c42','Defending':'#00e599','Shot Stopping':'#00e599',
+    'Claims & Sweeping':'#7b68ee','Distribution':'#f5c842','Physical':'#00d4ff'};
+  return`<div class="fo-grid">${Object.entries(groups).filter(([s,metrics])=>metrics.some(m=>m.val!=null)).map(([skill,metrics])=>`
+    <div>
+      <div class="fo-section-title" style="color:${SKILL_COLORS[skill]||'var(--accent)'};border-color:${SKILL_COLORS[skill]||'var(--accent)'}22">${skill}</div>
+      ${metrics.filter(m=>m.val!=null).map(m=>{
+        const pct=m.val;
+        const col=pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
+        return`<div class="fo-mrow">
+          <div class="fo-ml">${m.key.replace(/^PAdj\s+/i,'')}</div>
+          <div class="fo-mt"><div class="fo-mf" style="width:${pct}%;background:${col}"></div></div>
+          <div class="fo-mv" style="color:${col}">${Math.round(pct)}</div>
+        </div>`;
+      }).join('')}
+    </div>`).join('')}</div>`;
+}
+
+function buildFOPhysical(p,snap){
+  if(!snap) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No physical data available for this season.</div>`;
+  const pctMap={};
+  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
+  return`<div class="fo-grid">${PHYS_METRICS.map(({key,label,group})=>{
+    const pct=pctMap[key];
+    const col=PHYS_GROUP_COLORS[group]||'#00d4ff';
+    const pctCol=pct==null?'var(--muted)':pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
+    return`<div class="fo-mrow">
+      <div class="fo-ml"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${col};margin-right:5px;vertical-align:middle"></span>${label}</div>
+      <div class="fo-mt"><div class="fo-mf" style="width:${pct??0}%;background:${col};opacity:0.8"></div></div>
+      <div class="fo-mv" style="color:${pctCol}">${pct!=null?pct:'—'}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function buildFOClubRank(p){
+  // Players from same team+season, ranked by display rating
+  const teammates=ST.players.filter(x=>x.team===p.team&&x.season===p.season&&x.pos!=='GK')
+    .sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+  const rank=teammates.findIndex(x=>x.id===p.id)+1;
+  // Show 3 above, the player, 3 below (capped)
+  const idx=teammates.findIndex(x=>x.id===p.id);
+  const start=Math.max(0,idx-3), end=Math.min(teammates.length,idx+4);
+  const visible=teammates.slice(start,end);
+  return`<div class="fo-rank-card">
+    <div class="fo-rank-title">Club Ranking — #${rank} of ${teammates.length} outfield</div>
+    ${visible.map((x,i)=>{
+      const xdr=displayRating(x)??0;
+      const isCurrent=x.id===p.id;
+      return`<div class="fo-rank-row">
+        <div class="fo-rank-num">${start+i+1}</div>
+        <div class="fo-rank-name ${isCurrent?'current':''}">${isCurrent?'▶ ':''}<span class="pos-tag" style="font-size:8px;margin-right:4px">${x.pos}</span>${x.name}</div>
+        <div class="fo-rank-val">${xdr.toFixed(1)}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function buildFOSimilar(p){
+  const dr=displayRating(p)??0;
+  // Same position, same season, similar rating (±8), different player
+  const candidates=ST.players.filter(x=>
+    x.id!==p.id&&x.pos===p.pos&&x.season===p.season&&
+    Math.abs((displayRating(x)??0)-dr)<=8
+  ).sort((a,b)=>Math.abs((displayRating(a)??0)-dr)-Math.abs((displayRating(b)??0)-dr)).slice(0,9);
+  if(!candidates.length) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No similar players found in the same season.</div>`;
+  return`<div class="fo-grid-3">${candidates.map(x=>{
+    const xdr=displayRating(x)??0;
+    const col=xdr>=80?'#00e599':xdr>=70?'#7fd97f':xdr>=60?'#f5c842':'#ff8c42';
+    const diff=round1(xdr-dr);
+    const diffStr=diff===0?'=':(diff>0?'+':'')+diff.toFixed(1);
+    const diffCol=diff>0?'var(--green)':diff<0?'var(--red)':'var(--muted)';
+    return`<div class="fo-rank-card" style="cursor:pointer" onclick="closeFullOverview();openPanel('${x.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-weight:700;font-size:11px">${x.name}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${col}">${xdr.toFixed(1)}</div>
+      </div>
+      <div style="font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${x.team}</div>
+      <div style="font-size:10px;color:var(--muted2);margin-top:2px">${x.leagueTag||''}</div>
+      <div style="font-size:10px;color:${diffCol};font-family:'JetBrains Mono',monospace;margin-top:4px">${diffStr} vs ${p.name.split(' ').pop()}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
 // ═══════════════════════════════════
 // SETUP
 // ═══════════════════════════════════
