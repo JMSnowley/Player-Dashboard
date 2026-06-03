@@ -1910,10 +1910,13 @@ function addSnapshot(idx,snap){
   // Only update main player display if this snap is newer than current
   const snapDate=new Date(snap.capturedAt), curDate=new Date(p.capturedAt||0);
   if(snapDate>=curDate){
+    const seasonChanging=snap.season&&p.season&&snap.season!==p.season;
     Object.assign(p,{team:snap.team,nationalities:snap.nationalities||p.nationalities||[],age:snap.age,minutes:snap.minutes,
       contractExpires:snap.contractExpires,rating:capScore(snap.rating),potential:capScore(snap.potential),ptPriority:capScore(snap.ptPriority),leaguePct:snap.leaguePct,
       wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
       season:snap.season||p.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
+    // Clear physical flag if season changed — physical from old season shouldn't carry over
+    if(seasonChanging) p.hasPhysical=false;
   }
 }
 function buildHistoryEntry(snap){return{capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,season:snap.season||'',team:snap.team,nationalities:snap.nationalities||[],rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
