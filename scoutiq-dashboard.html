@@ -1646,9 +1646,11 @@ async function runCapture(){
   });
   ST.dupQueue=[...newSnaps];
   await processDupQueue();
-  computeMetricBonuses(); // 95th percentile metric bonus first
-  computeAllLeaguePct();  // then league %ile on fully adjusted ratings
-  buildPhysPercentileCache(); // pre-compute physical percentiles
+  buildPhysPercentileCache(); // build before computeMetricBonuses so phys bonus is included
+  computeMetricBonuses();
+  // Re-apply physical adjustments — any newly captured players with existing physical matches get updated
+  computeAndApplyPhysical();
+  computeAllLeaguePct();
   pf.style.width='100%';pl.textContent='Done!';
   saveState();renderAll();
   showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
@@ -4436,12 +4438,23 @@ if(!ST.players.length)document.getElementById('emptyState').style.display='flex'
   // Now both ST.players and PHYS.snapshots are populated — build caches together
   buildPhysPercentileCache();
   computeMetricBonuses();
+  // Re-apply physical for any players whose hasPhysical flag is missing/wrong
+  // (happens when Wyscout capture happened after physical was applied)
+  const needsPhysical=ST.players.filter(p=>{
+    if(p.pos==='GK') return false;
+    const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null&&s.applied);
+    return snap&&!p.hasPhysical;
+  });
+  if(needsPhysical.length>0){
+    console.log(`Re-applying physical for ${needsPhysical.length} players missing hasPhysical flag`);
+    computeAndApplyPhysical();
+    queueGitHubSave(saveData);
+  }
   computeAllLeaguePct();
   ST.sortKey='rating';
   ST.sortDir=-1;
   renderAll();
   await loadBadgeMap();
-  // Prefetch badges for all teams in background
   prefetchAllBadges();
 })();
 </script>
