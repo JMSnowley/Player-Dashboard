@@ -4181,7 +4181,11 @@ let _badgeMapDirty=false;
 async function loadBadgeMap(){
   try{
     const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/badge_map.json?cb='+Date.now());
-    if(r.ok) BADGE_MAP=await r.json();
+    if(r.ok){
+      const raw=await r.json();
+      // Only load confirmed good URLs — clear loading/none so they're retried
+      BADGE_MAP=Object.fromEntries(Object.entries(raw).filter(([,v])=>v&&v!=='loading'&&v!=='none'));
+    }
   }catch(e){ BADGE_MAP={}; }
   _badgeMapLoaded=true;
 }
@@ -4199,7 +4203,9 @@ function scheduleBadgeMapSave(){
 }
 async function _doSaveBadgeMap(){
     try{
-      const payload=JSON.stringify(BADGE_MAP,null,2);
+      // Strip any 'loading' entries before saving — they indicate interrupted fetches
+      const cleanMap=Object.fromEntries(Object.entries(BADGE_MAP).filter(([,v])=>v&&v!=='loading'));
+      const payload=JSON.stringify(cleanMap,null,2);
       const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
       const owner='JMSnowley',repo='Player-Dashboard',path='badge_map.json',branch='main';
       const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
@@ -4308,8 +4314,14 @@ function searchVariants(team){
 // retryNone=true allows re-fetching entries previously marked 'none'
 async function fetchBadge(team, retryNone=false){
   const cached=BADGE_MAP[team];
-  if(cached!==undefined && cached!=='loading' && !(retryNone && cached==='none')) return cached;
-  if(BADGE_MAP[team]==='loading') return 'loading';
+  // Never treat 'loading' as a permanent cache — it means a previous fetch was interrupted
+  if(cached!==undefined && cached!=='loading' && cached!=='none') return cached;
+  if(cached==='none' && !retryNone) return cached;
+  if(BADGE_MAP[team]==='loading') {
+    // Already in flight — wait briefly then check again rather than firing a duplicate
+    await new Promise(r=>setTimeout(r,500));
+    if(BADGE_MAP[team]&&BADGE_MAP[team]!=='loading') return BADGE_MAP[team];
+  }
   BADGE_MAP[team]='loading';
   try{
     const variants=searchVariants(team);
@@ -4340,10 +4352,13 @@ async function prefetchAllBadges(){
 
   // Step 1: Bulk fetch by league (much more efficient — 1 req per league vs 1 per team)
   const LEAGUE_IDS={
-    'England 1':'4328','England 2':'4329','England 3':'4330','England 4':'4331',
+    'England 1':'4328','England 2':'4329','England 3':'4330','England 4':'4336',
     'Spain 1':'4335','Italy 1':'4332','Germany 1':'4331','France 1':'4334',
     'Scotland 1':'4480','Netherlands 1':'4337','Portugal 1':'4344',
     'Belgium 1':'4396','Turkey 1':'4481','Greece 1':'4482',
+    'Denmark 1':'4346','Austria 1':'4443','Switzerland 1':'4342',
+    'Poland 1':'4422','Saudi Arabia 1':'4349','USA 1':'4346',
+    'Brazil 1':'4351','Scotland 2':'4481',
   };
   const leagueTags=[...new Set(ST.players.map(p=>p.leagueTag).filter(Boolean))];
   for(const tag of leagueTags){
@@ -4743,6 +4758,7 @@ function buildFullOverview(p){
           ${buildFOMetrics(p)}
         </div>
         ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
+        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
       </div>
       <div>
         <div class="fo-section"><div class="fo-section-title">Club Ranking</div>${buildFOClubRank(p)}</div>
@@ -4753,7 +4769,6 @@ function buildFullOverview(p){
           </div>
           ${buildFOSimilar(p,activeSeasonsArr)}
         </div>
-        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
       </div>
     </div>`;
 }
