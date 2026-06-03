@@ -2035,7 +2035,7 @@ function getFiltered(){
   const [alo,ahi]=SLIDER_STATE.age||[15,45];
   if(rlo>0||rhi<100)list=list.filter(p=>{ const dr=displayRating(p)??0; return dr>=rlo&&dr<=rhi; });
   if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
-  if(tlo>0||thi<100)list=list.filter(p=>p.ptPriority!=null&&p.ptPriority>=tlo&&p.ptPriority<=thi);
+  if(tlo>0||thi<100)list=list.filter(p=>{const dt=displayPTP(p)??0;return dt>=tlo&&dt<=thi;});
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
   if(alo>15||ahi<45)list=list.filter(p=>p.age!=null&&p.age>=alo&&p.age<=ahi);
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
@@ -2243,8 +2243,8 @@ function renderTable(){
       <td class="r" style="color:var(--muted2)">${p.age||'—'}</td>
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       <td>${ringCell(r,ratingScaleColor)}</td>
-      <td>${ringCell(p.potential,potColor)}</td>
-      <td>${ringCell(p.ptPriority,ptColor)}</td>
+      <td>${ringCell(displayPotential(p),potColor)}</td>
+      <td>${ringCell(displayPTP(p),ptColor)}</td>
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
       <td style="min-width:110px">
         <div style="font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${topRoleLabel}">${topRoleLabel}</div>
