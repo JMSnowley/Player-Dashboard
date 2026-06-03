@@ -4340,27 +4340,37 @@ async function fetchBadge(team, retryNone=false){
     }
     const url=bestScore>=10?bestMatch?.strBadge:null;
     BADGE_MAP[team]=url?url+'/preview':'none';
-    if(url){ _badgeMapDirty=true; scheduleBadgeMapSave(); }
+    if(url){
+      _badgeMapDirty=true;
+      scheduleBadgeMapSave();
+      // Upgrade any existing initials placeholders in the DOM right now
+      document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
+        const img=document.createElement('img');
+        img.className='player-badge';img.src=BADGE_MAP[team];img.alt=team;
+        img.style.cssText=el.style.cssText;
+        img.onerror=()=>{BADGE_MAP[team]='none';};
+        el.replaceWith(img);
+      });
+    }
   }catch(e){ BADGE_MAP[team]='none'; }
   return BADGE_MAP[team];
 }
 
 // Prefetch badges using TheSportsDB league bulk lookups + per-team fallback
-// League bulk lookup gets all teams in a league with ONE request
 async function prefetchAllBadges(){
   const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
 
-  // Step 1: Bulk fetch by league (much more efficient — 1 req per league vs 1 per team)
+  // Step 1: Bulk fetch by league (1 req per league = all teams at once)
   const LEAGUE_IDS={
     'England 1':'4328','England 2':'4329','England 3':'4330','England 4':'4336',
     'Spain 1':'4335','Italy 1':'4332','Germany 1':'4331','France 1':'4334',
     'Scotland 1':'4480','Netherlands 1':'4337','Portugal 1':'4344',
-    'Belgium 1':'4396','Turkey 1':'4481','Greece 1':'4482',
-    'Denmark 1':'4346','Austria 1':'4443','Switzerland 1':'4342',
-    'Poland 1':'4422','Saudi Arabia 1':'4349','USA 1':'4346',
-    'Brazil 1':'4351','Scotland 2':'4481',
+    'Belgium 1':'4396','Turkey 1':'4481','Denmark 1':'4346',
+    'Austria 1':'4443','Switzerland 1':'4342','Poland 1':'4422',
+    'Saudi Arabia 1':'4349','Brazil 1':'4351',
   };
   const leagueTags=[...new Set(ST.players.map(p=>p.leagueTag).filter(Boolean))];
+  let newBadgesThisRound=0;
   for(const tag of leagueTags){
     const lid=LEAGUE_IDS[tag];
     if(!lid) continue;
@@ -4369,36 +4379,42 @@ async function prefetchAllBadges(){
       if(!r.ok) continue;
       const data=await r.json();
       const sdbTeams=data.teams||[];
-      // Match each returned team against our team names
       for(const sdbTeam of sdbTeams){
         if(!sdbTeam.strBadge) continue;
-        // Find best matching team in our db
-        let bestTeam=null, bestScore=-999;
+        let bestTeam=null,bestScore=-999;
         for(const ourTeam of teams){
-          if(BADGE_MAP[ourTeam]&&BADGE_MAP[ourTeam]!=='none') continue; // already found
-          const score=matchScore(sdbTeam, ourTeam);
-          if(score>bestScore){ bestScore=score; bestTeam=ourTeam; }
+          const cur=BADGE_MAP[ourTeam];
+          if(cur&&cur!=='none'&&cur!=='loading') continue;
+          const score=matchScore(sdbTeam,ourTeam);
+          if(score>bestScore){bestScore=score;bestTeam=ourTeam;}
         }
         if(bestTeam&&bestScore>=20){
           BADGE_MAP[bestTeam]=sdbTeam.strBadge+'/preview';
           _badgeMapDirty=true;
+          newBadgesThisRound++;
+          // Upgrade any existing initials in DOM immediately
+          document.querySelectorAll(`[data-badge-team="${CSS.escape(bestTeam)}"]`).forEach(el=>{
+            const img=document.createElement('img');
+            img.className='player-badge';img.src=BADGE_MAP[bestTeam];img.alt=bestTeam;
+            img.style.cssText=el.style.cssText;
+            img.onerror=()=>{BADGE_MAP[bestTeam]='none';};
+            el.replaceWith(img);
+          });
         }
       }
-      await new Promise(r=>setTimeout(r,1000)); // 1 sec between league requests
+      if(newBadgesThisRound>=20){scheduleBadgeMapSave();newBadgesThisRound=0;}
+      await new Promise(r=>setTimeout(r,800));
     }catch(e){ /* ignore */ }
   }
+  if(newBadgesThisRound>0) scheduleBadgeMapSave();
 
-  // Step 2: Per-team fallback for anything still missing, at a slow rate
-  const missing=teams.filter(t=>BADGE_MAP[t]===undefined||BADGE_MAP[t]==='none');
-  const BATCH=2; // only 2 concurrent
+  // Step 2: Per-team fallback for anything still missing
+  const missing=teams.filter(t=>!BADGE_MAP[t]||BADGE_MAP[t]==='none');
+  const BATCH=2;
   for(let i=0;i<missing.length;i+=BATCH){
     await Promise.allSettled(missing.slice(i,i+BATCH).map(t=>fetchBadge(t,true)));
-    await new Promise(r=>setTimeout(r,1500)); // 1.5 sec between batches = ~1.3 req/sec
-  }
-
-  if(_badgeMapDirty){
-    scheduleBadgeMapSave();
-    renderAll();
+    await new Promise(r=>setTimeout(r,1500));
+    if(_badgeMapDirty) scheduleBadgeMapSave();
   }
 }
 
@@ -4417,23 +4433,8 @@ function badgeEl(team,size=22){
   const esc=team.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   const cached=BADGE_MAP[team];
   if(cached&&cached!=='loading'&&cached!=='none')
-    return `<img class="player-badge" src="${cached}" style="width:${size}px;height:${size}px" alt="${esc}" onerror="BADGE_MAP['${esc}']='none';this.replaceWith(Object.assign(document.createElement('div'),{className:'player-initials',textContent:'${initials}',style:'width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px'}))"/>`;
-  if(cached!=='loading'){
-    // Trigger async fetch and re-render when ready
-    fetchBadge(team).then(url=>{
-      if(url&&url!=='none'){
-        document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
-          const img=document.createElement('img');
-          img.className='player-badge';
-          img.src=url;
-          img.alt=team;
-          img.style.cssText=el.style.cssText;
-          img.onerror=()=>{ BADGE_MAP[team]='none'; };
-          el.replaceWith(img);
-        });
-      }
-    });
-  }
+    return `<img class="player-badge" src="${cached}" style="width:${size}px;height:${size}px" alt="${esc}" onerror="BADGE_MAP['${esc}']='none';this.outerHTML='<div class=player-initials style=width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px>${initials}</div>'"/>`;
+  // Show initials with data-badge-team so prefetch can upgrade it when badge arrives
   return `<div class="player-initials" data-badge-team="${esc}" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px" title="${esc}">${initials}</div>`;
 }
 // ═══════════════════════════════════
