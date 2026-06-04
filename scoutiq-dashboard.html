@@ -2246,6 +2246,28 @@ function renderTable(){
   const rankOffset=page*limit;
 
   const hl=(s)=>{if(!q||!s)return s||'';return s.replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'),m=>`<mark>${m}</mark>`);};
+  // Precompute skill scores for all filtered players once (very expensive if done per-row)
+  const _skillScoreCache=new Map();
+  const _getSkillScore=p=>{
+    if(!_skillScoreCache.has(p.id)) _skillScoreCache.set(p.id,computePlayerSkillScores(p));
+    return _skillScoreCache.get(p.id);
+  };
+  // Precompute per-position/league peer pools and min/max for scaling
+  const _peerPoolCache=new Map();
+  const _getPeerScaled=(p,name,rawVal)=>{
+    const MFG=['DM','CM','AM'];
+    const pk=(MFG.includes(p.pos)?'MF':p.pos)+'|'+p.leagueTag+'|'+p.season;
+    if(!_peerPoolCache.has(pk)){
+      const poolPos=MFG.includes(p.pos)?MFG:[p.pos];
+      const peers=allFiltered.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos.includes(x.pos)&&(x.minutes||0)>=300);
+      _peerPoolCache.set(pk,peers);
+    }
+    const peers=_peerPoolCache.get(pk);
+    const vals=peers.map(x=>{const ss=_getSkillScore(x);return ss[name]??null;}).filter(v=>v!=null);
+    const mn=vals.length?Math.min(...vals):0, mx=vals.length?Math.max(...vals):100;
+    return mx>mn?Math.round(((rawVal-mn)/(mx-mn))*100):100;
+  };
+
   tbody.innerHTML=list.map((p,i)=>{
     const r=displayRating(p), rc=ratingColor(r);
     const rankCell=`<td class="rank-cell">${rankOffset+i+1}</td>`;
@@ -2291,29 +2313,11 @@ function renderTable(){
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
       <td style="min-width:110px">
         <div class="top3-skills">${(()=>{
-          const ss=computePlayerSkillScores(p);
+          const ss=_getSkillScore(p);
           const entries=Object.entries(ss).sort((a,b)=>b[1]-a[1]).slice(0,3);
           if(!entries.length) return '<span style="color:var(--muted)">—</span>';
-          const MFG=['DM','CM','AM'];
-          const poolPos2=MFG.includes(p.pos)?MFG:[p.pos];
-          const peers2=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos2.includes(x.pos)&&(x.minutes||0)>=300);
-          const allPeerScores={};
-          entries.forEach(([name])=>{
-            const vals=peers2.map(x=>{const ss2=computePlayerSkillScores(x);return ss2[name]??null;}).filter(v=>v!=null);
-            allPeerScores[name]=vals;
-          });
-          // Scale each entry and sort descending by scaled value
-          const scaled=entries.map(([name,rawVal])=>{
-            const pool=allPeerScores[name]||[];
-            const mn=pool.length?Math.min(...pool):0,mx=pool.length?Math.max(...pool):100;
-            const sv=mx>mn?Math.round(((rawVal-mn)/(mx-mn))*100):100;
-            return{name,sv};
-          }).sort((a,b)=>b.sv-a.sv);
-          // Decile gradient: 90-100=green, 80-89=lime, 70-79=yellow-green, ..., 0-9=red
-          const decileColor=v=>{
-            const d=Math.min(9,Math.floor(v/10));
-            return['#e53935','#ef6c00','#fb8c00','#ffa726','#ffca28','#d4e157','#aed581','#7cb342','#43a047','#00897b'][d];
-          };
+          const decileColor=v=>{const d=Math.min(9,Math.floor(v/10));return['#e53935','#ef6c00','#fb8c00','#ffa726','#ffca28','#d4e157','#aed581','#7cb342','#43a047','#00897b'][d];};
+          const scaled=entries.map(([name,rawVal])=>({name,sv:_getPeerScaled(p,name,rawVal)})).sort((a,b)=>b.sv-a.sv);
           return scaled.map(({name,sv})=>{
             const col=decileColor(sv);
             return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px" title="'+name+': '+sv+'">'  
@@ -3780,6 +3784,201 @@ function buildRadar(pA,pB,mode,isPhys,colA,colB){
 }
 
 
+
+// ═══════════════════════════════════
+// CLUB BADGE CACHE
+// ═══════════════════════════════════
+let BADGE_MAP={};
+let _badgeMapDirty=false;
+let _badgeSaveTimer=null;
+
+async function loadBadgeMap(){
+  try{
+    const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/badge_map.json?cb='+Date.now());
+    if(r.ok){
+      const raw=await r.json();
+      BADGE_MAP=Object.fromEntries(Object.entries(raw).filter(([,v])=>v&&v!=='loading'&&v!=='none'));
+    }
+  }catch(e){ BADGE_MAP={}; }
+}
+
+function scheduleBadgeMapSave(){
+  if(!GH.token||!_badgeMapDirty) return;
+  clearTimeout(_badgeSaveTimer);
+  _badgeSaveTimer=setTimeout(async()=>{
+    try{
+      const cleanMap=Object.fromEntries(Object.entries(BADGE_MAP).filter(([,v])=>v&&v!=='loading'));
+      const payload=JSON.stringify(cleanMap,null,2);
+      const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
+      const owner='JMSnowley',repo='Player-Dashboard',path='badge_map.json',branch='main';
+      const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+      const tipSha=(await refR.json()).object.sha;
+      const commitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${tipSha}`,{headers});
+      const baseTree=(await commitR.json()).tree.sha;
+      const blobR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:payload,encoding:'utf-8'})});
+      const blobSha=(await blobR.json()).sha;
+      const treeR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
+      const newTreeSha=(await treeR.json()).sha;
+      const newCommitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'Badge map update',tree:newTreeSha,parents:[tipSha]})});
+      const newCommitSha=(await newCommitR.json()).sha;
+      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:newCommitSha})});
+      _badgeMapDirty=false;
+    }catch(e){ console.warn('Badge map save failed',e); }
+  },5000);
+}
+
+function normClub(s){
+  if(!s) return '';
+  s=s.toLowerCase().replace(/ø/g,'o').replace(/ð/g,'d').replace(/þ/g,'th').replace(/ß/g,'ss').replace(/æ/g,'ae').replace(/œ/g,'oe');
+  s=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  s=s.replace(/\s+(f\.?c\.?|a\.?f\.?c\.?|s\.?c\.?|c\.?f\.?)$/i,'');
+  return s.replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+}
+
+const BADGE_COMMON_WORDS=new Set(['united','city','town','rovers','wanderers','albion','county','club','football','soccer','hotspur','villa','palace','forest','dynamo','olympic','olympique','nacional','wednesday']);
+
+function matchScore(dbTeam,ourName){
+  const dn=normClub(dbTeam.strTeam||'');
+  const on=normClub(ourName);
+  if(!dn||!on) return 0;
+  let score=0;
+  const sport=dbTeam.strSport||'';
+  if(['Soccer','Football'].includes(sport)) score+=10;
+  else if(sport) score-=50;
+  if(dn===on) return score+100;
+  if(dn.includes(on)||on.includes(dn)) score+=60;
+  const dAll=dn.split(' ').filter(w=>w.length>1);
+  const oAll=on.split(' ').filter(w=>w.length>1);
+  const dDist=dAll.filter(w=>!BADGE_COMMON_WORDS.has(w));
+  const oDist=oAll.filter(w=>!BADGE_COMMON_WORDS.has(w));
+  const dCommon=dAll.filter(w=>BADGE_COMMON_WORDS.has(w));
+  const oCommon=oAll.filter(w=>BADGE_COMMON_WORDS.has(w));
+  const dWords=new Set(dDist.length?dDist:dAll);
+  const oWords=oDist.length?oDist:oAll;
+  const overlap=oWords.filter(w=>dWords.has(w));
+  if(oWords.length>=2&&dWords.size>=2){
+    const allMatch=overlap.length===oWords.length&&overlap.length===dWords.size;
+    if(allMatch) score+=overlap.reduce((s,w)=>s+(w.length>4?25:15),0);
+    else if(!overlap.length) score-=40;
+    else if(overlap.length/Math.max(oWords.length,dWords.size)>=0.8) score+=overlap.reduce((s,w)=>s+15,0);
+    else score-=20;
+  } else if(oWords.length===1){
+    if(overlap.length){
+      score+=(overlap[0].length>4?25:15);
+      if(oCommon.length&&dCommon.length&&oCommon.join()!==dCommon.join()) score-=25;
+    } else score-=30;
+  }
+  return score;
+}
+
+function searchVariants(team){
+  const OVERRIDES={
+    'PSG':'Paris Saint-Germain','Man City':'Manchester City','Man Utd':'Manchester United',
+    'Spurs':'Tottenham Hotspur','Wolves':'Wolverhampton Wanderers',
+    'Nottm Forest':'Nottingham Forest',
+    'West Brom':'West Bromwich Albion','Sheff Utd':'Sheffield United',
+    // German
+    'Borussia Mgladbach':'Borussia Monchengladbach',
+    'RB Leipzig':'RasenBallsport Leipzig','Bayern München':'FC Bayern Munchen',
+    'Köln':'1. FC Koln','Mainz 05':'1. FSV Mainz 05',
+    '1. FC Union Berlin':'Union Berlin','Union Berlin':'Union Berlin',
+    'Eintracht Frankfurt':'Eintracht Frankfurt',
+    // French
+    'PSG':'Paris Saint-Germain Football Club',
+    // Italian
+    'Inter':'FC Internazionale','Inter Milan':'FC Internazionale','Internazionale':'FC Internazionale',
+    // Scottish
+    'St Mirren':'St. Mirren','St Johnstone':'St. Johnstone',
+    'Greenock Morton':'Morton FC','Queen of the South':'Queen of the South FC',
+    // Belgian
+    'Anderlecht':'RSC Anderlecht','Mechelen':'KV Mechelen',
+    'Charleroi':'Sporting Charleroi','Zulte-Waregem':'Zulte Waregem',
+    'Sint-Truiden':'Sint-Truiden VV','Union Saint-Gilloise':'Royale Union Saint-Gilloise',
+    'La Louvière':'La Louviere Centre',
+    // English lower leagues
+    'Gateshead':'Gateshead FC','Boston United':'Boston United FC',
+    'Sutton United':'Sutton United FC','Wealdstone':'Wealdstone FC',
+    'Halifax Town':'FC Halifax Town','Woking':'Woking FC',
+    'Scunthorpe United':'Scunthorpe United FC',
+    // Czech
+    'Viktoria Plzeň':'Viktoria Plzen',
+    // Saudi
+    'Al Ittihad':'Al-Ittihad Club','Al Kholood':'Al-Kholood',
+    // American
+    'New England':'New England Revolution',
+  };
+  const variants=[];
+  if(OVERRIDES[team]) variants.push(OVERRIDES[team]);
+  variants.push(team);
+  const stripped=team.replace(/\s+(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)$/i,'').trim();
+  if(stripped!==team) variants.push(stripped);
+  const noAccent=team.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  if(noAccent!==team) variants.push(noAccent);
+  return [...new Set(variants)];
+}
+
+async function fetchBadge(team,retryNone=false){
+  if(BADGE_MAP[team]!==undefined&&!retryNone) return BADGE_MAP[team];
+  BADGE_MAP[team]='loading';
+  try{
+    const variants=searchVariants(team);
+    let bestTeam=null,bestScore=-999;
+    for(const variant of variants){
+      const q=encodeURIComponent(variant);
+      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${q}`);
+      if(!r.ok) continue;
+      const data=await r.json();
+      const teams=data.teams||[];
+      for(const t of teams){
+        const score=matchScore(t,team);
+        if(score>bestScore){bestScore=score;bestTeam=t;}
+      }
+      if(bestScore>=50) break;
+    }
+    const sdbTeam=bestTeam;
+    if(bestTeam&&bestScore>=20&&(!BADGE_MAP[bestTeam.strTeam]||BADGE_MAP[bestTeam.strTeam]==='none')){
+      BADGE_MAP[team]=sdbTeam.strBadge+'/preview';
+    } else if(bestTeam&&bestScore>=20) {
+      BADGE_MAP[team]=sdbTeam.strBadge+'/preview';
+    } else {
+      BADGE_MAP[team]='none';
+    }
+    if(BADGE_MAP[team]&&BADGE_MAP[team]!=='none'){_badgeMapDirty=true;scheduleBadgeMapSave();}
+  }catch(e){BADGE_MAP[team]='none';}
+  document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
+    const url=BADGE_MAP[team];
+    if(url&&url!=='none'&&url!=='loading'){
+      const img=document.createElement('img');img.className='player-badge';img.src=url;img.alt=team;img.style.cssText=el.style.cssText;img.onerror=()=>{BADGE_MAP[team]='none';};el.replaceWith(img);
+    }
+  });
+  return BADGE_MAP[team];
+}
+
+function teamInitials(name){
+  if(!name) return '?';
+  const words=name.trim().split(/\s+/);
+  if(words.length===1) return name.slice(0,2).toUpperCase();
+  return words.filter(w=>w.length>2).slice(0,2).map(w=>w[0].toUpperCase()).join('')||name.slice(0,2).toUpperCase();
+}
+
+function badgeEl(team,size=22){
+  if(!team) return `<div class="player-initials" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px">?</div>`;
+  const initials=teamInitials(team);
+  const esc=team.replace(/['<>&]/g,c=>({'\'':'&#39;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]||c));
+  const cached=BADGE_MAP[team];
+  if(cached&&cached!=='loading'&&cached!=='none')
+    return `<img class="player-badge" src="${cached}" style="width:${size}px;height:${size}px" alt="${esc}" onerror="BADGE_MAP['${esc}']='none';this.outerHTML='<div class=player-initials style=width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px>${initials}</div>'"/>`;
+  if(cached!=='loading') fetchBadge(team);
+  return `<div class="player-initials" data-badge-team="${esc}" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px" title="${esc}">${initials}</div>`;
+}
+
+async function prefetchAllBadges(){
+  const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
+  for(const t of teams){
+    if(!BADGE_MAP[t]) await fetchBadge(t);
+    await new Promise(r=>setTimeout(r,120));
+  }
+}
 
 // ═══════════════════════════════════
 // FULL OVERVIEW
