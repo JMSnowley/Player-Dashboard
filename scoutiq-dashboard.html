@@ -544,7 +544,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="potential" onclick="setSort('potential')">Potential</th>
           <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Pri.</th>
           <th data-sort="leaguePct" onclick="setSort('leaguePct')">League %ile</th>
-          <th>Roles</th>
+          <th>Top Skills</th>
           <th data-sort="capturedAt" onclick="setSort('capturedAt')">Captured</th>
           <th></th>
         </tr></thead>
@@ -2280,11 +2280,22 @@ function renderTable(){
           const ss=computePlayerSkillScores(p);
           const entries=Object.entries(ss).sort((a,b)=>b[1]-a[1]).slice(0,3);
           if(!entries.length) return '<span style="color:var(--muted)">—</span>';
-          return entries.map(([name,val])=>`<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
-            <div style="font-size:9px;color:var(--muted2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--accent)">${val}</div>
-          </div>`).join('');
+          // Find colour for each skill from SKILL_DEFS
+          const MFG=['DM','CM','AM'];
+          const pk=MFG.includes(p.pos)?'DM':p.pos;
+          const allDefs={GK:[{name:'Shot Stopping',color:'#f5c842'},{name:'Claiming Crosses',color:'#00d4ff'},{name:'Sweeping Up',color:'#00e599'},{name:'Playing Out',color:'#7b68ee'},{name:'Playing Long',color:'#ff8c42'}],CB:[{name:'Press Resistance',color:'#7b68ee'},{name:'Deep Progression',color:'#00d4ff'},{name:'Stepping In',color:'#f5c842'},{name:'Aerial Threat',color:'#ff8c42'},{name:'Aggression',color:'#ff4d6a'},{name:'1v1 Defending',color:'#00e599'},{name:'Box Defending',color:'#a78bfa'},{name:'Pace & Recovery',color:'#f472b6'}],FB:[{name:'Press Resistance',color:'#7b68ee'},{name:'Deep Progression',color:'#00d4ff'},{name:'Chance Creation',color:'#f5c842'},{name:'Crossing',color:'#ff8c42'},{name:'Carrying & Dynamism',color:'#00e599'},{name:'Pace & Explosiveness',color:'#f472b6'},{name:'Goal Threat',color:'#f5c842'},{name:'Intensity Defending',color:'#ff4d6a'},{name:'Backpost Def.',color:'#a78bfa'}],DM:[{name:'Press Resistance',color:'#7b68ee'},{name:'Deep Progression',color:'#00d4ff'},{name:'Chance Creation',color:'#f5c842'},{name:'1v1 Directness',color:'#ff8c42'},{name:'Pace & Dynamism',color:'#f472b6'},{name:'Goal Threat',color:'#f5c842'},{name:'Press & Intensity',color:'#ff4d6a'},{name:'Duel Dominance',color:'#00e599'},{name:'Cover & Position',color:'#a78bfa'}],WF:[{name:'Press Resistance',color:'#7b68ee'},{name:'Chance Creation',color:'#f5c842'},{name:'Crossing',color:'#00d4ff'},{name:'1v1 Directness',color:'#ff8c42'},{name:'Pace & Explosiveness',color:'#f472b6'},{name:'Runs Beyond',color:'#00e599'},{name:'Goal Threat',color:'#f5c842'},{name:'Press & Intensity',color:'#ff4d6a'},{name:'Duel Dominance',color:'#a78bfa'}],CF:[{name:'Link Up Play',color:'#7b68ee'},{name:'Chance Creation',color:'#f5c842'},{name:'Hold Up Play',color:'#ff8c42'},{name:'Engaging & Carrying',color:'#00d4ff'},{name:'Dynamism',color:'#f472b6'},{name:'Pace & Explosiveness',color:'#f472b6'},{name:'Box Movement',color:'#f5c842'},{name:'Finishing',color:'#00e599'},{name:'Press & Intensity',color:'#ff4d6a'}]};
+          const defs=allDefs[pk]||[];
+          const colorMap=Object.fromEntries(defs.map(d=>[d.name,d.color]));
+          return entries.map(([name,val])=>{
+            const col=colorMap[name]||'var(--accent)';
+            const barW=Math.round(val*0.7);
+            return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px" title="'+name+': '+val+'">'
+              +'<div style="width:72px;height:5px;background:var(--surface3);border-radius:3px;flex-shrink:0;overflow:hidden">'
+              +'<div style="width:'+barW+'%;height:100%;background:'+col+';border-radius:3px"></div></div>'
+              +'<div style="font-size:9px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">'+name+'</div></div>';
+          }).join('');
         })()}</div>
+
       </td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
       <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
@@ -4646,13 +4657,7 @@ function buildFullOverview(p){
       <div>
         ${buildFOSwarms(p)}
         <div class="fo-section">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-            <div class="fo-section-title" style="margin-bottom:0;border:none">Technical Metrics</div>
-            <div class="mtog" style="width:140px">
-              <div class="mtog-btn ${_foMetricView==='normal'?'active':''}" onclick="setFOMetricView('normal')">Normal</div>
-              <div class="mtog-btn ${_foMetricView==='padj'?'active':''}" onclick="setFOMetricView('padj')">PAdj</div>
-            </div>
-          </div>
+          <div class="fo-section-title">Technical Metrics</div>
           ${buildFOMetrics(p)}
         </div>
         ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
@@ -5362,8 +5367,15 @@ function buildFOSwarms(p, context='fo'){
   const headerText=context==='panel-avg'||context==='panel'
     ?`Skills · ${p.leagueTag} · ${peers.length} players · ${modeLabel}`
     :`Skills — ${p.leagueTag} · ${poolLabel} · ${peers.length} players · ${modeLabel}`;
+  const toggleHtml=context==='fo'?`<div class="mtog" style="width:130px;flex-shrink:0">
+    <div class="mtog-btn ${_foMetricView==='normal'?'active':''}" onclick="setFOMetricView('normal')">Normal</div>
+    <div class="mtog-btn ${_foMetricView==='padj'?'active':''}" onclick="setFOMetricView('padj')">PAdj</div>
+  </div>`:'';
   return`<div class="fo-section">
-    <div class="fo-section-title">${headerText}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="fo-section-title" style="margin-bottom:0;border:none">${headerText}</div>
+      ${toggleHtml}
+    </div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:4px 0">
       ${swarmCols}
     </div>
