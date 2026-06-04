@@ -444,6 +444,11 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="sb-toggle" onclick="toggleSb('posContent',this)"><span>Position</span><span class="sb-arrow">›</span></div>
       <div class="sb-content" id="posContent"><div id="posNav"></div></div>
     </div>
+    <!-- Age -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('ageContent',this)"><span>Age</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="ageContent"><div class="range-group" id="ageSlider"></div></div>
+    </div>
     <!-- League -->
     <div class="sb-section">
       <div class="sb-toggle" onclick="toggleSb('leagueContent',this)"><span>League</span><span class="sb-arrow">›</span></div>
@@ -472,7 +477,13 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <div class="range-group" id="potentialSlider"></div>
         <div class="range-group" id="ptPrioritySlider"></div>
         <div class="range-group" id="leaguePctSlider"></div>
-        <div class="range-group" id="ageSlider"></div>
+      </div>
+    </div>
+    <!-- Skill filters -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('skillFilters',this)"><span>Skills</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="skillFilters">
+        <div id="skillSliders"></div>
       </div>
     </div>
     <!-- Role sliders -->
@@ -1502,7 +1513,7 @@ function toggleSb(contentId,toggleEl){
 // ═══════════════════════════════════
 let SLIDER_STATE={
   rating:[0,100],potential:[0,100],ptPriority:[0,100],leaguePct:[0,100],age:[15,45],
-  roles:{},metrics:{},physMetrics:{},
+  roles:{},metrics:{},physMetrics:{},skills:{},
 };
 
 // Safe ID from any string
@@ -1540,7 +1551,67 @@ function initSliders(){
     });
   }
 
-  // Metric sliders — split into Normal and PAdj, each grouped by skill
+  // Skill sliders — Normal and PAdj, grouped by position
+  const sc=document.getElementById('skillSliders');
+  if(sc){
+    const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
+    const MF_LABEL={DM:'DM (MF pool)',CM:'CM (MF pool)',AM:'AM (MF pool)'};
+    const MFG=['DM','CM','AM'];
+    // SKILL_DEFS lives inside buildFOSwarms — reconstruct from SKILL_COLOR_MAP keys per pos
+    const SKILLS_PER_POS={
+      GK:['Shot Stopping','Claiming Crosses','Sweeping Up','Playing Out','Playing Long'],
+      CB:['Press Resistance','Deep Progression','Stepping In','Aerial Threat','Aggression','1v1 Defending','Box Defending','Pace & Recovery'],
+      FB:['Press Resistance','Deep Progression','Chance Creation','Crossing','Carrying & Dynamism','Pace & Explosiveness','Goal Threat','Intensity Defending','Backpost Def.'],
+      DM:['Press Resistance','Deep Progression','Chance Creation','1v1 Directness','Pace & Dynamism','Goal Threat','Press & Intensity','Duel Dominance','Cover & Position'],
+      CM:['Press Resistance','Deep Progression','Chance Creation','1v1 Directness','Pace & Dynamism','Goal Threat','Press & Intensity','Duel Dominance','Cover & Position'],
+      AM:['Press Resistance','Deep Progression','Chance Creation','1v1 Directness','Pace & Dynamism','Goal Threat','Press & Intensity','Duel Dominance','Cover & Position'],
+      WF:['Press Resistance','Chance Creation','Crossing','1v1 Directness','Pace & Explosiveness','Runs Beyond','Goal Threat','Press & Intensity','Duel Dominance'],
+      CF:['Link Up Play','Chance Creation','Hold Up Play','Engaging & Carrying','Dynamism','Pace & Explosiveness','Box Movement','Finishing','Press & Intensity'],
+    };
+    let html='';
+    // Normal
+    html+=`<div style="border-bottom:1px solid var(--border)">
+      <div class="sb-toggle" style="padding:5px 13px;font-size:9px" onclick="toggleSb('nm_skills',this)"><span style="color:var(--accent)">NORMAL</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="nm_skills">`;
+    posOrder.forEach(pos=>{
+      const skills=SKILLS_PER_POS[pos];if(!skills)return;
+      const sid=`nm_skill_pos_${pos}`;
+      const lbl=MF_LABEL[pos]||`${pos} — ${POS_CONFIG[pos]?.label||pos}`;
+      html+=`<div style="border-bottom:1px solid var(--border)">
+        <div class="sb-toggle" style="padding:4px 13px 4px 16px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${lbl}</span><span class="sb-arrow">›</span></div>
+        <div class="sb-content" id="${sid}">
+          ${skills.map(s=>`<div id="sk_nm_${safeId(pos+'_'+s)}"></div>`).join('')}
+        </div></div>`;
+    });
+    html+=`</div></div>`;
+    // PAdj
+    html+=`<div><div class="sb-toggle" style="padding:5px 13px;font-size:9px" onclick="toggleSb('pm_skills',this)"><span style="color:var(--green)">PADJ</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="pm_skills">`;
+    posOrder.forEach(pos=>{
+      const skills=SKILLS_PER_POS[pos];if(!skills)return;
+      const sid=`pm_skill_pos_${pos}`;
+      const lbl=MF_LABEL[pos]||`${pos} — ${POS_CONFIG[pos]?.label||pos}`;
+      html+=`<div style="border-bottom:1px solid var(--border)">
+        <div class="sb-toggle" style="padding:4px 13px 4px 16px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${lbl}</span><span class="sb-arrow">›</span></div>
+        <div class="sb-content" id="${sid}">
+          ${skills.map(s=>`<div id="sk_pm_${safeId(pos+'_'+s)}"></div>`).join('')}
+        </div></div>`;
+    });
+    html+=`</div></div>`;
+    sc.innerHTML=html;
+    // Render sliders
+    posOrder.forEach(pos=>{
+      const skills=SKILLS_PER_POS[pos];if(!skills)return;
+      skills.forEach(skill=>{
+        const nmKey=`skill_nm::${pos}::${skill}`;
+        const pmKey=`skill_pm::${pos}::${skill}`;
+        SLIDER_STATE.skills[nmKey]=SLIDER_STATE.skills[nmKey]||[0,100];
+        SLIDER_STATE.skills[pmKey]=SLIDER_STATE.skills[pmKey]||[0,100];
+        renderRangeSlider(`sk_nm_${safeId(pos+'_'+skill)}`,skill,nmKey,0,100);
+        renderRangeSlider(`sk_pm_${safeId(pos+'_'+skill)}`,skill,pmKey,0,100);
+      });
+    });
+  }
   const allSkills=[...SKILL_ORDER,'Shot Stopping','Claims & Sweeping','Distribution'];
   const mc=document.getElementById('metricSliders');
   if(mc){
@@ -1635,7 +1706,7 @@ function updateSlider(sk,side,val,key,mn,mx){
   updateSliderUI(sk,loF,hiF,mn,mx);
   if(key.startsWith('role:')) SLIDER_STATE.roles[key.slice(5)]=[loF,hiF];
   else if(key.startsWith('nm::')||key.startsWith('pm::')) SLIDER_STATE.metrics[key]=[loF,hiF];
-  else if(key.startsWith('phys::')) SLIDER_STATE.physMetrics[key]=[loF,hiF];
+  else if(key.startsWith('skill_nm::')||key.startsWith('skill_pm::')) SLIDER_STATE.skills[key]=[loF,hiF];
   else if(key.startsWith('metric:')) SLIDER_STATE.metrics[key.slice(7)]=[loF,hiF];
   else SLIDER_STATE[key]=[loF,hiF];
   renderTable();
@@ -2110,7 +2181,37 @@ function getFiltered(){
       return pct>=lo&&pct<=hi;
     });
   });
-  const sk=ST.sortKey||'rating';  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
+  // Skill score filters — computed on demand
+  const activeSkillFilters=Object.entries(SLIDER_STATE.skills||{}).filter(([,[lo,hi]])=>lo>0||hi<100);
+  if(activeSkillFilters.length){
+    const MFG=['DM','CM','AM'];
+    list=list.filter(p=>{
+      const scores=computePlayerSkillScores(p);
+      const MF_POS=MFG.includes(p.pos)?p.pos:null;
+      return activeSkillFilters.every(([key,[lo,hi]])=>{
+        // key format: skill_nm::POS::SkillName or skill_pm::POS::SkillName
+        const parts=key.split('::');
+        const mode=parts[0]; // skill_nm or skill_pm
+        const filterPos=parts[1];
+        const skillName=parts[2];
+        // Only apply filter if this player is the right position
+        const playerMFGroup=MFG.includes(p.pos);
+        const filterMFGroup=MFG.includes(filterPos);
+        if(filterMFGroup){if(!playerMFGroup) return true;}
+        else{if(p.pos!==filterPos) return true;}
+        // Get the skill score — use mode to determine normal vs padj
+        const isAdj=mode==='skill_pm';
+        // Temporarily override metric view to get correct score
+        const savedView=_foMetricView;
+        _foMetricView=isAdj?'padj':'normal';
+        const sc=computePlayerSkillScores(p);
+        _foMetricView=savedView;
+        const v=sc[skillName];
+        if(v==null) return lo===0;
+        return v>=lo&&v<=hi;
+      });
+    });
+  }  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
     if(sk==='rank')return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
@@ -4059,8 +4160,7 @@ function renderPanel(){
           +'</div></div>';
       })()}
       ${(()=>{
-        const isEditor=!!(GH&&GH.token);
-        if(!isEditor) return '';
+        if(ST._isEditor===false) return '';
         return p.pos!=='GK'?buildPhysMatchSection(p):'';
       })()}
       <div class="pst" style="margin-top:14px">Hypothetical Transfer</div>
