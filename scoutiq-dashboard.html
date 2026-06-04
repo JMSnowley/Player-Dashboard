@@ -138,6 +138,7 @@ tr.row-selected td:first-child{border-left:2px solid var(--accent)}
 .sg-l{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
 .sg-v{font-family:'Archivo Black',sans-serif;font-size:16px;letter-spacing:.5px}
 .pst{font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.viewer-mode .col-check{display:none}
 /* METRIC TOGGLE */
 .mtog{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:5px;margin-bottom:10px;overflow:hidden}
 .mtog-btn{flex:1;padding:6px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;cursor:pointer;color:var(--muted);transition:all .15s;user-select:none;text-transform:uppercase;letter-spacing:1px}
@@ -2069,8 +2070,10 @@ function getFiltered(){
   if(ST.filterNat.length)list=list.filter(p=>(p.nationalities||[]).some(n=>ST.filterNat.includes(n)));
   if(ST.filterTeam.length)list=list.filter(p=>ST.filterTeam.includes(p.team));
   if(ST.filterSeason.length)list=list.filter(p=>ST.filterSeason.includes(p.season));
-  const q=(document.getElementById('searchInput')?.value||'').toLowerCase().trim();
-  if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||(p.team||'').toLowerCase().includes(q));
+  const _qRaw=(document.getElementById('searchInput')?.value||'').trim();
+  const _norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const q=_norm(_qRaw);
+  if(q)list=list.filter(p=>_norm(p.name).includes(q)||_norm(p.team||'').includes(q));
   // Slider range filters
   const [rlo,rhi]=SLIDER_STATE.rating;
   const [plo,phi]=SLIDER_STATE.potential;
@@ -2261,7 +2264,7 @@ function renderTable(){
     const pk=(MFG.includes(p.pos)?'MF':p.pos)+'|'+p.leagueTag+'|'+p.season;
     if(!_peerPoolCache.has(pk)){
       const poolPos=MFG.includes(p.pos)?MFG:[p.pos];
-      const peers=allFiltered.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos.includes(x.pos)&&(x.minutes||0)>=300);
+      const peers=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos.includes(x.pos)&&(x.minutes||0)>=300);
       _peerPoolCache.set(pk,peers);
     }
     const peers=_peerPoolCache.get(pk);
@@ -3709,31 +3712,30 @@ function buildRadar(pA,pB,mode,isPhys,colA,colB){
     rings+=`<polygon points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="var(--border)" stroke-width="0.5" opacity="0.6"/>`;
   }
 
-  // Sector backgrounds — expanded half a segment either side to cover gaps
+  // Sector backgrounds — each sector spans from midpoint before its first axis
+  // to midpoint after its last axis (half a segment gap on each side)
   let sectors='';
-  let currentGroup=null, sectorStart=0;
-  const drawSector=(from,to,group)=>{
-    if(to<from) return;
-    const col=SECTOR_COLORS[group]||'rgba(255,255,255,0.03)';
-    // Expand by half a segment either side
-    const expandAngle=angleStep*0.5;
-    const aFrom=startAngle+from*angleStep-expandAngle;
-    const aTo=startAngle+to*angleStep+expandAngle+angleStep;
-    const steps=Math.ceil((aTo-aFrom)/(Math.PI/32));
-    const pts=[{x:CX,y:CY}];
-    for(let i=0;i<=steps;i++){
-      const a=aFrom+(i/steps)*(aTo-aFrom);
-      pts.push({x:(CX+Math.cos(a)*R).toFixed(2),y:(CY+Math.sin(a)*R).toFixed(2)});
-    }
-    sectors+=`<polygon points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="${col}" stroke="none"/>`;
-  };
+  // Build group index ranges: {group: [firstIdx, lastIdx]}
+  const groupRanges={};
   axes.forEach((a,i)=>{
-    if(a.group!==currentGroup){
-      if(currentGroup!==null) drawSector(sectorStart,i-1,currentGroup);
-      currentGroup=a.group; sectorStart=i;
-    }
+    if(!groupRanges[a.group]) groupRanges[a.group]={first:i,last:i};
+    else groupRanges[a.group].last=i;
   });
-  if(currentGroup!==null) drawSector(sectorStart,n-1,currentGroup);
+  Object.entries(groupRanges).forEach(([group,{first,last}])=>{
+    const col=SECTOR_COLORS[group]||'rgba(255,255,255,0.04)';
+    // Start: halfway between previous axis and first axis of this group
+    const aStart=startAngle+first*angleStep - angleStep*0.5;
+    // End: halfway between last axis of this group and next axis
+    const aEnd=startAngle+last*angleStep + angleStep*0.5;
+    // Draw arc sector
+    const steps=Math.max(12, Math.ceil((aEnd-aStart)/(Math.PI/48)));
+    const pts=[`${CX},${CY}`];
+    for(let k=0;k<=steps;k++){
+      const a=aStart+(k/steps)*(aEnd-aStart);
+      pts.push(`${(CX+Math.cos(a)*R).toFixed(2)},${(CY+Math.sin(a)*R).toFixed(2)}`);
+    }
+    sectors+=`<polygon points="${pts.join(' ')}" fill="${col}" stroke="none"/>`;
+  });
 
   // Spoke lines
   let spokes='';
