@@ -4910,10 +4910,118 @@ function buildFORecommendedClubs(p){
 
     const playingTimeScore=(posRankScore*0.55+squadScore*0.45);
 
-    // ── Score 2: Skill Complementarity (50%) ─────────────────────
-    // Average skill scores of existing same-pos players at the club
-    const clubSkillAvgs={};
+    // ── Cultural fit constants ─────────────────────────────────────
+    // leagueTag → {country, language, region}
+    const LEAGUE_META={
+      'England 1':{country:'England',lang:['English'],region:'British Isles'},
+      'England 2':{country:'England',lang:['English'],region:'British Isles'},
+      'England 3':{country:'England',lang:['English'],region:'British Isles'},
+      'England 4':{country:'England',lang:['English'],region:'British Isles'},
+      'Scotland 1':{country:'Scotland',lang:['English'],region:'British Isles'},
+      'Scotland 2':{country:'Scotland',lang:['English'],region:'British Isles'},
+      'Scotland 3':{country:'Scotland',lang:['English'],region:'British Isles'},
+      'Scotland 4':{country:'Scotland',lang:['English'],region:'British Isles'},
+      'Germany 1':{country:'Germany',lang:['German'],region:'Central Europe'},
+      'Germany 2':{country:'Germany',lang:['German'],region:'Central Europe'},
+      'Spain 1':{country:'Spain',lang:['Spanish'],region:'Iberia'},
+      'Spain 2':{country:'Spain',lang:['Spanish'],region:'Iberia'},
+      'Italy 1':{country:'Italy',lang:['Italian'],region:'Mediterranean'},
+      'Italy 2':{country:'Italy',lang:['Italian'],region:'Mediterranean'},
+      'France 1':{country:'France',lang:['French'],region:'Western Europe'},
+      'France 2':{country:'France',lang:['French'],region:'Western Europe'},
+      'Belgium 1':{country:'Belgium',lang:['French','Dutch'],region:'Western Europe'},
+      'Netherlands 1':{country:'Netherlands',lang:['Dutch'],region:'Western Europe'},
+      'Portugal 1':{country:'Portugal',lang:['Portuguese'],region:'Iberia'},
+      'Portugal 2':{country:'Portugal',lang:['Portuguese'],region:'Iberia'},
+      'Turkey 1':{country:'Turkey',lang:['Turkish'],region:'Eastern Europe'},
+      'Austria 1':{country:'Austria',lang:['German'],region:'Central Europe'},
+      'Switzerland 1':{country:'Switzerland',lang:['German','French','Italian'],region:'Central Europe'},
+      'Czech Republic 1':{country:'Czech Republic',lang:['Czech'],region:'Central Europe'},
+      'Greece 1':{country:'Greece',lang:['Greek'],region:'Mediterranean'},
+      'Croatia 1':{country:'Croatia',lang:['Croatian'],region:'Balkans'},
+      'Serbia 1':{country:'Serbia',lang:['Serbian'],region:'Balkans'},
+      'Saudi Arabia 1':{country:'Saudi Arabia',lang:['Arabic'],region:'Middle East'},
+      'MLS':{country:'USA',lang:['English','Spanish'],region:'North America'},
+      'Brazil 1':{country:'Brazil',lang:['Portuguese'],region:'South America'},
+      'Argentina 1':{country:'Argentina',lang:['Spanish'],region:'South America'},
+    };
+    // Nationality → {lang, country}
+    const NAT_META={
+      'England':{lang:['English'],country:'England'},'Scotland':{lang:['English'],country:'Scotland'},
+      'Wales':{lang:['English','Welsh'],country:'Wales'},'Ireland':{lang:['English'],country:'Ireland'},
+      'Northern Ireland':{lang:['English'],country:'Northern Ireland'},
+      'Germany':{lang:['German'],country:'Germany'},'Austria':{lang:['German'],country:'Austria'},
+      'Switzerland':{lang:['German','French','Italian'],country:'Switzerland'},
+      'Spain':{lang:['Spanish'],country:'Spain'},'Mexico':{lang:['Spanish'],country:'Mexico'},
+      'Argentina':{lang:['Spanish'],country:'Argentina'},'Colombia':{lang:['Spanish'],country:'Colombia'},
+      'Brazil':{lang:['Portuguese'],country:'Brazil'},'Portugal':{lang:['Portuguese'],country:'Portugal'},
+      'France':{lang:['French'],country:'France'},'Belgium':{lang:['French','Dutch'],country:'Belgium'},
+      'Netherlands':{lang:['Dutch'],country:'Netherlands'},'Italy':{lang:['Italian'],country:'Italy'},
+      'Croatia':{lang:['Croatian'],country:'Croatia'},'Serbia':{lang:['Serbian'],country:'Serbia'},
+      'Czech Republic':{lang:['Czech'],country:'Czech Republic'},
+      'Turkey':{lang:['Turkish'],country:'Turkey'},'Greece':{lang:['Greek'],country:'Greece'},
+      'USA':{lang:['English'],country:'USA'},'Canada':{lang:['English','French'],country:'Canada'},
+      'Japan':{lang:['Japanese'],country:'Japan'},'South Korea':{lang:['Korean'],country:'South Korea'},
+      'Morocco':{lang:['Arabic','French'],country:'Morocco'},'Senegal':{lang:['French'],country:'Senegal'},
+      'Nigeria':{lang:['English'],country:'Nigeria'},'Ghana':{lang:['English'],country:'Ghana'},
+      'Cameroon':{lang:['French','English'],country:'Cameroon'},
+      'Costa Rica':{lang:['Spanish'],country:'Costa Rica'},
+      'Uruguay':{lang:['Spanish'],country:'Uruguay'},'Chile':{lang:['Spanish'],country:'Chile'},
+      'Norway':{lang:['Norwegian'],country:'Norway'},'Sweden':{lang:['Swedish'],country:'Sweden'},
+      'Denmark':{lang:['Danish'],country:'Denmark'},'Finland':{lang:['Finnish'],country:'Finland'},
+      'Iceland':{lang:['Icelandic'],country:'Iceland'},
+      'Poland':{lang:['Polish'],country:'Poland'},'Slovakia':{lang:['Slovak'],country:'Slovakia'},
+      'Slovenia':{lang:['Slovenian'],country:'Slovenia'},'Hungary':{lang:['Hungarian'],country:'Hungary'},
+      'Romania':{lang:['Romanian'],country:'Romania'},'Bulgaria':{lang:['Bulgarian'],country:'Bulgaria'},
+      'Ukraine':{lang:['Ukrainian'],country:'Ukraine'},'Russia':{lang:['Russian'],country:'Russia'},
+      'Albania':{lang:['Albanian'],country:'Albania'},'Kosovo':{lang:['Albanian'],country:'Kosovo'},
+      'Bosnia':{lang:['Bosnian'],country:'Bosnia'},'North Macedonia':{lang:['Macedonian'],country:'North Macedonia'},
+      'Saudi Arabia':{lang:['Arabic'],country:'Saudi Arabia'},
+    };
+    // Border/proximity bonus pairs (directional — symmetric implied)
+    const BORDER_BONUS={
+      'England':['Scotland','Wales','Ireland'],
+      'Scotland':['England','Northern Ireland'],
+      'France':['Belgium','Spain','Italy','Switzerland','Germany'],
+      'Germany':['Austria','Switzerland','Netherlands','Belgium','France','Czech Republic','Poland'],
+      'Spain':['Portugal','France'],
+      'Portugal':['Spain'],'Belgium':['France','Netherlands','Germany'],
+      'Netherlands':['Belgium','Germany'],'Austria':['Germany','Switzerland','Czech Republic'],
+      'Czech Republic':['Germany','Austria','Slovakia'],'Italy':['France','Switzerland','Austria'],
+      'Croatia':['Serbia','Slovenia','Bosnia'],'Serbia':['Croatia','Bosnia'],
+      'Norway':['Sweden'],'Sweden':['Norway','Denmark','Finland'],'Denmark':['Germany','Sweden'],
+    };
+
+    const clubMeta=LEAGUE_META[club.league]||{country:null,lang:[],region:null};
+    const playerNats=(p.nationalities||[]);
+    const playerCurrentMeta=LEAGUE_META[p.leagueTag]||{country:null,lang:[],region:null};
+    const playerLangs=[...new Set([...playerCurrentMeta.lang,...playerNats.flatMap(n=>(NAT_META[n]||{lang:[]}).lang)])];
+    const playerNatCountries=playerNats.map(n=>(NAT_META[n]||{}).country).filter(Boolean);
+
+    // Cultural fit score (0-100)
+    let culturalScore=30; // baseline
+    // Same country as nationality
+    if(playerNatCountries.includes(clubMeta.country)) culturalScore+=40;
+    // Same country as current league
+    else if(clubMeta.country===playerCurrentMeta.country) culturalScore+=30;
+    // Bordering country
+    else{
+      const borders=BORDER_BONUS[playerCurrentMeta.country]||[];
+      const natBorders=playerNatCountries.flatMap(c=>BORDER_BONUS[c]||[]);
+      if(borders.includes(clubMeta.country)||natBorders.includes(clubMeta.country)) culturalScore+=20;
+    }
+    // Shared language
+    const langMatch=clubMeta.lang.some(l=>playerLangs.includes(l));
+    if(langMatch) culturalScore+=15;
+    // Same region
+    if(clubMeta.region&&clubMeta.region===playerCurrentMeta.region) culturalScore+=10;
+    culturalScore=Math.min(100,culturalScore);
+
+    // ── Score 2: Skill Complementarity (45%) ─────────────────────
+    let clubWeakSkills=[];
+    let complementScore=50;
     if(skillNames.length>0){
+      const clubSkillAvgs={};
       skillNames.forEach(sk=>{
         const vals=samePosPlayers.map(x=>{
           const ss=computePlayerSkillScores(x);
@@ -4921,48 +5029,38 @@ function buildFORecommendedClubs(p){
         }).filter(v=>v!=null);
         clubSkillAvgs[sk]=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:50;
       });
-      // Complementarity: player is valuable where the club's existing players are weak
-      // and where the player is strong
-      // Score = average of (playerSkill - clubAvg) for skills where player > clubAvg
-      // Normalised 0-100
       let compSum=0, compCount=0;
       skillNames.forEach(sk=>{
         const pv=playerSkills[sk]??50;
         const cv=clubSkillAvgs[sk]??50;
-        // How much does the player add? Weighted by how weak the club is in this skill
-        // and how strong the player is
-        const clubWeakness=Math.max(0,75-cv); // more valuable if club is below 75
-        const playerStrength=Math.max(0,pv-50); // only counts if player is above average
+        const clubWeakness=Math.max(0,75-cv);
+        const playerStrength=Math.max(0,pv-50);
         compSum+=clubWeakness*playerStrength;
         compCount++;
       });
-      var complementScore=compCount?Math.min(100,(compSum/compCount)/18.75*100):50;
-      // Boost if player's top 2 skills are among club's 3 weakest skills
-      const clubWeakSkills=Object.entries(clubSkillAvgs).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k])=>k);
+      complementScore=compCount?Math.min(100,(compSum/compCount)/18.75*100):50;
+      clubWeakSkills=Object.entries(clubSkillAvgs).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k])=>k);
       const playerTopSkills=Object.entries(playerSkills).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k])=>k);
       const overlap=playerTopSkills.filter(s=>clubWeakSkills.includes(s)).length;
       if(overlap>0) complementScore=Math.min(100,complementScore+overlap*15);
-    } else {
-      var complementScore=50;
     }
 
-    // ── Score 3: Level Fit (15%) ──────────────────────────────────
+    // ── Score 3: Level Fit (10%) ──────────────────────────────────
     const clubLQ=LEAGUE_QUALITY[club.league]||{good:60,top:70,elite:80};
-    // Player should be in good→top range for the club's league
-    // Below good = underqualified slightly, above elite = overkill
     let levelScore;
-    if(dr>=clubLQ.good&&dr<clubLQ.top) levelScore=100; // perfect fit
-    else if(dr>=clubLQ.top&&dr<clubLQ.elite) levelScore=80; // slightly above, still good
-    else if(dr>=clubLQ.elite) levelScore=40; // overqualified
-    else if(dr>=clubLQ.good-5) levelScore=70; // just below ideal
-    else if(dr>=clubLQ.good-12) levelScore=45; // development move
-    else levelScore=20; // too big a step up
+    if(dr>=clubLQ.good&&dr<clubLQ.top) levelScore=100;
+    else if(dr>=clubLQ.top&&dr<clubLQ.elite) levelScore=80;
+    else if(dr>=clubLQ.elite) levelScore=40;
+    else if(dr>=clubLQ.good-5) levelScore=70;
+    else if(dr>=clubLQ.good-12) levelScore=45;
+    else levelScore=20;
 
     // ── Combined score ────────────────────────────────────────────
     const totalScore=Math.round(
-      playingTimeScore*0.35+
-      complementScore*0.50+
-      levelScore*0.15
+      playingTimeScore*0.30+
+      complementScore*0.40+
+      culturalScore*0.20+
+      levelScore*0.10
     );
 
     scored.push({
@@ -4971,8 +5069,9 @@ function buildFORecommendedClubs(p){
       posRank,posSize,squadRank:Math.min(squadRank,squadAll.length-1),
       playingTimeScore:Math.round(playingTimeScore),
       complementScore:Math.round(complementScore),
+      culturalScore:Math.round(culturalScore),
       levelScore,
-      topGap:clubWeakSkills?clubWeakSkills.slice(0,2):[]
+      topGap:clubWeakSkills.slice(0,2)
     });
   });
 
@@ -4997,7 +5096,7 @@ function buildFORecommendedClubs(p){
           <div style="font-family:'Archivo Black',sans-serif;font-size:14px;color:${scoreCol};flex-shrink:0;margin-left:6px">${c.score}</div>
         </div>
         <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season} · #${c.posRank} at pos · #${c.squadRank} in squad</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px">
           <div>
             <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Playing Time</div>
             ${scoreBar(c.playingTimeScore,'#00d4ff')}
@@ -5005,6 +5104,10 @@ function buildFORecommendedClubs(p){
           <div>
             <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Complement</div>
             ${scoreBar(c.complementScore,'#f5c842')}
+          </div>
+          <div>
+            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Cultural</div>
+            ${scoreBar(c.culturalScore,'#a78bfa')}
           </div>
           <div>
             <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Level Fit</div>
@@ -5017,7 +5120,7 @@ function buildFORecommendedClubs(p){
   }).join('');
 
   return`<div style="margin-top:4px">
-    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Score = playing time (35%) · skill complementarity (50%) · level fit (15%)</div>
+    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time (30%) · skill fit (40%) · cultural (20%) · level (10%)</div>
     ${rows}
   </div>`;
 }
