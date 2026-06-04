@@ -570,7 +570,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   <div style="padding:8px 14px 0;display:flex;justify-content:flex-end"><button class="btn btn-ghost" style="font-size:9px;padding:3px 10px;letter-spacing:1px;font-family:'JetBrains Mono',monospace" onclick="openFullOverview()">⊞ FULL OVERVIEW</button></div>
   <div class="pp-tabs">
     <div class="pp-tab active" onclick="setPPTab('overview',this)">Overview</div>
-    <div class="pp-tab" onclick="setPPTab('roles',this)">Roles</div>
+    <div class="pp-tab" onclick="setPPTab('roles',this)">Roles & Skills</div>
     <div class="pp-tab" onclick="setPPTab('metrics',this)">Metrics</div>
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
@@ -3765,6 +3765,7 @@ function renderPanel(){
       return{path,color:pieColors[i%pieColors.length],label:v.label,val:v.val};
     });
     const topRole=vals.reduce((a,b)=>b.val>a.val?b:a,{val:0,label:'—'});
+    const swarmHtml=buildFOSwarms(p,'panel');
     body.innerHTML=vals.some(v=>v.val>0)?`
       <div class="pst" style="margin-top:4px">Role Profile</div>
       <div class="pie-wrap">
@@ -3781,7 +3782,9 @@ function renderPanel(){
             <div class="pie-legend-val">${fmt(s.val,1)}%</div>
           </div>`).join('')}
         </div>
-      </div>`:'<div style="padding:16px;color:var(--muted)">No role data available</div>';  } else if(ST.panelTab==='metrics'){
+      </div>
+      <div style="padding:0 8px 12px">${swarmHtml}</div>
+    `:(swarmHtml?`<div style="padding:12px 8px">${swarmHtml}</div>`:'<div style="padding:16px;color:var(--muted)">No role data available</div>');  } else if(ST.panelTab==='metrics'){
     const isN=ST.metricView==='normal';
     const isPizza=ST.metricChartView==='pizza';
     const metrics=isN?posConf.nm:posConf.pm;
@@ -4919,13 +4922,183 @@ function interpretMetrics(p,pctCache){
   return joined.endsWith('.')?joined:joined+'.';
 }
 
+// Compute skill scores for a player (50:50 normal+padj average)
+function computePlayerSkillScores(p){
+  const MF_GROUP=['DM','CM','AM'];
+  const posKey=MF_GROUP.includes(p.pos)?'DM':p.pos;
+  const PHYS_KEY={
+    'Avg. Top Speed':'psv99','Peak Top Speed':'top5psv99','Explosiveness':'top3timeHSR',
+    'Distance':'distP90','HSR In Poss.':'hsrDistTIP','Sprint In Poss.':'sprintDistTIP',
+    'HSR Out of Poss.':'hsrDistOTIP','Sprint Out of Poss.':'sprintDistOTIP',
+  };
+  const PADJ_MAP={
+    'Claims':'PAdj Claims','Sweeps':'PAdj Sweeps',
+    'Succ. Passes to F3rd':'PAdj Succ. Passes to F3rd',
+    'Succ. Progressive Passes':'PAdj Succ. Progressive Passes',
+    'Aerial Duels':'PAdj Aerial Duels','xG':'PAdj xG','Shots Blocked':'PAdj Shots Blocked',
+    'Defensive Duels':'PAdj Defensive Duels','Fouls (inv.)':'PAdj Fouls (inv.)',
+    'Interceptions':'PAdj Interceptions','Carries':'PAdj Carries',
+    'Dribbles + Offensive Duels':'PAdj Dribbles + Offensive Duels',
+  };
+  // Import defs from buildFOSwarms context — reconstruct minimal SKILL_DEFS inline
+  const SKILL_DEFS_LOCAL={
+    GK:[
+      {name:'Shot Stopping',metrics:['Goals Prevented','Save %']},
+      {name:'Claiming Crosses',metrics:['Claims','Claim Success']},
+      {name:'Sweeping Up',metrics:['Sweeps']},
+      {name:'Playing Out',metrics:['Pass Success']},
+      {name:'Playing Long',metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+    ],
+    CB:[
+      {name:'Press Resistance',metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',metrics:['Adj Long Pass Success','Succ. Passes to F3rd','Succ. Progressive Passes']},
+      {name:'Stepping In',metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Aerial Threat',metrics:['Aerial Duel Success','xG']},
+      {name:'Aggression',metrics:['Aerial Duels','Defensive Duels']},
+      {name:'1v1 Defending',metrics:['Defensive Duel Success','Fouls (inv.)']},
+      {name:'Box Defending',metrics:['Interceptions','Shots Blocked']},
+      {name:'Pace & Recovery',metrics:[],physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed','HSR Out of Poss.']},
+    ],
+    FB:[
+      {name:'Press Resistance',metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',metrics:['Succ. Passes to Box','xA','Shot Assists']},
+      {name:'Crossing',metrics:['Crosses','Cross Success']},
+      {name:'Carrying & Dynamism',metrics:['Carries','Dribbles + Offensive Duels'],physLabels:['HSR In Poss.']},
+      {name:'Pace & Explosiveness',metrics:[],physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed']},
+      {name:'Goal Threat',metrics:['xG','Touches in Box']},
+      {name:'Intensity Defending',metrics:['Defensive Duels','Defensive Duel Success','Fouls (inv.)'],physLabels:['HSR Out of Poss.']},
+      {name:'Backpost Def.',metrics:['Aerial Duel Success','Interceptions']},
+    ],
+    DM:[
+      {name:'Press Resistance',metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'1v1 Directness',metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Dynamism',metrics:[],physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
+      {name:'Goal Threat',metrics:['xG','Shots']},
+      {name:'Press & Intensity',metrics:['Defensive Duels'],physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',metrics:['Aerial Duel Success','Defensive Duel Success']},
+      {name:'Cover & Position',metrics:['Interceptions'],physLabels:['Distance']},
+    ],
+    WF:[
+      {name:'Press Resistance',metrics:['Pass Success','Dribble Success','Fouls Won']},
+      {name:'Chance Creation',metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'Crossing',metrics:['Crosses','Cross Success']},
+      {name:'1v1 Directness',metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Explosiveness',metrics:[],physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
+      {name:'Runs Beyond',metrics:['xG per Shot','Touches in Box'],physLabels:['HSR In Poss.']},
+      {name:'Goal Threat',metrics:['xG','Shots','xG Over/Underperformance']},
+      {name:'Press & Intensity',metrics:['Defensive Duels','Interceptions'],physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',metrics:['Defensive Duel Success','Aerial Duel Success']},
+    ],
+    CF:[
+      {name:'Link Up Play',metrics:['Pass Success'],physLabels:['Distance']},
+      {name:'Chance Creation',metrics:['xA','Shot Assists','Succ. Through Balls','Succ. Passes to Box']},
+      {name:'Hold Up Play',metrics:['Dribble Success','Aerial Duel Success','Aerial Duels','Fouls Won']},
+      {name:'Engaging & Carrying',metrics:['Dribbles + Offensive Duels','Carries']},
+      {name:'Dynamism',metrics:[],physLabels:['HSR In Poss.','Sprint In Poss.']},
+      {name:'Pace & Explosiveness',metrics:[],physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
+      {name:'Box Movement',metrics:['xG','xG per Shot','Touches in Box']},
+      {name:'Finishing',metrics:['xG Over/Underperformance','Adj Shot on Target Ratio']},
+      {name:'Press & Intensity',metrics:['Interceptions','Defensive Duels'],physLabels:['HSR Out of Poss.','Sprint Out of Poss.']},
+    ],
+  };
+  const defs=SKILL_DEFS_LOCAL[posKey]||[];
+  const phys=PHYS_PCT_CACHE[p.id]||{};
+  const result={};
+  defs.forEach(skill=>{
+    const scores=[];
+    // Normal metrics
+    skill.metrics.forEach(m=>{
+      const v=(p.nm||{})[m];
+      if(v!=null) scores.push(v);
+    });
+    // PAdj metrics (average with normal for 50:50)
+    skill.metrics.forEach(m=>{
+      const adjKey=PADJ_MAP[m];
+      const v=adjKey?(p.pm||{})[adjKey]:null;
+      if(v!=null) scores.push(v);
+    });
+    // Physical
+    (skill.physLabels||[]).forEach(label=>{
+      const key=PHYS_KEY[label];
+      const v=key&&phys[key]!=null?phys[key]:null;
+      if(v!=null) scores.push(v);
+    });
+    if(scores.length) result[skill.name]=Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+  });
+  return result;
+}
+
 function buildInsight(p,dr,dp,sortedRoles,snap){
   const posConf=POS_CONFIG[p.pos]||{label:p.pos};
   const age=p.age||0;
   const {currentDesc,ceilingDesc}=ratingContext(dr,dp,p.leagueTag,age);
   const minCtx=minutesContext(p.minutes||0,p.leagueTag,p.season);
-  const roleDesc=interpretRoles(sortedRoles);
-  const metricDesc=interpretMetrics(p,PHYS_PCT_CACHE[p.id]);
+
+  // Use skill scores instead of roles for description
+  const skillScores=computePlayerSkillScores(p);
+  const skillEntries=Object.entries(skillScores).sort((a,b)=>b[1]-a[1]);
+  const strengths=skillEntries.filter(([,v])=>v>=70).map(([k])=>k);
+  const weaknesses=skillEntries.filter(([,v])=>v<=30).map(([k])=>k);
+
+  // Natural language phrases for skill names
+  const SKILL_PHRASES={
+    'Shot Stopping':'exceptional between the posts',
+    'Claiming Crosses':'commanding when coming off his line for crosses',
+    'Sweeping Up':'effective as a sweeper-keeper',
+    'Playing Out':'comfortable playing out from the back',
+    'Playing Long':'accurate with his longer distribution',
+    'Press Resistance':'technically composed under pressure',
+    'Deep Progression':'excellent at progressing the ball from deep',
+    'Stepping In':'aggressive in stepping out and carrying the ball',
+    'Aerial Threat':'a threat in the air',
+    'Aggression':'physical and combative',
+    'Box Defending':'commanding in his box',
+    '1v1 Defending':'strong in one-on-one defensive duels',
+    'Ball Retention':'reliable in possession',
+    'Deep Progression':'sharp with the ball in deeper areas',
+    'Pace & Recovery':'quick with great recovery pace',
+    'Chance Creation':'creative and a consistent source of chances',
+    'Crossing':'a dangerous deliverer from wide',
+    'Carrying & Dynamism':'dynamic in carrying the ball forward',
+    'Pace & Explosiveness':'genuinely quick and explosive',
+    'Goal Threat':'a real goal threat',
+    'Intensity Defending':'intense and physical off the ball',
+    'Backpost Def.':'well-positioned and effective in aerial defending',
+    '1v1 Directness':'direct and dangerous in one-on-ones',
+    'Pace & Dynamism':'fast and dynamic across the ground',
+    'Press & Intensity':'relentless in his pressing and off-ball work',
+    'Duel Dominance':'dominant in both offensive and defensive duels',
+    'Cover & Position':'intelligent in covering ground and positioning',
+    'Runs Beyond':'excellent at timed runs in behind',
+    'Hold Up Play':'a strong focal point who links the play well',
+    'Engaging & Carrying':'direct and willing to carry the ball at defenders',
+    'Dynamism':'bursting with energy and athleticism',
+    'Box Movement':'always dangerous in and around the box',
+    'Finishing':'clinical in front of goal',
+    'Link Up Play':'good at linking play and combining with teammates',
+    'Covering & Position':'sharp at covering space and reading the game',
+  };
+
+  let skillDesc='';
+  if(strengths.length){
+    const top=strengths.slice(0,3).map(s=>SKILL_PHRASES[s]||s.toLowerCase());
+    if(top.length>=3) skillDesc=`He stands out for being ${top[0]}, ${top[1]}, and ${top[2]}.`;
+    else if(top.length===2) skillDesc=`He stands out for being ${top[0]} and ${top[1]}.`;
+    else skillDesc=`He stands out for being ${top[0]}.`;
+  }
+
+  let weakDesc='';
+  if(weaknesses.length){
+    const bot=weaknesses.slice(0,2).map(s=>SKILL_PHRASES[s]||s.toLowerCase());
+    if(bot.length>=2) weakDesc=`Areas where he is below average include ${bot[0].replace('being ','').replace('excellent at ','').replace('always ','').replace('genuinely ','').replace('a real ','a ')} and ${bot[1].replace('being ','').replace('excellent at ','').replace('always ','').replace('genuinely ','').replace('a real ','a ')}.`;
+    else if(bot.length===1) weakDesc=`He tends to underperform when it comes to ${bot[0].replace('being ','').replace('excellent at ','').replace('always ','')}.`;
+  }
+
+  const metricDesc=[skillDesc,weakDesc].filter(Boolean).join(' ');
+
   const gap=dp-dr;
   let potText='';
   if(age<28&&ceilingDesc){
@@ -4938,15 +5111,15 @@ function buildInsight(p,dr,dp,sortedRoles,snap){
   } else if(age<28&&!ceilingDesc){
     potText=gap>=5?`He still has meaningful room to develop.`:gap>=2?`He is close to his current ceiling.`:``;
   }
-  const s1=`<strong>${p.name}</strong> is ${currentDesc}`;
-  const s1b=roleDesc?`, with a profile built around being ${roleDesc}. He is ${minCtx}.`:`. He is ${minCtx}.`;
+
+  const s1=`<strong>${p.name}</strong> is ${currentDesc}. He is ${minCtx}.`;
   const s2=metricDesc?`<br><br>${metricDesc}`:'';
   const s3=potText?`<br><br>${potText}`:'';
-  return s1+s1b+s2+s3;
+  return s1+s2+s3;
 }
 
 
-function buildFOSwarms(p){
+function buildFOSwarms(p, context='fo'){
   const isAdj=_foMetricView==='padj';
   const mode=isAdj?'pm':'nm';
   const MF_GROUP=['DM','CM','AM'];
@@ -5126,6 +5299,10 @@ function buildFOSwarms(p){
     const scaled=raw.map(x=>({...x,score:rescale(x.score)}));
     const playerScaled=playerRaw!=null?rescale(playerRaw):null;
 
+    // Rank: how many players score higher (lower = better rank)
+    const rank=playerScaled!=null?raw.filter(x=>x.id!==p.id&&rescale(x.score)>playerScaled).length+1:null;
+    const total=raw.length;
+
     // Build SVG dots with tooltip data
     const dotsHtml=scaled.map(s=>{
       const isMe=s.id===p.id;
@@ -5158,13 +5335,17 @@ function buildFOSwarms(p){
       </svg>
       <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:${skill.color};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1.2;max-width:${COL_W+4}px">${skill.name}</div>
       <div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:${playerScaled!=null?'#00d4ff':'var(--muted)'};font-weight:700">${playerScaled!=null?playerScaled:'—'}</div>
+      ${rank!=null?`<div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:var(--muted2)">${rank}/${total}</div>`:''}
     </div>`;
   }).filter(Boolean).join('');
 
   if(!swarmCols) return '';
   const poolLabel=poolPos.join('/')+(poolPos.length>1?' (MF pool)':'');
+  const headerText=context==='panel'
+    ?`Skills · ${p.leagueTag} · ${peers.length} players · ${isAdj?'PAdj':'Normal'}`
+    :`Skills — ${p.leagueTag} · ${poolLabel} · ${peers.length} players · ${isAdj?'PAdj':'Normal'}`;
   return`<div class="fo-section">
-    <div class="fo-section-title">Skills — ${p.leagueTag} · ${poolLabel} · ${peers.length} players · ${isAdj?'PAdj':'Normal'}</div>
+    <div class="fo-section-title">${headerText}</div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:4px 0">
       ${swarmCols}
     </div>
