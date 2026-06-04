@@ -5017,43 +5017,41 @@ function buildFORecommendedClubs(p){
     if(clubMeta.region&&clubMeta.region===playerCurrentMeta.region) culturalScore+=10;
     culturalScore=Math.min(100,culturalScore);
 
-    // ── Score 2: Skill Complementarity (45%) ─────────────────────
+    // ── Score 2: Skill Complementarity (30%) ─────────────────────
+    // Rank-based: find club's relative skill gaps, score how much player outperforms there
     let clubWeakSkills=[];
     let complementScore=50;
     if(skillNames.length>0){
+      // Step 1: compute average skill score for existing same-pos players at club
       const clubSkillAvgs={};
       skillNames.forEach(sk=>{
-        const vals=samePosPlayers.map(x=>{
-          const ss=computePlayerSkillScores(x);
-          return ss[sk]??null;
-        }).filter(v=>v!=null);
+        const vals=samePosPlayers.map(x=>computePlayerSkillScores(x)[sk]??null).filter(v=>v!=null);
         clubSkillAvgs[sk]=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:50;
       });
-      let compSum=0, compCount=0;
-      skillNames.forEach(sk=>{
+      // Step 2: identify club's relative weak spots (bottom 3 ranked skills)
+      const skillsRanked=Object.entries(clubSkillAvgs).sort((a,b)=>a[1]-b[1]);
+      clubWeakSkills=skillsRanked.slice(0,3).map(([k])=>k);
+      const clubStrongSkills=skillsRanked.slice(-3).map(([k])=>k);
+      // Step 3: for each skill, score = how much player outperforms club average
+      // Weight the score by position in club ranking (weak skills count more)
+      let weightedSum=0, weightTotal=0;
+      skillsRanked.forEach(([sk,clubAvg],rank)=>{
         const pv=playerSkills[sk]??50;
-        const cv=clubSkillAvgs[sk]??50;
-        const clubWeakness=Math.max(0,75-cv);
-        const playerStrength=Math.max(0,pv-50);
-        compSum+=clubWeakness*playerStrength;
-        compCount++;
+        const outperformance=pv-clubAvg; // positive = player better, negative = worse
+        // Weight: bottom 3 skills (rank 0-2) get weight 3, middle get 2, top get 1
+        const weight=rank<3?3:rank<skillsRanked.length-3?2:1;
+        // Normalise outperformance: cap at ±50 points → -100 to +100 → shift to 0-100
+        const contribution=Math.max(-50,Math.min(50,outperformance));
+        weightedSum+=weight*(contribution+50); // shift so 0 outperformance = 50
+        weightTotal+=weight*100;
       });
-      complementScore=compCount?Math.min(100,(compSum/compCount)/18.75*100):50;
-      clubWeakSkills=Object.entries(clubSkillAvgs).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k])=>k);
+      complementScore=weightTotal?Math.round(weightedSum/weightTotal*100):50;
+      // Bonus: player's top 2 skills are in club's 3 weakest
       const playerTopSkills=Object.entries(playerSkills).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k])=>k);
       const overlap=playerTopSkills.filter(s=>clubWeakSkills.includes(s)).length;
-      if(overlap>0) complementScore=Math.min(100,complementScore+overlap*15);
+      if(overlap>0) complementScore=Math.min(100,complementScore+overlap*12);
     }
 
-    // ── Score 3: Level Fit (10%) ──────────────────────────────────
-    const clubLQ=LEAGUE_QUALITY[club.league]||{good:60,top:70,elite:80};
-    let levelScore;
-    if(dr>=clubLQ.good&&dr<clubLQ.top) levelScore=100;
-    else if(dr>=clubLQ.top&&dr<clubLQ.elite) levelScore=80;
-    else if(dr>=clubLQ.elite) levelScore=40;
-    else if(dr>=clubLQ.good-5) levelScore=70;
-    else if(dr>=clubLQ.good-12) levelScore=45;
-    else levelScore=20;
 
     // ── Combined score ────────────────────────────────────────────
     const totalScore=Math.round(
@@ -5108,9 +5106,6 @@ function buildFORecommendedClubs(p){
             ${scoreBar(c.culturalScore,'#a78bfa')}
           </div>
           <div>
-            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Level Fit</div>
-            ${scoreBar(c.levelScore,'#00e599')}
-          </div>
         </div>
         ${gapStr?`<div style="font-size:8px;color:var(--muted);margin-top:3px;font-family:'JetBrains Mono',monospace">${gapStr}</div>`:''}
       </div>
