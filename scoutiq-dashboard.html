@@ -5057,10 +5057,9 @@ function buildFORecommendedClubs(p){
 
     // ── Combined score ────────────────────────────────────────────
     const totalScore=Math.round(
-      playingTimeScore*0.30+
+      playingTimeScore*0.50+
       complementScore*0.30+
-      culturalScore*0.20+
-      levelScore*0.20
+      culturalScore*0.20
     );
 
     scored.push({
@@ -5070,15 +5069,14 @@ function buildFORecommendedClubs(p){
       playingTimeScore:Math.round(playingTimeScore),
       complementScore:Math.round(complementScore),
       culturalScore:Math.round(culturalScore),
-      levelScore,
-      topGap:clubWeakSkills.slice(0,2)
+            topGap:clubWeakSkills.slice(0,2)
     });
   });
 
   if(!scored.length) return '<div style="color:var(--muted);font-size:11px">Not enough data to generate recommendations</div>';
 
   // Sort by score, take top 6
-  const top=scored.sort((a,b)=>b.score-a.score).slice(0,6);
+  const top=scored.sort((a,b)=>b.score-a.score).slice(0,5);
 
   const scoreBar=(v,col)=>`<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:2px">
     <div style="height:100%;width:${v}%;background:${col};border-radius:2px"></div>
@@ -5096,7 +5094,7 @@ function buildFORecommendedClubs(p){
           <div style="font-family:'Archivo Black',sans-serif;font-size:14px;color:${scoreCol};flex-shrink:0;margin-left:6px">${c.score}</div>
         </div>
         <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season} · #${c.posRank} at pos · #${c.squadRank} in squad</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
           <div>
             <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Playing Time</div>
             ${scoreBar(c.playingTimeScore,'#00d4ff')}
@@ -5120,7 +5118,7 @@ function buildFORecommendedClubs(p){
   }).join('');
 
   return`<div style="margin-top:4px">
-    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time (30%) · skill fit (30%) · cultural (20%) · level (20%)</div>
+    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time (50%) · skill fit (30%) · cultural (20%)</div>
     ${rows}
   </div>`;
 }
