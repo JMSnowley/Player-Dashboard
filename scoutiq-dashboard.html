@@ -2181,32 +2181,25 @@ function getFiltered(){
       return pct>=lo&&pct<=hi;
     });
   });
-  // Skill score filters — computed on demand
+  // Skill score filters
   const activeSkillFilters=Object.entries(SLIDER_STATE.skills||{}).filter(([,[lo,hi]])=>lo>0||hi<100);
   if(activeSkillFilters.length){
     const MFG=['DM','CM','AM'];
     list=list.filter(p=>{
-      const scores=computePlayerSkillScores(p);
-      const MF_POS=MFG.includes(p.pos)?p.pos:null;
       return activeSkillFilters.every(([key,[lo,hi]])=>{
-        // key format: skill_nm::POS::SkillName or skill_pm::POS::SkillName
-        const parts=key.split('::');
-        const mode=parts[0]; // skill_nm or skill_pm
+        const parts=key.split('::'); // skill_nm::POS::SkillName
+        const isAdj=parts[0]==='skill_pm';
         const filterPos=parts[1];
         const skillName=parts[2];
-        // Only apply filter if this player is the right position
-        const playerMFGroup=MFG.includes(p.pos);
-        const filterMFGroup=MFG.includes(filterPos);
-        if(filterMFGroup){if(!playerMFGroup) return true;}
-        else{if(p.pos!==filterPos) return true;}
-        // Get the skill score — use mode to determine normal vs padj
-        const isAdj=mode==='skill_pm';
-        // Temporarily override metric view to get correct score
-        const savedView=_foMetricView;
-        _foMetricView=isAdj?'padj':'normal';
-        const sc=computePlayerSkillScores(p);
-        _foMetricView=savedView;
-        const v=sc[skillName];
+        const playerMF=MFG.includes(p.pos);
+        const filterMF=MFG.includes(filterPos);
+        // Skip if wrong position group
+        if(filterMF?!playerMF:p.pos!==filterPos) return true;
+        // Compute skill score inline without mutating globals
+        const PHYS_KEY_MAP={'Avg. Top Speed':'psv99','Peak Top Speed':'top5psv99','Explosiveness':'top3timeHSR','Distance':'distP90','HSR In Poss.':'hsrDistTIP','Sprint In Poss.':'sprintDistTIP','HSR Out of Poss.':'hsrDistOTIP','Sprint Out of Poss.':'sprintDistOTIP'};
+        const PADJ_MAP_LOCAL={'Claims':'PAdj Claims','Sweeps':'PAdj Sweeps','Succ. Passes to F3rd':'PAdj Succ. Passes to F3rd','Succ. Progressive Passes':'PAdj Succ. Progressive Passes','Aerial Duels':'PAdj Aerial Duels','xG':'PAdj xG','Shots Blocked':'PAdj Shots Blocked','Defensive Duels':'PAdj Defensive Duels','Fouls (inv.)':'PAdj Fouls (inv.)','Interceptions':'PAdj Interceptions','Carries':'PAdj Carries','Dribbles + Offensive Duels':'PAdj Dribbles + Offensive Duels'};
+        const scores=computePlayerSkillScores(p);
+        const v=scores[skillName];
         if(v==null) return lo===0;
         return v>=lo&&v<=hi;
       });
