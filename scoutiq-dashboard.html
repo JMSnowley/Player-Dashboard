@@ -3981,6 +3981,297 @@ async function prefetchAllBadges(){
 }
 
 // ═══════════════════════════════════
+// PLAYER PANEL
+// ═══════════════════════════════════
+function toggleRowSelect(id,cb){
+  if(cb.checked) ST.selectedIds.add(id); else ST.selectedIds.delete(id);
+  const {list}=getFiltered();
+  updateSelBar(list);
+}
+function toggleSelectAll(cb){
+  const {list}=getFiltered();
+  list.forEach(p=>cb.checked?ST.selectedIds.add(p.id):ST.selectedIds.delete(p.id));
+  updateSelBar(list);
+  renderTable();
+}
+
+function openPanel(id){
+  ST.panelId=id;
+  ST.panelTab='overview';
+  ST.metricView='normal';
+  ST.metricChartView='bar';
+  document.querySelectorAll('.pp-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
+  renderPanel();
+  document.getElementById('playerPanel').classList.add('open');
+}
+function closePanel(){
+  document.getElementById('playerPanel').classList.remove('open');
+  ST.panelId=null;
+}
+function setPPTab(tab,el){
+  ST.panelTab=tab;
+  document.querySelectorAll('.pp-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderPanel();
+}
+function setMV(v){ ST.metricView=v; renderPanel(); }
+function setMCV(v){ ST.metricChartView=v; renderPanel(); }
+
+function renderPanel(){
+  const p=ST.players.find(x=>x.id===ST.panelId);
+  if(!p) return;
+  const isEditor=GH.token||GH.isEditor;
+
+  // Header
+  document.getElementById('ppAv').innerHTML=badgeEl(p.team,36);
+  document.getElementById('ppName').textContent=p.name;
+  document.getElementById('ppSub').textContent=`${p.pos} · ${p.team} · ${p.leagueTag||''} · ${p.season||''}`;
+
+  const body=document.getElementById('ppBody');
+  const tab=ST.panelTab;
+
+  if(tab==='overview'){
+    const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season);
+    const dr=displayRating(p)??0, dp=displayPotential(p)??0, dt=displayPTP(p)??0;
+    const rc=v=>v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
+    const scoreCards=['Rating','Potential','PT Pri.'].map((l,i)=>{
+      const v=[dr,dp,dt][i];
+      return `<div class="sg-cell"><div style="font-family:'Archivo Black',sans-serif;font-size:18px;color:${rc(v??0)}">${v!=null?v.toFixed(1):'—'}</div><div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px">${l}</div></div>`;
+    }).join('');
+
+    // Top skills
+    const skillScores=computePlayerSkillScores(p);
+    const topSkills=Object.entries(skillScores).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([name,val])=>{
+      const col=SKILL_COLOR_MAP[name]||'var(--accent)';
+      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div style="width:4px;height:14px;border-radius:2px;background:${col};flex-shrink:0"></div>
+        <div style="font-size:10px;flex:1">${name}</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${col}">${val}</div>
+      </div>`;
+    }).join('');
+
+    // Compare search section
+    const compareSection=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Compare with</div>
+      <div style="position:relative">
+        <input id="cmpSearch" type="text" placeholder="Search player or club…"
+          style="width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;color:var(--text);font-size:11px;box-sizing:border-box;outline:none"
+          oninput="updateCmpSearch(this.value,'${p.id}','${p.pos}')"
+          onfocus="this.select()"
+        />
+        <div id="cmpSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--surface2);border:1px solid var(--border2);border-radius:0 0 6px 6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+      </div>
+      <div id="cmpSelectedPlayer" style="display:none;margin-top:6px;padding:6px 10px;background:var(--surface3);border-radius:6px;display:flex;align-items:center;justify-content:space-between">
+        <span id="cmpSelectedName" style="font-size:11px"></span>
+        <button class="btn btn-ghost" style="font-size:10px;padding:3px 8px" onclick="launchCompare('${p.id}')">Go ⇄</button>
+      </div>
+    </div>`;
+
+    // Hypothetical transfer (editor only)
+    const transferSection=isEditor?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      ${buildHypotheticalTransfer(p)}
+    </div>`:'';
+
+    // Physical match (editor only)
+    const physSection=isEditor&&p.pos!=='GK'?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      ${buildPhysMatchSection(p)}
+    </div>`:'';
+
+    body.innerHTML=`
+      <div class="sg">${scoreCards}</div>
+      ${p.minutes?`<div style="font-size:10px;color:var(--muted);margin:4px 0 10px">${Math.round(p.minutes).toLocaleString()} mins · Age ${p.age||'—'} · ${(p.nationalities||[]).map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ')||'—'}</div>`:''}
+      ${topSkills?`<div style="margin-bottom:14px"><div style="font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Top Skills</div>${topSkills}</div>`:''}
+      ${compareSection}
+      ${transferSection}
+      ${physSection}`;
+
+  } else if(tab==='roles'){
+    const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
+    const roleKeys=Object.keys(p.roles||{});
+    const vals=(roleKeys.length?roleKeys:posConf.roles).map(r=>({label:r.replace(' %',''),val:p.roles&&p.roles[r]||0})).sort((a,b)=>b.val-a.val);
+    const topRole=vals.reduce((a,b)=>b.val>a.val?b:a,{val:0,label:'—'});
+    const swarmHtml=buildFOSwarms(p,'panel-avg');
+    const COLORS=['#00d4ff','#f5c842','#00e599','#7b68ee','#ff8c42'];
+    const pieSlices=vals.filter(v=>v.val>0).map((v,i)=>({...v,color:COLORS[i%COLORS.length]}));
+    body.innerHTML=vals.some(v=>v.val>0)?`
+      <div class="pst" style="margin-top:4px">Role Profile</div>
+      <div class="pie-wrap" style="display:flex;gap:16px;align-items:center;margin-bottom:12px">
+        <svg viewBox="0 0 100 100" width="90" height="90">${buildPieSVG(pieSlices)}</svg>
+        <div>${pieSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:2px;background:${s.color}"></div><div style="font-size:10px">${s.label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);margin-left:auto">${s.val.toFixed(1)}%</div></div>`).join('')}</div>
+      </div>
+      <div style="padding:0 0 12px">${swarmHtml}</div>
+    `:(swarmHtml?`<div style="padding:12px 0">${swarmHtml}</div>`:'<div style="padding:16px;color:var(--muted)">No role data available</div>');
+
+  } else if(tab==='metrics'){
+    const mv=ST.metricView||'normal';
+    const posConf=POS_CONFIG[p.pos];
+    if(!posConf){body.innerHTML='<div style="padding:16px;color:var(--muted)">No metric config for this position</div>';return;}
+    const metrics=posConf[mv]||[];
+    const data=p[mv]||{};
+    const skillMap=(METRIC_SKILLS[p.pos]||{})[mv]||{};
+    const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+    const peers=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&x.pos===p.pos&&x[mv]);
+    const getPool=m=>peers.map(x=>x[mv][m]).filter(v=>v!=null).sort((a,b)=>a-b);
+    const toggleHtml=`<div class="mtog" style="width:120px;margin-bottom:10px"><div class="mtog-btn ${mv==='normal'?'active':''}" onclick="setMV('normal')">Normal</div><div class="mtog-btn ${mv==='padj'?'active':''}" onclick="setMV('padj')">PAdj</div></div>`;
+    let html=toggleHtml;
+    const groups={};skillOrder.forEach(s=>{groups[s]=[];});
+    metrics.forEach(m=>{const s=skillMap[m]||skillOrder[0];if(!groups[s])groups[s]=[];groups[s].push(m);});
+    skillOrder.forEach(skill=>{
+      const mets=groups[skill]||[];
+      if(!mets.length) return;
+      html+=`<div class="pst">${skill}</div>`;
+      mets.forEach(m=>{
+        const v=data[m];if(v==null)return;
+        const pool=getPool(m);
+        const pct=pool.length>=2?Math.round((pool.filter(x=>x<=v).length/pool.length)*100):50;
+        const bar=`<div style="height:4px;background:var(--surface3);border-radius:2px;margin-top:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a'};border-radius:2px"></div></div>`;
+        html+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px"><span style="font-size:10px;color:var(--muted2)">${m.replace(/^PAdj\s+/i,'')}</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px">${typeof v==='number'?v.toFixed(1):v}</span></div>${bar}`;
+      });
+    });
+    body.innerHTML=html;
+
+  } else if(tab==='history'){
+    const hist=[...(p.history||[])].reverse();
+    if(!hist.length){body.innerHTML='<div style="padding:16px;color:var(--muted)">No capture history</div>';return;}
+    body.innerHTML=hist.map(h=>`<div class="hist-item" style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+        <span style="font-size:10px;font-weight:600">${h.type==='physical'?'Physical':'Technical'} · ${h.leagueTag||''}</span>
+        <span style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace">${h.capturedAt?h.capturedAt.slice(0,10):''}</span>
+      </div>
+      <div style="display:flex;gap:12px;font-size:10px;color:var(--muted2)">
+        ${h.rating!=null?`<span>Rat: <strong style="color:var(--text)">${h.rating.toFixed(1)}</strong></span>`:''}
+        ${h.potential!=null?`<span>Pot: <strong style="color:var(--text)">${h.potential.toFixed(1)}</strong></span>`:''}
+        ${h.physicalScore!=null?`<span>Phys: <strong style="color:var(--accent)">${h.physicalScore.toFixed(1)}</strong></span>`:''}
+        ${h.physicalAdj!=null?`<span>Adj: <strong style="color:var(--accent)">${h.physicalAdj>0?'+':''}${h.physicalAdj.toFixed(2)}</strong></span>`:''}
+      </div>
+      ${isEditor&&h.type!=='physical'?`<button class="btn btn-ghost" style="font-size:9px;padding:2px 6px;margin-top:4px;color:var(--red);border-color:var(--red)" onclick="deleteSnapshot('${p.id}','${h.capturedAt}')">Delete</button>`:''}
+    </div>`).join('');
+  }
+}
+
+// ── Compare search in panel ───────────────────────────────────────────
+let _cmpSelectedId=null;
+function updateCmpSearch(query,anchorId,anchorPos){
+  _cmpSelectedId=null;
+  document.getElementById('cmpSelectedPlayer').style.display='none';
+  const q=query.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const res=document.getElementById('cmpSearchResults');
+  if(q.length<2){res.style.display='none';return;}
+  const MFG=['DM','CM','AM'];
+  const anchorGroup=MFG.includes(anchorPos)?'MF':anchorPos;
+  const matches=ST.players.filter(x=>{
+    if(x.id===anchorId) return false;
+    const xGroup=MFG.includes(x.pos)?'MF':x.pos;
+    if(xGroup!==anchorGroup) return false;
+    const name=(x.name||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const team=(x.team||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    return name.includes(q)||team.includes(q);
+  }).slice(0,8);
+  if(!matches.length){res.style.display='none';return;}
+  res.innerHTML=matches.map(x=>`<div style="padding:7px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border)" onmousedown="selectCmpPlayer('${x.id}','${(x.name+' · '+x.team+' · '+x.pos).replace(/'/g,'&#39;')}')">
+    <span>${x.name}</span> <span style="color:var(--muted);font-size:9px;font-family:'JetBrains Mono',monospace">${x.team} · ${x.pos} · ${x.leagueTag||''}</span>
+  </div>`).join('');
+  res.style.display='block';
+}
+function selectCmpPlayer(id,label){
+  _cmpSelectedId=id;
+  document.getElementById('cmpSearchResults').style.display='none';
+  document.getElementById('cmpSearch').value=label.split(' · ')[0];
+  const sel=document.getElementById('cmpSelectedPlayer');
+  document.getElementById('cmpSelectedName').textContent=label;
+  sel.style.display='flex';
+}
+function launchCompare(anchorId){
+  if(!_cmpSelectedId){showToast('Select a player to compare','error');return;}
+  ST.selectedIds=new Set([anchorId,_cmpSelectedId]);
+  openCompare();
+}
+
+// ── Physical match section (editor only) ────────────────────────────
+function buildPhysMatchSection(p){
+  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season);
+  if(!snap){
+    return `<div style="font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Physical Data</div>
+      <div style="font-size:10px;color:var(--muted)">No physical data matched.</div>`;
+  }
+  const conf=snap.matchConfidence?`${(snap.matchConfidence*100).toFixed(0)}%`:'—';
+  return `<div style="font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Physical Data</div>
+    <div style="font-size:10px;margin-bottom:4px">Matched: <strong>${snap.fullName||snap.shortName||'Unknown'}</strong> <span style="color:var(--muted2)">(${conf} confidence)</span></div>
+    ${snap.physicalScore!=null?`<div style="font-size:10px;margin-bottom:4px">Score: <strong style="color:var(--accent)">${snap.physicalScore.toFixed(1)}</strong> · Adj: <strong style="color:var(--accent)">${snap.physicalAdj!=null?(snap.physicalAdj>0?'+':'')+snap.physicalAdj.toFixed(2):'—'}</strong></div>`:''}
+    <button class="btn btn-ghost" style="font-size:9px;padding:2px 6px;color:var(--red);border-color:var(--red)" onclick="unmatchPhysical('${p.id}','${snap.id}')">Unlink Physical</button>`;
+}
+
+async function unmatchPhysical(playerId,snapId){
+  if(!confirm('Unlink this physical data? The rating adjustment will be reversed.')) return;
+  const snap=PHYS.snapshots.find(s=>s.id===snapId);
+  const player=ST.players.find(p=>p.id===playerId);
+  if(!snap||!player) return;
+  if(snap.physicalAdj!=null){
+    if(player.rating!=null)    player.rating   =Math.round((player.rating   -snap.physicalAdj)*10)/10;
+    if(player.potential!=null) player.potential=Math.round((player.potential-snap.physicalAdj)*10)/10;
+    if(player.ptPriority!=null)player.ptPriority=Math.max(0,Math.min(100,Math.round((player.ptPriority-(snap.physicalAdj*2))*10)/10));
+  }
+  if(player.history) player.history=player.history.filter(h=>!(h.type==='physical'&&h.season===snap.season));
+  player.hasPhysical=false;
+  delete player.skillcornerId;
+  snap.matchConfidence=null; snap.physicalAdj=null; snap.applied=false;
+  computeMetricBonuses(); computeAllLeaguePct(); buildPhysPercentileCache();
+  saveState(); renderPanel();
+  showToast('Physical data unlinked','success');
+  queueGitHubSave(saveData);
+  try{ await savePhysicalDB(); }catch(e){ console.warn('Physical save failed',e); }
+}
+
+function buildHypotheticalTransfer(p){
+  const leagues=[...new Set(ST.players.map(x=>x.leagueTag).filter(Boolean))].sort();
+  return `<div style="font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Hypothetical Transfer</div>
+    <div style="font-size:10px;color:var(--muted2);margin-bottom:8px">Estimate rating in another league</div>
+    <select id="htLeague" style="width:100%;background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:6px;border-radius:6px;font-size:10px;margin-bottom:6px">
+      ${leagues.map(l=>`<option value="${l}"${l===p.leagueTag?' selected':''}>${l}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost" style="font-size:10px;width:100%" onclick="calcHypTransfer('${p.id}')">Calculate</button>
+    <div id="htResult" style="margin-top:8px;font-size:10px;color:var(--muted2)"></div>`;
+}
+
+function calcHypTransfer(playerId){
+  const p=ST.players.find(x=>x.id===playerId);
+  const targetLeague=document.getElementById('htLeague')?.value;
+  if(!p||!targetLeague) return;
+  const srcLQ=LEAGUE_QUALITY[p.leagueTag];
+  const dstLQ=LEAGUE_QUALITY[targetLeague];
+  if(!srcLQ||!dstLQ){document.getElementById('htResult').textContent='League quality data not available';return;}
+  const srcMid=(srcLQ.good+srcLQ.top)/2;
+  const dstMid=(dstLQ.good+dstLQ.top)/2;
+  const delta=dstMid-srcMid;
+  const hyp=Math.max(0,Math.min(100,Math.round((displayRating(p)-delta)*10)/10));
+  const dir=delta>0?'stronger':'weaker';
+  document.getElementById('htResult').innerHTML=`In <strong>${targetLeague}</strong> (${dir} league): estimated rating <strong style="color:var(--accent)">${hyp}</strong>`;
+}
+
+function deleteSnapshot(playerId,capturedAt){
+  if(!confirm('Delete this snapshot?')) return;
+  const player=ST.players.find(p=>p.id===playerId);
+  if(!player) return;
+  player.history=(player.history||[]).filter(h=>h.capturedAt!==capturedAt);
+  saveState(); queueGitHubSave(saveData); renderPanel(); showToast('Snapshot deleted','success');
+}
+
+function buildPieSVG(slices){
+  if(!slices.length) return '';
+  const total=slices.reduce((s,v)=>s+v.val,0)||1;
+  let angle=-Math.PI/2, svg='';
+  slices.forEach(s=>{
+    const sweep=(s.val/total)*2*Math.PI;
+    const x1=50+45*Math.cos(angle), y1=50+45*Math.sin(angle);
+    angle+=sweep;
+    const x2=50+45*Math.cos(angle), y2=50+45*Math.sin(angle);
+    const large=sweep>Math.PI?1:0;
+    svg+=`<path d="M50,50 L${x1.toFixed(2)},${y1.toFixed(2)} A45,45 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${s.color}" opacity="0.85"/>`;
+  });
+  return svg;
+}
+
+// ═══════════════════════════════════
 // FULL OVERVIEW
 // ═══════════════════════════════════
 let _foMetricView='normal';
