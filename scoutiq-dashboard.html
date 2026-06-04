@@ -4828,8 +4828,198 @@ function buildFullOverview(p){
           </div>
           ${buildFOSimilar(p,activeSeasonsArr)}
         </div>
+        <div class="fo-section">
+          <div class="fo-section-title">Recommended Clubs</div>
+          ${buildFORecommendedClubs(p)}
+        </div>
       </div>
     </div>`;
+}
+
+function buildFORecommendedClubs(p){
+  const dr=displayRating(p)??0;
+  const MFG=['DM','CM','AM'];
+  const MF_POOL=['DM','CM']; // DM+CM grouped for complementarity
+  const playerPos=p.pos;
+  const playerMF=MFG.includes(playerPos);
+
+  // Position group for complementarity matching
+  const complementGroup=pos=>MF_POOL.includes(pos)?'DMCM':(pos==='AM'?'AM':pos);
+  const playerCompGroup=complementGroup(playerPos);
+
+  // Build candidate list: all clubs in all leagues, excluding player's own club
+  // Require ≥2 same-position players captured for meaningful comparison
+  const clubMap={}; // key: team|leagueTag|season
+  ST.players.forEach(x=>{
+    if(x.pos==='GK'&&playerPos!=='GK') return; // cross-pos only for GK if player is GK
+    const key=`${x.team}|${x.leagueTag}|${x.season}`;
+    if(!clubMap[key]) clubMap[key]={team:x.team,league:x.leagueTag,season:x.season,players:[]};
+    clubMap[key].players.push(x);
+  });
+
+  // Get player's skill scores (50:50 normal+padj, pool-rescaled later per club)
+  const playerSkills=computePlayerSkillScores(p);
+  const skillNames=Object.keys(playerSkills);
+
+  // Precompute peer pool for player's own position+league for level context
+  const lq=LEAGUE_QUALITY[p.leagueTag]||{good:60,top:70,elite:80};
+
+  const scored=[];
+
+  Object.values(clubMap).forEach(club=>{
+    if(club.team===p.team) return; // exclude own club
+
+    // Need at least 2 players in same position group at this club
+    const samePosPlayers=club.players.filter(x=>{
+      if(playerPos==='GK') return x.pos==='GK';
+      if(playerCompGroup==='DMCM') return MF_POOL.includes(x.pos)||x.pos==='AM';
+      return complementGroup(x.pos)===playerCompGroup;
+    });
+    if(samePosPlayers.length<2) return;
+
+    // ── Score 1: Playing Time (35%) ───────────────────────────────
+    // Position rank: rank player among same-pos players at this club
+    const posGroup=club.players.filter(x=>{
+      if(playerPos==='GK') return x.pos==='GK';
+      if(playerCompGroup==='DMCM') return MF_POOL.includes(x.pos);
+      return x.pos===playerPos;
+    }).concat([p]).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+    const posRank=posGroup.findIndex(x=>x.id===p.id)+1;
+    const posSize=posGroup.length;
+
+    // Preferred position rank: GK/CF want rank 1, others happy with 1-2
+    let posRankScore;
+    if(playerPos==='GK'||playerPos==='CF'){
+      // GK/CF: peak at rank 1
+      posRankScore=posRank===1?100:posRank===2?65:posRank===3?30:10;
+    } else {
+      // Others: peak at rank 1-2
+      posRankScore=posRank===1?95:posRank===2?100:posRank===3?50:posRank===4?20:5;
+    }
+
+    // Squad rank: rank among ALL players at club (want 3rd-8th)
+    const squadAll=club.players.concat([p]).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+    const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
+    // Bell curve: peak at 3-8, penalise 1-2 (star), penalise 9+ (fringe)
+    let squadScore;
+    if(squadRank<=2) squadScore=40; // too dominant
+    else if(squadRank<=4) squadScore=100;
+    else if(squadRank<=8) squadScore=90-(squadRank-4)*8; // 90,82,74,66
+    else if(squadRank<=12) squadScore=Math.max(20,65-(squadRank-8)*10);
+    else squadScore=10;
+
+    const playingTimeScore=(posRankScore*0.55+squadScore*0.45);
+
+    // ── Score 2: Skill Complementarity (50%) ─────────────────────
+    // Average skill scores of existing same-pos players at the club
+    const clubSkillAvgs={};
+    if(skillNames.length>0){
+      skillNames.forEach(sk=>{
+        const vals=samePosPlayers.map(x=>{
+          const ss=computePlayerSkillScores(x);
+          return ss[sk]??null;
+        }).filter(v=>v!=null);
+        clubSkillAvgs[sk]=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:50;
+      });
+      // Complementarity: player is valuable where the club's existing players are weak
+      // and where the player is strong
+      // Score = average of (playerSkill - clubAvg) for skills where player > clubAvg
+      // Normalised 0-100
+      let compSum=0, compCount=0;
+      skillNames.forEach(sk=>{
+        const pv=playerSkills[sk]??50;
+        const cv=clubSkillAvgs[sk]??50;
+        // How much does the player add? Weighted by how weak the club is in this skill
+        // and how strong the player is
+        const clubWeakness=Math.max(0,75-cv); // more valuable if club is below 75
+        const playerStrength=Math.max(0,pv-50); // only counts if player is above average
+        compSum+=clubWeakness*playerStrength;
+        compCount++;
+      });
+      var complementScore=compCount?Math.min(100,(compSum/compCount)/18.75*100):50;
+      // Boost if player's top 2 skills are among club's 3 weakest skills
+      const clubWeakSkills=Object.entries(clubSkillAvgs).sort((a,b)=>a[1]-b[1]).slice(0,3).map(([k])=>k);
+      const playerTopSkills=Object.entries(playerSkills).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k])=>k);
+      const overlap=playerTopSkills.filter(s=>clubWeakSkills.includes(s)).length;
+      if(overlap>0) complementScore=Math.min(100,complementScore+overlap*15);
+    } else {
+      var complementScore=50;
+    }
+
+    // ── Score 3: Level Fit (15%) ──────────────────────────────────
+    const clubLQ=LEAGUE_QUALITY[club.league]||{good:60,top:70,elite:80};
+    // Player should be in good→top range for the club's league
+    // Below good = underqualified slightly, above elite = overkill
+    let levelScore;
+    if(dr>=clubLQ.good&&dr<clubLQ.top) levelScore=100; // perfect fit
+    else if(dr>=clubLQ.top&&dr<clubLQ.elite) levelScore=80; // slightly above, still good
+    else if(dr>=clubLQ.elite) levelScore=40; // overqualified
+    else if(dr>=clubLQ.good-5) levelScore=70; // just below ideal
+    else if(dr>=clubLQ.good-12) levelScore=45; // development move
+    else levelScore=20; // too big a step up
+
+    // ── Combined score ────────────────────────────────────────────
+    const totalScore=Math.round(
+      playingTimeScore*0.35+
+      complementScore*0.50+
+      levelScore*0.15
+    );
+
+    scored.push({
+      team:club.team,league:club.league,season:club.season,
+      score:totalScore,
+      posRank,posSize,squadRank:Math.min(squadRank,squadAll.length-1),
+      playingTimeScore:Math.round(playingTimeScore),
+      complementScore:Math.round(complementScore),
+      levelScore,
+      topGap:clubWeakSkills?clubWeakSkills.slice(0,2):[]
+    });
+  });
+
+  if(!scored.length) return '<div style="color:var(--muted);font-size:11px">Not enough data to generate recommendations</div>';
+
+  // Sort by score, take top 6
+  const top=scored.sort((a,b)=>b.score-a.score).slice(0,6);
+
+  const scoreBar=(v,col)=>`<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:2px">
+    <div style="height:100%;width:${v}%;background:${col};border-radius:2px"></div>
+  </div>`;
+
+  const rows=top.map(c=>{
+    const badge=badgeEl(c.team,22);
+    const scoreCol=c.score>=75?'#00e599':c.score>=60?'#7fd97f':c.score>=45?'#f5c842':'#ff8c42';
+    const gapStr=c.topGap.length?`fills: ${c.topGap.slice(0,2).join(', ')}`:'';
+    return`<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="flex-shrink:0;margin-top:2px">${badge}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${c.team}</div>
+          <div style="font-family:'Archivo Black',sans-serif;font-size:14px;color:${scoreCol};flex-shrink:0;margin-left:6px">${c.score}</div>
+        </div>
+        <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season} · #${c.posRank} at pos · #${c.squadRank} in squad</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
+          <div>
+            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Playing Time</div>
+            ${scoreBar(c.playingTimeScore,'#00d4ff')}
+          </div>
+          <div>
+            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Complement</div>
+            ${scoreBar(c.complementScore,'#f5c842')}
+          </div>
+          <div>
+            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Level Fit</div>
+            ${scoreBar(c.levelScore,'#00e599')}
+          </div>
+        </div>
+        ${gapStr?`<div style="font-size:8px;color:var(--muted);margin-top:3px;font-family:'JetBrains Mono',monospace">${gapStr}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  return`<div style="margin-top:4px">
+    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Score = playing time (35%) · skill complementarity (50%) · level fit (15%)</div>
+    ${rows}
+  </div>`;
 }
 
 const LEAGUE_QUALITY={
