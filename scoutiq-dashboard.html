@@ -5101,10 +5101,8 @@ function buildFORecommendedClubs(p){
     });
   });
 
-  if(!top.length) return '<div style="color:var(--muted);font-size:11px;padding:8px 0">No strong club matches found (minimum score: 80)</div>';
-
-  // Sort by score, take top 6
   const top=scored.filter(c=>c.score>=80).sort((a,b)=>b.score-a.score).slice(0,5);
+  if(!top.length) return '<div style="color:var(--muted);font-size:11px;padding:8px 0">No strong club matches found (minimum score: 80)</div>';
 
   const scoreBar=(v,col)=>`<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:2px">
     <div style="height:100%;width:${v}%;background:${col};border-radius:2px"></div>
