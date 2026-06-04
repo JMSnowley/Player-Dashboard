@@ -1710,6 +1710,7 @@ function updateSlider(sk,side,val,key,mn,mx){
   if(key.startsWith('role:')) SLIDER_STATE.roles[key.slice(5)]=[loF,hiF];
   else if(key.startsWith('nm::')||key.startsWith('pm::')) SLIDER_STATE.metrics[key]=[loF,hiF];
   else if(key.startsWith('skill_nm::')||key.startsWith('skill_pm::')) SLIDER_STATE.skills[key]=[loF,hiF];
+  else if(key.startsWith('phys::')) SLIDER_STATE.physMetrics[key]=[loF,hiF];
   else if(key.startsWith('metric:')) SLIDER_STATE.metrics[key.slice(7)]=[loF,hiF];
   else SLIDER_STATE[key]=[loF,hiF];
   renderTable();
