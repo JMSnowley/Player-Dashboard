@@ -2293,30 +2293,31 @@ function renderTable(){
           const ss=computePlayerSkillScores(p);
           const entries=Object.entries(ss).sort((a,b)=>b[1]-a[1]).slice(0,3);
           if(!entries.length) return '<span style="color:var(--muted)">—</span>';
-          // Find colour for each skill from SKILL_DEFS
           const MFG=['DM','CM','AM'];
-          const pk=MFG.includes(p.pos)?'DM':p.pos;
-          // Use global SKILL_COLOR_MAP — no need for position-specific allDefs
-          const colorMap=SKILL_COLOR_MAP;
-          // Pool-rescale val to match swarm display: 0=worst in league+pos, 100=best
-          const MFG2=['DM','CM','AM'];
-          const poolPos2=MFG2.includes(p.pos)?MFG2:[p.pos];
+          const poolPos2=MFG.includes(p.pos)?MFG:[p.pos];
           const peers2=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos2.includes(x.pos)&&(x.minutes||0)>=300);
-          // Get all peer scores for each skill to rescale
           const allPeerScores={};
           entries.forEach(([name])=>{
-            const vals=peers2.map(x=>{const ss=computePlayerSkillScores(x);return ss[name]??null;}).filter(v=>v!=null);
+            const vals=peers2.map(x=>{const ss2=computePlayerSkillScores(x);return ss2[name]??null;}).filter(v=>v!=null);
             allPeerScores[name]=vals;
           });
-          return entries.map(([name,rawVal])=>{
-            const col=colorMap[name]||'var(--accent)';
+          // Scale each entry and sort descending by scaled value
+          const scaled=entries.map(([name,rawVal])=>{
             const pool=allPeerScores[name]||[];
-            const mn=pool.length?Math.min(...pool):0, mx=pool.length?Math.max(...pool):100;
-            const scaledVal=mx>mn?Math.round(((rawVal-mn)/(mx-mn))*100):100;
-            const barW=Math.round(scaledVal);  // val is 0-100, bar fill % = val
-            return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px" title="'+name+': '+scaledVal+'">'
+            const mn=pool.length?Math.min(...pool):0,mx=pool.length?Math.max(...pool):100;
+            const sv=mx>mn?Math.round(((rawVal-mn)/(mx-mn))*100):100;
+            return{name,sv};
+          }).sort((a,b)=>b.sv-a.sv);
+          // Decile gradient: 90-100=green, 80-89=lime, 70-79=yellow-green, ..., 0-9=red
+          const decileColor=v=>{
+            const d=Math.min(9,Math.floor(v/10));
+            return['#e53935','#ef6c00','#fb8c00','#ffa726','#ffca28','#d4e157','#aed581','#7cb342','#43a047','#00897b'][d];
+          };
+          return scaled.map(({name,sv})=>{
+            const col=decileColor(sv);
+            return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px" title="'+name+': '+sv+'">'  
               +'<div style="width:72px;height:5px;background:var(--surface3);border-radius:3px;flex-shrink:0;overflow:hidden">'
-              +'<div style="width:'+barW+'%;height:100%;background:'+col+';border-radius:3px"></div></div>'
+              +'<div style="width:'+sv+'%;height:100%;background:'+col+';border-radius:3px"></div></div>'
               +'<div style="font-size:9px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">'+name+'</div></div>';
           }).join('');
         })()}</div>
