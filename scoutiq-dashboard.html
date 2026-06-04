@@ -328,10 +328,14 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .xi-pos-label{font-size:7px;font-family:'JetBrains Mono',monospace;color:var(--accent);text-transform:uppercase;letter-spacing:1px}
 .xi-empty .xi-circle{border-color:var(--border2);background:transparent}
 .xi-empty .xi-name{color:var(--muted)}
-.cmp-modal{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:300;display:none;flex-direction:column;overflow:hidden}
+.cmp-modal{position:fixed;inset:0;background:var(--surface);z-index:300;display:none;flex-direction:column;overflow:hidden}
 .cmp-modal.open{display:flex}
 .cmp-header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
 .cmp-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;flex:1}
+.cmp-player-strip{display:flex;align-items:center;justify-content:center;gap:40px;padding:14px 32px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface2)}
+.cmp-player-card{display:flex;align-items:center;gap:10px}
+.cmp-player-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor}
+.radar-section-title{font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:2px;color:var(--muted);text-align:center;margin-bottom:8px}
 .cmp-body{display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;overflow:hidden;background:var(--surface)}
 .cmp-side{overflow-y:auto;border-right:1px solid var(--border);padding:0}
 .cmp-side:last-child{border-right:none}
@@ -622,16 +626,13 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 <div class="cmp-modal" id="compareModal">
   <div class="cmp-header">
     <span class="cmp-title">⇄ Compare Players</span>
-    <div style="display:flex;gap:6px;font-size:11px;color:var(--muted2)">
-      <div class="mtog" style="margin:0">
-        <div class="mtog-btn active" id="cmpTabOv" onclick="setCmpTab('overview',this)">Overview</div>
-        <div class="mtog-btn" id="cmpTabNm" onclick="setCmpTab('normal',this)">Normal</div>
-        <div class="mtog-btn" id="cmpTabPm" onclick="setCmpTab('padj',this)">PAdj</div>
-      </div>
+    <div class="mtog" style="margin:0;width:160px">
+      <div class="mtog-btn active" id="cmpRadarNm" onclick="setCmpMode('normal',this)">Normal</div>
+      <div class="mtog-btn" id="cmpRadarPm" onclick="setCmpMode('padj',this)">PAdj</div>
     </div>
     <button class="btn btn-ghost" style="font-size:11px" onclick="closeCompare()">✕ Close</button>
   </div>
-  <div class="cmp-body" id="cmpBody"></div>
+  <div id="cmpRadarWrap" style="padding:24px;overflow-y:auto;flex:1"></div>
 </div>
 
 <!-- SETUP MODAL -->
@@ -3557,1042 +3558,229 @@ function setCmpTab(tab,el){
   el.classList.add('active');
   renderCompare();
 }
+let _cmpMode='normal';
+
 function openCompare(){
   const ids=[...ST.selectedIds];
   if(ids.length!==2){showToast('Select exactly 2 players to compare','error');return;}
-  document.getElementById('compareModal').classList.add('open');
-  _cmpTab='overview';
+  const [pA,pB]=[ST.players.find(p=>p.id===ids[0]),ST.players.find(p=>p.id===ids[1])];
+  if(!pA||!pB)return;
+  const MFG=['DM','CM','AM'];
+  const posA=MFG.includes(pA.pos)?'MF':pA.pos;
+  const posB=MFG.includes(pB.pos)?'MF':pB.pos;
+  if(posA!==posB){showToast('Can only compare players in the same position group','error');return;}
+  _cmpMode='normal';
   document.querySelectorAll('#compareModal .mtog-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('cmpTabOv').classList.add('active');
+  document.getElementById('cmpRadarNm').classList.add('active');
+  document.getElementById('compareModal').classList.add('open');
   renderCompare();
 }
 function closeCompare(){
   document.getElementById('compareModal').classList.remove('open');
 }
+function setCmpMode(mode,el){
+  _cmpMode=mode;
+  document.querySelectorAll('#compareModal .mtog-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderCompare();
+}
 function renderCompare(){
   const ids=[...ST.selectedIds];
   const [pA,pB]=[ST.players.find(p=>p.id===ids[0]),ST.players.find(p=>p.id===ids[1])];
   if(!pA||!pB)return;
-  const body=document.getElementById('cmpBody');
-  body.innerHTML=`<div class="cmp-side" id="cmpSideA"></div><div class="cmp-side" id="cmpSideB"></div>`;
-  [pA,pB].forEach((p,si)=>{
-    const side=document.getElementById(si===0?'cmpSideA':'cmpSideB');
-    const flip=si===1;
-    if(_cmpTab==='overview') side.innerHTML=buildCmpOverview(p,si===0?pB:pA,flip);
-    else side.innerHTML=buildCmpMetrics(p,si===0?pB:pA,_cmpTab==='padj'?'pm':'nm',flip);
-  });
-}
-function buildCmpOverview(p,opp,flip=false){
-  const rc=ratingColor(displayRating(p));
-  const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
-  const roles=posConf.roles||[];
-  const topRole=roles.length?roles.map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v)[0]:null;
-  // Max minutes = highest in database among players in same league+season as this comparison
-  const maxMins=Math.max(...ST.players
-    .filter(x=>(x.leagueTag===p.leagueTag||x.leagueTag===opp.leagueTag)&&(x.season===p.season||x.season===opp.season))
-    .map(x=>x.minutes||0), 1000);
-  const fields=[
-    {l:'Rating',    a:displayRating(p),    b:displayRating(opp),    mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'Potential', a:displayPotential(p), b:displayPotential(opp), mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'PT Priority',a:p.ptPriority,b:opp.ptPriority,mn:0,mx:100,fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'League %ile',a:p.leaguePct, b:opp.leaguePct, mn:0, mx:100, fmt:v=>v!=null?v.toFixed(1):'—'},
-    {l:'Age',       a:p.age,       b:opp.age,       mn:15,mx:45,  fmt:v=>v!=null?v:'—'},
-    {l:'Minutes',   a:p.minutes,   b:opp.minutes,   mn:0, mx:maxMins, fmt:v=>v!=null?Math.round(v).toLocaleString():'—'},
-  ];
-  const rowsHtml=fields.map(f=>{
-    const av=parseFloat(f.a), bv=parseFloat(f.b);
-    const win=!isNaN(av)&&!isNaN(bv)&&av>bv, lose=!isNaN(av)&&!isNaN(bv)&&av<bv;
-    const pct=!isNaN(av)?Math.round(Math.min(100,Math.max(0,(av-f.mn)/(f.mx-f.mn)*100))):0;
-    const mc=!isNaN(av)&&f.mx===100?av>=80?'#00e599':av>=60?'#7fd97f':av>=40?'#f5c842':av>=20?'#ff8c42':'#ff4d6a':'var(--accent)';
-    const valEl=`<span style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${f.fmt(f.a)}</span>`;
-    return flip
-      ?`<div class="cmp-metric-row"><div class="cmp-val">${valEl}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:${mc}"></div></div><div class="cmp-label" style="text-align:right">${f.l}</div></div>`
-      :`<div class="cmp-metric-row"><div class="cmp-label">${f.l}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${mc}"></div></div><div class="cmp-val">${valEl}</div></div>`;
-  }).join('');
-  const hdr=flip
-    ?`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:row-reverse;align-items:center;gap:8px">
-        ${badgeEl(p.team,36)}
-        <div style="text-align:right">
-          <div style="font-weight:700;font-size:13px">${p.name}</div>
-          <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
-        </div>
-      </div>`
-    :`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-        ${badgeEl(p.team,36)}
-        <div>
-          <div style="font-weight:700;font-size:13px">${p.name}</div>
-          <div style="font-size:10px;color:var(--muted2)">${p.pos} · ${p.team} · ${p.leagueTag||''}</div>
-        </div>
-      </div>`;
-  return hdr+`<div style="padding:8px 0">
-    ${rowsHtml}
-    ${topRole?`<div style="padding:6px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--accent);${flip?'text-align:right':''}">Top Role: ${topRole.r} (${topRole.v.toFixed(1)}%)</div>`:''}
-  </div>`;
-}
-function buildCmpMetrics(p,opp,mode,flip=false){
-  const posConf=POS_CONFIG[p.pos];if(!posConf)return'<div style="padding:16px;color:var(--muted)">No data</div>';
-  const metrics=posConf[mode]||[];
-  const data=p[mode]||{},oppData=opp[mode]||{};
-  const skillMap=METRIC_SKILLS[p.pos]?.[mode]||{};
-  const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
-  const groups={};skillOrder.forEach(s=>{groups[s]=[];});
-  metrics.forEach(m=>{const s=skillMap[m]||skillOrder[skillOrder.length-1];if(!groups[s])groups[s]=[];if(!groups[s].includes(m))groups[s].push(m);});
-  const mHdr=flip
-    ?`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:row-reverse;align-items:center;gap:8px">
-        ${badgeEl(p.team,36)}
-        <div style="text-align:right"><div style="font-weight:700;font-size:13px">${p.name}</div>
-        <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div></div>`
-    :`<div class="pp-header" style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">
-        ${badgeEl(p.team,36)}
-        <div><div style="font-weight:700;font-size:13px">${p.name}</div>
-        <div style="font-size:10px;color:var(--muted2)">${mode==='pm'?'PAdj':'Normal'} Metrics</div></div></div>`;
-  let html=mHdr;
-  skillOrder.filter(s=>groups[s]&&groups[s].length).forEach(skillName=>{
-    const sc=SKILL_COLORS[skillName];const color=sc?sc.color:'#8a9bb0';
-    html+=`<div style="padding:4px 10px 2px;font-size:9px;font-family:'JetBrains Mono',monospace;color:${color};text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);${flip?'text-align:right':''}">${skillName}</div>`;
-    groups[skillName].forEach(m=>{
-      const v=data[m]!=null?data[m]:null;
-      const ov=oppData[m]!=null?oppData[m]:null;
-      const pct=v!=null?Math.min(100,Math.max(0,v)):0;
-      const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
-      const win=v!=null&&ov!=null&&v>ov,lose=v!=null&&ov!=null&&v<ov;
-      const label=m.replace(/^PAdj\s+/i,'');
-      html+=flip
-        ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:${color}"></div></div><div class="cmp-label" title="${m}" style="text-align:right">${label}</div></div>`
-        :`<div class="cmp-metric-row"><div class="cmp-label" title="${m}">${label}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${color}"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?Math.round(v):'—'}</div></div>`;
-    });
-  });
-  // Physical metrics section
-  const snapP=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
-  const snapO=PHYS.snapshots.find(s=>s.matchedPlayerId===opp.id&&s.season===opp.season&&s.physicalScore!=null);
-  if(snapP||snapO){
-    const physGroups={'Speed':['psv99','top5psv99'],'Explosive':['top3timeHSR'],'Distance':['distP90'],'In Poss':['hsrDistTIP','sprintDistTIP'],'Out of Poss':['hsrDistOTIP','sprintDistOTIP']};
-    const PCOLS={'Speed':'#00d4ff','Explosive':'#f5c842','Distance':'#00e599','In Poss':'#cc7040','Out of Poss':'#7060a8'};
-    html+=`<div style="padding:4px 10px 2px;font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--accent);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border);margin-top:4px;${flip?'text-align:right':''}">Physical</div>`;
-    // Physical score summary row
-    const ps=snapP?.physicalScore,os=snapO?.physicalScore;
-    if(ps!=null||os!=null){
-      const win=ps!=null&&os!=null&&ps>os,lose=ps!=null&&os!=null&&ps<os;
-      const pct=ps!=null?Math.min(100,Math.max(0,ps)):0;
-      html+=flip
-        ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${ps!=null?ps.toFixed(1):'—'}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:var(--accent)"></div></div><div class="cmp-label" style="text-align:right">Phys. Score</div></div>`
-        :`<div class="cmp-metric-row"><div class="cmp-label">Phys. Score</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:var(--accent)"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':'var(--muted2)'}">${ps!=null?ps.toFixed(1):'—'}</div></div>`;
-    }
-    Object.entries(physGroups).forEach(([grp,keys])=>{
-      html+=`<div style="padding:3px 10px 1px;font-size:9px;font-family:'JetBrains Mono',monospace;color:${PCOLS[grp]};text-transform:uppercase;letter-spacing:1px;${flip?'text-align:right':''};">${grp}</div>`;
-      keys.forEach(key=>{
-        const m=PHYS_METRICS.find(x=>x.key===key);
-        const label=m?m.label:key;
-        const v=PHYS_PCT_CACHE[p.id]?.[key]??null;
-        const ov=PHYS_PCT_CACHE[opp.id]?.[key]??null;
-        const pct=v!=null?Math.min(100,Math.max(0,v)):0;
-        const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
-        const win=v!=null&&ov!=null&&v>ov,lose=v!=null&&ov!=null&&v<ov;
-        html+=flip
-          ?`<div class="cmp-metric-row"><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?v:'—'}</div><div class="cmp-bar-wrap" style="display:flex"><div class="cmp-bar-rtl" style="width:${pct}%;background:${PCOLS[grp]}"></div></div><div class="cmp-label" title="${label}" style="text-align:right">${label}</div></div>`
-          :`<div class="cmp-metric-row"><div class="cmp-label" title="${label}">${label}</div><div class="cmp-bar-wrap"><div class="cmp-bar" style="width:${pct}%;background:${PCOLS[grp]}"></div></div><div class="cmp-val" style="color:${win?'var(--green)':lose?'var(--red)':mc}">${v!=null?v:'—'}</div></div>`;
-      });
-    });
-  }
-  return html;
-}
+  const wrap=document.getElementById('cmpRadarWrap');
+  const COL_A='#00d4ff'; // cyan for player A
+  const COL_B='#f472b6'; // pink for player B
 
-function toggleRowSelect(id,cb){
-  if(cb.checked)ST.selectedIds.add(id);
-  else ST.selectedIds.delete(id);
-  const {list}=getFiltered();
-  updateSelBar(list);
-  // Highlight row
-  cb.closest('tr').classList.toggle('row-selected',cb.checked);
-}
-
-function toggleSelectAll(cb){
-  const {list}=getFiltered();
-  list.forEach(p=>{ if(cb.checked)ST.selectedIds.add(p.id); else ST.selectedIds.delete(p.id); });
-  renderTable();
-}
-
-function clearSelection(){
-  ST.selectedIds.clear();
-  renderTable();
-}
-
-function deleteSelected(){
-  const n=ST.selectedIds.size;
-  if(!n)return;
-  if(!confirm(`Delete ${n} selected player${n!==1?'s':''}? This cannot be undone.`))return;
-  ST.players=ST.players.filter(p=>!ST.selectedIds.has(p.id));
-  ST.selectedIds.clear();
-  if(ST.panelId&&!ST.players.find(p=>p.id===ST.panelId))closePanel();
-  saveState();renderAll();
-  showToast(`${n} player${n!==1?'s':''} deleted`,'success');
-  queueGitHubSave(saveData);
-}
-
-function deleteSinglePlayer(id){
-  const p=ST.players.find(x=>x.id===id);
-  if(!p)return;
-  if(!confirm(`Delete ${p.name}? This cannot be undone.`))return;
-  ST.players=ST.players.filter(x=>x.id!==id);
-  ST.selectedIds.delete(id);
-  closePanel();
-  saveState();renderAll();
-  showToast(`${p.name} deleted`,'success');
-  queueGitHubSave(saveData);
-}
-
-// ═══════════════════════════════════
-// PLAYER PANEL
-// ═══════════════════════════════════
-function openPanel(id){ST.panelId=id;ST.panelTab='overview';ST.metricView='normal';document.querySelectorAll('.pp-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderPanel();document.getElementById('playerPanel').classList.add('open');}
-function closePanel(){document.getElementById('playerPanel').classList.remove('open');ST.panelId=null;}
-function setPPTab(tab,el){ST.panelTab=tab;document.querySelectorAll('.pp-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderPanel();}
-function setMV(v){ST.metricView=v;renderPanel();}
-function setMCV(v){ST.metricChartView=v;renderPanel();}
-
-function renderPanel(){
-  const p=ST.players.find(x=>x.id===ST.panelId);if(!p)return;
-  const posConf=POS_CONFIG[p.pos]||POS_CONFIG.CF;
-  const r=displayRating(p),rc=ratingColor(r);
-  const flag=(p.nationalities&&p.nationalities.length)?p.nationalities.map(natFlag).join(' ')+' ':'';
-  document.getElementById('ppAv').innerHTML=badgeEl(p.team,38);
-  document.getElementById('ppName').textContent=p.name;
-  document.getElementById('ppSub').textContent=`${flag}${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''}${p.season?' · '+p.season:''}`;
-  const body=document.getElementById('ppBody');
-
-  if(ST.panelTab==='overview'){
-    body.innerHTML=`
-      <div class="big-r"><div class="big-num" style="color:${rc}">${r!=null?fmt(r):'—'}</div><div class="big-lbl">Rating · ${fmtDate(p.capturedAt)}</div></div>
-      <div class="sg">
-        <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(displayPotential(p))}</div></div>
-        <div class="sg-item"><div class="sg-l">PT Priority</div><div class="sg-v" style="color:var(--gold)">${fmt(p.ptPriority)}</div></div>
-        <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
-        <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
-        <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
-        ${(p.nationalities&&p.nationalities.length)?`<div class="sg-item"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:12px">${p.nationalities.map(n=>natFlag(n)).join(' ')}</div></div>`:''}
+  // Player header strip
+  const playerStrip=`<div class="cmp-player-strip">
+    <div class="cmp-player-card">
+      <div class="cmp-player-dot" style="background:${COL_A};color:${COL_A}"></div>
+      ${badgeEl(pA.team,28)}
+      <div>
+        <div style="font-weight:700;font-size:13px">${pA.name}</div>
+        <div style="font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${pA.pos} · ${pA.team} · ${pA.leagueTag||''} · ${pA.season||''}</div>
+        <div style="font-size:11px;color:${COL_A};font-family:'Archivo Black',sans-serif">${(displayRating(pA)??0).toFixed(1)}</div>
       </div>
-      ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
-      ${p.wyscoutPositions?`<div class="pst" style="margin-top:12px">Positions</div>${buildPitchSVG(p.wyscoutPositions)}`:''}
-      ${p.pos!=='GK'?buildPhysMatchSection(p):''}
-      <div class="pst" style="margin-top:14px">Hypothetical Transfer</div>
-      <div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
-        <div style="position:relative">
-          <input id="htTeamInput_${p.id}" type="text" placeholder="Search club…" autocomplete="off"
-            oninput="htFilter('${p.id}')"
-            style="width:100%;font-size:11px;padding:6px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:5px;font-family:'JetBrains Mono',monospace"
-          />
-          <div id="htDropdown_${p.id}" style="display:none;position:absolute;z-index:50;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:0 0 5px 5px;max-height:140px;overflow-y:auto;font-size:11px"></div>
-        </div>
-        <select id="htSeason_${p.id}" style="width:100%;font-size:11px;padding:6px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:5px;font-family:'JetBrains Mono',monospace">
-          <option value="">Any season</option>
-          ${SEASONS.map(s=>`<option value="${s}"${s===p.season?' selected':''}>${s}</option>`).join('')}
-        </select>
-        <button class="btn btn-gold" style="width:100%;justify-content:center;font-size:11px" onclick="runHypTransfer('${p.id}')">▶ Go</button>
-      </div>`;
-  } else if(ST.panelTab==='roles'){
-    const roles=posConf.roles;
-    const vals=roles.map(r=>({label:r.replace(' %',''),val:p.roles&&p.roles[r]!=null?p.roles[r]:0}));
-    const total=vals.reduce((s,v)=>s+v.val,0)||1;
-    const pieColors=['#00d4ff','#f5c842','#00e599','#ff8c42','#7c6fcd'];
-    const cx=130,cy=90,radius=72;
-    let cumAngle=-Math.PI/2;
-    const slices=vals.map((v,i)=>{
-      const fraction=v.val/total;
-      const angle=fraction*2*Math.PI;
-      const x1=cx+radius*Math.cos(cumAngle),y1=cy+radius*Math.sin(cumAngle);
-      cumAngle+=angle;
-      const x2=cx+radius*Math.cos(cumAngle),y2=cy+radius*Math.sin(cumAngle);
-      const large=angle>Math.PI?1:0;
-      const path=fraction>0.999
-        ?`M ${cx} ${cy} m -${radius} 0 a ${radius} ${radius} 0 1 1 ${radius*2} 0 a ${radius} ${radius} 0 1 1 -${radius*2} 0`
-        :`M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${large} 1 ${x2} ${y2} Z`;
-      return{path,color:pieColors[i%pieColors.length],label:v.label,val:v.val};
-    });
-    const topRole=vals.reduce((a,b)=>b.val>a.val?b:a,{val:0,label:'—'});
-    const swarmHtml=buildFOSwarms(p,'panel-avg');
-    body.innerHTML=vals.some(v=>v.val>0)?`
-      <div class="pst" style="margin-top:4px">Role Profile</div>
-      <div class="pie-wrap">
-        <svg width="260" height="180" viewBox="0 0 260 180">
-          ${slices.map(s=>`<path d="${s.path}" fill="${s.color}" opacity="0.88" stroke="var(--surface)" stroke-width="1.5"/>`).join('')}
-          <circle cx="${cx}" cy="${cy}" r="32" fill="var(--surface2)"/>
-          <text x="${cx}" y="${cy-6}" text-anchor="middle" fill="var(--muted2)" font-family="Archivo" font-size="8" font-weight="600">${topRole.label.split(' ')[0]}</text>
-          <text x="${cx}" y="${cy+8}" text-anchor="middle" fill="var(--accent)" font-family="JetBrains Mono" font-size="10" font-weight="500">${fmt(topRole.val,1)}%</text>
-        </svg>
-        <div class="pie-legend">
-          ${slices.map(s=>`<div class="pie-legend-item">
-            <div class="pie-legend-dot" style="background:${s.color}"></div>
-            <div class="pie-legend-label">${s.label}</div>
-            <div class="pie-legend-val">${fmt(s.val,1)}%</div>
-          </div>`).join('')}
-        </div>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">vs</div>
+    <div class="cmp-player-card">
+      <div class="cmp-player-dot" style="background:${COL_B};color:${COL_B}"></div>
+      ${badgeEl(pB.team,28)}
+      <div>
+        <div style="font-weight:700;font-size:13px">${pB.name}</div>
+        <div style="font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${pB.pos} · ${pB.team} · ${pB.leagueTag||''} · ${pB.season||''}</div>
+        <div style="font-size:11px;color:${COL_B};font-family:'Archivo Black',sans-serif">${(displayRating(pB)??0).toFixed(1)}</div>
       </div>
-      <div style="padding:0 8px 12px">${swarmHtml}</div>
-    `:(swarmHtml?`<div style="padding:12px 8px">${swarmHtml}</div>`:'<div style="padding:16px;color:var(--muted)">No role data available</div>');  } else if(ST.panelTab==='metrics'){
-    const isN=ST.metricView==='normal';
-    const isPizza=ST.metricChartView==='pizza';
-    const metrics=isN?posConf.nm:posConf.pm;
-    const data=isN?p.nm:p.pm;
-    const skillMap=METRIC_SKILLS[p.pos]?.[isN?'nm':'pm']||{};
-    const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
-    // Group metrics by skill
-    const groups={};
-    skillOrder.forEach(s=>{groups[s]=[];});
-    metrics.forEach(m=>{const s=skillMap[m]||skillOrder[skillOrder.length-1];if(!groups[s])groups[s]=[];if(!groups[s].includes(m))groups[s].push(m);});
-    const activeSkills=skillOrder.filter(s=>groups[s]&&groups[s].length);
-
-    // Build flat ordered list of (metric, skill, color, value)
-    const allMetricData=[];
-    activeSkills.forEach(skillName=>{
-      const sc=SKILL_COLORS[skillName];
-      const color=sc?sc.color:'#8a9bb0';
-      groups[skillName].forEach(m=>{
-        const v=data&&data[m]!=null?data[m]:null;
-        const pct=v!=null?Math.min(100,Math.max(0,v)):0;
-        const mc=v==null?'var(--muted)':v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
-        const displayLabel=m.replace(/^PAdj\s+/i,'');
-        allMetricData.push({m,displayLabel,skill:skillName,color,v,pct,mc});
-      });
-    });
-
-    let chartHTML='';
-    if(isPizza&&allMetricData.length>0){
-      const n=allMetricData.length;
-      const SZ=420,CX=SZ/2,CY=SZ/2,R=130,innerR=22,labelR=R+8;
-      const angleStep=(2*Math.PI)/n;
-      // Light mode colour vars — declared here so all code below can use them
-      const _il=document.body.classList.contains('light-mode');
-      const _gc=_il?'rgba(0,0,0,0.1)':'rgba(255,255,255,0.05)';
-      const _gt=_il?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.15)';
-      const _sc=_il?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.05)';
-      // Grid circles
-      const gridCircles=[25,50,75,100].map(pct=>{
-        const gr=R*(pct/100);
-        return `<circle cx="${CX}" cy="${CY}" r="${gr}" fill="none" stroke="${_gc}" stroke-width="1"/>
-                <text x="${(CX+3).toFixed(0)}" y="${(CY-gr-2).toFixed(0)}" fill="${_gt}" font-size="7" font-family="JetBrains Mono">${pct}</text>`;
-      }).join('');
-      const spokeLines=allMetricData.map((_,i)=>{
-        const a=-Math.PI/2+i*angleStep;
-        return `<line x1="${(CX+innerR*Math.cos(a)).toFixed(1)}" y1="${(CY+innerR*Math.sin(a)).toFixed(1)}" x2="${(CX+R*Math.cos(a)).toFixed(1)}" y2="${(CY+R*Math.sin(a)).toFixed(1)}" stroke="${_sc}" stroke-width="1"/>`;
-      }).join('');
-
-      // Helper: split label into max 2 lines at word boundaries
-      const splitLabel=str=>{
-        const words=str.split(' ');
-        if(str.length<=11) return[str];
-        let best=0,bestDiff=999,cum=0;
-        words.forEach((w,i)=>{cum+=w.length+(i?1:0);const diff=Math.abs(cum-str.length/2);if(diff<bestDiff){bestDiff=diff;best=i;}});
-        const line1=words.slice(0,best+1).join(' ');
-        const line2=words.slice(best+1).join(' ');
-        return line2?[line1,line2]:[line1];
-      };
-
-      // Slices + external labels
-      const slicesHTML=allMetricData.map((d,i)=>{
-        const a0=-Math.PI/2+i*angleStep;
-        const a1=a0+angleStep;
-        const aMid=a0+angleStep/2;
-        const r=R*(d.pct/100);
-        const large=angleStep>Math.PI?1:0;
-        const x0=CX+innerR*Math.cos(a0), y0=CY+innerR*Math.sin(a0);
-        const x1=CX+r*Math.cos(a0),      y1=CY+r*Math.sin(a0);
-        const x2=CX+r*Math.cos(a1),      y2=CY+r*Math.sin(a1);
-        const x3=CX+innerR*Math.cos(a1), y3=CY+innerR*Math.sin(a1);
-        const slicePath=d.pct>0
-          ?`M${x0.toFixed(1)},${y0.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`
-          :`M${x0.toFixed(1)},${y0.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`;
-        // Label anchor and position
-        const lx=CX+labelR*Math.cos(aMid), ly=CY+labelR*Math.sin(aMid);
-        const anchor=lx<CX-6?'end':lx>CX+6?'start':'middle';
-        const lines=splitLabel(d.displayLabel);
-        const lineHeight=8.5;
-        const baseY=lines.length>1?ly-lineHeight/2:ly;
-        const labelEls=lines.map((ln,li)=>
-          `<text x="${lx.toFixed(1)}" y="${(baseY+li*lineHeight).toFixed(1)}"
-            text-anchor="${anchor}" dominant-baseline="middle"
-            fill="${_il?'rgba(0,0,0,0.75)':'rgba(255,255,255,0.75)'}" font-size="7.5" font-family="JetBrains Mono">${ln}</text>`
-        ).join('');
-        return `<path d="${slicePath}" fill="${d.color}" fill-opacity="0.78" stroke="var(--surface)" stroke-width="0.8"/>${labelEls}`;
-      }).join('');
-
-      chartHTML=`<svg width="${SZ}" height="${SZ}" viewBox="0 0 ${SZ} ${SZ}" style="display:block;width:100%;max-width:${SZ}px;margin:0 auto;overflow:visible">
-        ${gridCircles}${spokeLines}${slicesHTML}
-        <circle cx="${CX}" cy="${CY}" r="${innerR}" fill="var(--surface2)" stroke="var(--border)" stroke-width="1"/>
-      </svg>
-      <div style="display:flex;flex-wrap:wrap;gap:3px 12px;padding:4px 0 6px;justify-content:center">
-        ${activeSkills.map(s=>{const sc=SKILL_COLORS[s];const c=sc?sc.color:'#8a9bb0';return`<div style="display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted2)"><div style="width:7px;height:7px;border-radius:2px;background:${c};opacity:.85"></div>${s}</div>`;}).join('')}
-      </div>`;
-    } else {
-      chartHTML=activeSkills.map(skillName=>{
-        const sc=SKILL_COLORS[skillName];
-        const color=sc?sc.color:'#8a9bb0';
-        const mData=allMetricData.filter(d=>d.skill===skillName);
-        return `<div class="skill-group">
-          <div class="skill-group-title"><div class="skill-dot" style="background:${color}"></div>${skillName}</div>
-          ${mData.map(({m,displayLabel,pct,v,mc})=>`<div class="mrow"><div class="ml" title="${m}">${displayLabel}</div>
-            <div class="mt"><div class="mf" style="width:${pct}%;background:${color}"></div></div>
-            <div class="mp" style="color:${mc}">${v!=null?fmt(v,0):'—'}</div></div>`).join('')}
-        </div>`;
-      }).join('');
-    }
-
-    body.innerHTML=`
-      <div style="display:flex;gap:4px;margin-bottom:8px">
-        <div class="mtog" style="flex:1">
-          <div class="mtog-btn ${isN?'active':''}" onclick="setMV('normal')">Normal</div>
-          <div class="mtog-btn ${!isN?'active':''}" onclick="setMV('padj')">PAdj</div>
-        </div>
-        <div class="mtog" style="flex:1">
-          <div class="mtog-btn ${!isPizza?'active':''}" onclick="setMCV('bars')">Bars</div>
-          <div class="mtog-btn ${isPizza?'active':''}" onclick="setMCV('pizza')">Pizza</div>
-        </div>
-      </div>
-      ${chartHTML}
-      ${buildPhysicalSection(p)}`;
-
-
-  } else if(ST.panelTab==='history'){
-    const hist=[...(p.history||[])].sort((a,b)=>new Date(a.capturedAt)-new Date(b.capturedAt));
-    const rated=hist.filter(h=>h.rating!=null);
-    // Build SVG line graph
-    let graphHTML='';
-    if(rated.length>=2){
-      const W=296,H=100,PAD={t:12,r:12,b:28,l:36};
-      const iW=W-PAD.l-PAD.r, iH=H-PAD.t-PAD.b;
-      const ratings=rated.map(h=>h.rating);
-      const mn=Math.min(...ratings)-2, mx=Math.max(...ratings)+2;
-      const xS=(i)=>PAD.l+i/(rated.length-1)*iW;
-      const yS=(v)=>PAD.t+iH-(v-mn)/(mx-mn)*iH;
-      const pts=rated.map((h,i)=>({x:xS(i),y:yS(h.rating),r:h.rating,d:fmtDate(h.capturedAt)}));
-      const polyline=pts.map(p=>`${p.x},${p.y}`).join(' ');
-      const area=`${PAD.l},${PAD.t+iH} `+pts.map(p=>`${p.x},${p.y}`).join(' ')+` ${PAD.l+iW},${PAD.t+iH}`;
-      // Y axis labels
-      const yTicks=[mn,mn+(mx-mn)*0.5,mx].map(v=>Math.round(v));
-      const yTicksHTML=yTicks.map(v=>`<text x="${PAD.l-4}" y="${yS(v)+4}" text-anchor="end" fill="#566880" font-size="8" font-family="JetBrains Mono">${v.toFixed(1)}</text>`).join('');
-      // X axis date labels (first and last)
-      const xLabels=[
-        `<text x="${PAD.l}" y="${H-4}" text-anchor="middle" fill="#566880" font-size="7" font-family="JetBrains Mono">${pts[0].d}</text>`,
-        `<text x="${PAD.l+iW}" y="${H-4}" text-anchor="middle" fill="#566880" font-size="7" font-family="JetBrains Mono">${pts[pts.length-1].d}</text>`,
-      ].join('');
-      graphHTML=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:14px">
-        <div class="pst" style="margin-bottom:8px">Rating Over Time</div>
-        <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="overflow:visible">
-          <defs>
-            <linearGradient id="rg" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="${rc}" stop-opacity="0.3"/>
-              <stop offset="100%" stop-color="${rc}" stop-opacity="0"/>
-            </linearGradient>
-          </defs>
-          <!-- Grid lines -->
-          ${yTicks.map(v=>`<line x1="${PAD.l}" y1="${yS(v)}" x2="${PAD.l+iW}" y2="${yS(v)}" stroke="#1e2736" stroke-width="1"/>`).join('')}
-          <!-- Area fill -->
-          <polygon points="${area}" fill="url(#rg)"/>
-          <!-- Line -->
-          <polyline points="${polyline}" fill="none" stroke="${rc}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <!-- Data points -->
-          ${pts.map(pt=>`<circle cx="${pt.x}" cy="${pt.y}" r="3" fill="${ratingColor(pt.r)}" stroke="var(--surface2)" stroke-width="1.5">
-            <title>${pt.d}: ${fmt(pt.r)}</title>
-          </circle>`).join('')}
-          ${yTicksHTML}
-          ${xLabels}
-        </svg>
-      </div>`;
-    }
-    // Snapshots list (newest first)
-    const histDesc=[...hist].reverse();
-    // Map reversed index back to original history index for deletion
-    const origIdxMap=histDesc.map(h=>hist.indexOf(h));
-    body.innerHTML=graphHTML+`<div class="pst">${hist.length} Snapshot${hist.length!==1?'s':''}</div>
-      ${histDesc.map((h,i)=>{
-        const hrc=ratingColor(h.rating);
-        const origIdx=origIdxMap[i];
-        const isPhys=h.type==='physical';
-        const canDelete=ST._isEditor!==false&&hist.length>1&&!isPhys;
-        const borderColor=isPhys?'var(--accent)':'var(--border)';
-        return`<div class="hist-item" style="border-left:2px solid ${borderColor};margin-left:-2px">
-          <div class="hist-header" onclick="toggleHist(this)">
-            <div>
-              <div class="hist-date">${isPhys?'⚡ Physical — ':'' }${fmtDate(h.capturedAt)}</div>
-              <div class="hist-league">${isPhys?`Physical Score: ${h.physicalScore!=null?h.physicalScore.toFixed(1):'—'} · Adj: ${h.physicalAdj!=null?(h.physicalAdj>0?'+':'')+h.physicalAdj.toFixed(2):'—'}`:`${h.leagueTag||''} · ${h.team||''}`}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <div class="hist-rating" style="color:${hrc}">${h.rating!=null?fmt(h.rating):'—'}</div>
-              <span style="color:var(--muted);font-size:11px">›</span>
-            </div>
-          </div>
-          <div class="hist-body" id="hb_${i}">
-            <div class="hist-grid">
-              <div class="hist-stat"><div class="hist-stat-l">Potential</div><div class="hist-stat-v" style="color:var(--green)">${fmt(h.potential)}</div></div>
-              <div class="hist-stat"><div class="hist-stat-l">PT Priority</div><div class="hist-stat-v" style="color:var(--gold)">${fmt(h.ptPriority)}</div></div>
-              ${!isPhys?`<div class="hist-stat"><div class="hist-stat-l">Age</div><div class="hist-stat-v">${h.age||'—'}</div></div>
-              <div class="hist-stat"><div class="hist-stat-l">Minutes</div><div class="hist-stat-v">${h.minutes?Math.round(h.minutes).toLocaleString():'—'}</div></div>`:''}
-              ${isPhys?`<div class="hist-stat"><div class="hist-stat-l">Phys Score</div><div class="hist-stat-v" style="color:var(--accent)">${h.physicalScore!=null?h.physicalScore.toFixed(1):'—'}</div></div>
-              <div class="hist-stat"><div class="hist-stat-l">Phys Adj</div><div class="hist-stat-v" style="color:${(h.physicalAdj||0)>=0?'var(--green)':'var(--red)'}">${h.physicalAdj!=null?(h.physicalAdj>0?'+':'')+h.physicalAdj.toFixed(2):'—'}</div></div>`:''}
-            </div>
-            ${!isPhys&&h.roles&&Object.keys(h.roles).length?`<div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Top Role</div>
-            ${Object.entries(h.roles).sort((a,b)=>b[1]-a[1]).slice(0,1).map(([r,v])=>`<div style="font-size:11px;font-weight:600;color:var(--accent)">${r.replace(' %','')}: ${fmt(v,1)}%</div>`).join('')}`:''}
-            ${canDelete?`<button class="btn btn-danger" style="font-size:10px;padding:4px 10px;margin-top:8px;width:100%;justify-content:center" onclick="deleteSnapshot('${p.id}',${origIdx})">✕ Delete this snapshot</button>`:''}
-          </div>
-        </div>`;
-      }).join('')}`;
-  }
-}
-function deleteSnapshot(playerId,histIdx){
-  if(!confirm('Delete this snapshot? This cannot be undone.')) return;
-  const p=ST.players.find(x=>x.id===playerId);
-  if(!p||!p.history||p.history.length<=1){showToast('Cannot delete the only snapshot','error');return;}
-  p.history.splice(histIdx,1);
-  // If we deleted the most recent snapshot, update the main player record to the new most recent
-  const latest=p.history.reduce((a,b)=>new Date(a.capturedAt)>new Date(b.capturedAt)?a:b);
-  Object.assign(p,{
-    team:latest.team,leagueTag:latest.leagueTag,season:latest.season||p.season,
-    rating:latest.rating,potential:latest.potential,ptPriority:latest.ptPriority,
-    capturedAt:latest.capturedAt,roles:latest.roles,
-    age:latest.age,minutes:latest.minutes,
-  });
-  saveState();queueGitHubSave(saveData);renderPanel();showToast('Snapshot deleted','success');
-}
-function toggleHist(el){const b=el.nextElementSibling;b.classList.toggle('open');el.querySelector('span:last-child').textContent=b.classList.contains('open')?'⌄':'›';}
-
-// Build physical data section for player expand metrics tab
-function buildPhysicalSection(p){
-  if(p.pos==='GK') return '';
-  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
-  if(!snap){
-    return`<div style="margin-top:14px">
-      <div class="skill-group-title"><div class="skill-dot" style="background:#00d4ff"></div>Physical</div>
-      <div style="font-size:11px;color:var(--muted);font-style:italic;padding:4px 0 8px">No physical data for this season</div>
-    </div>`;
-  }
-  const pctMap={};
-  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
-  const isPizza=ST.metricChartView==='pizza';
-
-  if(!isPizza){
-    // Bars — same style as technical metrics, using existing .mrow/.ml/.mt/.mf/.mp classes
-    const metricRows=PHYS_METRICS.map(({key,label,group})=>{
-      const pct=pctMap[key]??0;
-      const col=PHYS_GROUP_COLORS[group]||'#00d4ff';
-      const mc=pctMap[key]==null?'var(--muted)':pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
-      return`<div class="mrow"><div class="ml">${label}</div>
-        <div class="mt"><div class="mf" style="width:${pct}%;background:${col}"></div></div>
-        <div class="mp" style="color:${mc}">${pctMap[key]!=null?pct:'—'}</div>
-      </div>`;
-    }).join('');
-    return`<div style="margin-top:14px">
-      <div class="skill-group-title"><div class="skill-dot" style="background:#00d4ff"></div>Physical</div>
-      ${metricRows}
-    </div>`;
-  }
-
-  // Pizza — same size/style as technical pizza (SZ=420, R=130)
-  const SZ=420,CX=SZ/2,CY=SZ/2,R=130,innerR=22,labelR=R+14;
-  const n=PHYS_METRICS.length;
-  const angleStep=(2*Math.PI)/n;
-  const _il=document.body.classList.contains('light-mode');
-  const _gc=_il?'rgba(0,0,0,0.1)':'rgba(255,255,255,0.05)';
-  const _gt=_il?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.15)';
-  const _sc=_il?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.05)';
-
-  const gridCircles=[25,50,75,100].map(pct=>{
-    const gr=R*(pct/100);
-    return`<circle cx="${CX}" cy="${CY}" r="${gr.toFixed(1)}" fill="none" stroke="${_gc}" stroke-width="1"/>
-            <text x="${(CX+3).toFixed(0)}" y="${(CY-gr-2).toFixed(0)}" fill="${_gt}" font-size="7" font-family="JetBrains Mono">${pct}</text>`;
-  }).join('');
-
-  const spokeLines=PHYS_METRICS.map((_,i)=>{
-    const a=-Math.PI/2+i*angleStep;
-    return`<line x1="${(CX+innerR*Math.cos(a)).toFixed(1)}" y1="${(CY+innerR*Math.sin(a)).toFixed(1)}" x2="${(CX+R*Math.cos(a)).toFixed(1)}" y2="${(CY+R*Math.sin(a)).toFixed(1)}" stroke="${_sc}" stroke-width="1"/>`;
-  }).join('');
-
-  const splitLabel=str=>{
-    const words=str.split(' ');
-    if(str.length<=11) return[str];
-    let best=0,bestDiff=999,cum=0;
-    words.forEach((w,i)=>{cum+=w.length+(i?1:0);const diff=Math.abs(cum-str.length/2);if(diff<bestDiff){bestDiff=diff;best=i;}});
-    const l1=words.slice(0,best+1).join(' ');
-    const l2=words.slice(best+1).join(' ');
-    return l2?[l1,l2]:[l1];
-  };
-
-  const slicesHTML=PHYS_METRICS.map(({key,label,group},i)=>{
-    const pct=pctMap[key]??0;
-    const a0=-Math.PI/2+i*angleStep;
-    const a1=a0+angleStep;
-    const aMid=a0+angleStep/2;
-    const r=R*(pct/100);
-    const large=angleStep>Math.PI?1:0;
-    const x0=CX+innerR*Math.cos(a0),y0=CY+innerR*Math.sin(a0);
-    const x1=CX+r*Math.cos(a0),    y1=CY+r*Math.sin(a0);
-    const x2=CX+r*Math.cos(a1),    y2=CY+r*Math.sin(a1);
-    const x3=CX+innerR*Math.cos(a1),y3=CY+innerR*Math.sin(a1);
-    const col=PHYS_GROUP_COLORS[group]||'#00d4ff';
-    const slicePath=pct>0
-      ?`M${x0.toFixed(1)},${y0.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`
-      :`M${x0.toFixed(1)},${y0.toFixed(1)} L${x3.toFixed(1)},${y3.toFixed(1)} A${innerR},${innerR} 0 ${large} 0 ${x0.toFixed(1)},${y0.toFixed(1)} Z`;
-    const lx=CX+labelR*Math.cos(aMid),ly=CY+labelR*Math.sin(aMid);
-    const anchor=Math.abs(Math.cos(aMid))<0.1?'middle':Math.cos(aMid)>0?'start':'end';
-    const lines=splitLabel(label);
-    const labelText=lines.map((ln,li)=>`<text x="${lx.toFixed(1)}" y="${(ly+li*10).toFixed(1)}" text-anchor="${anchor}" fill="${_il?'rgba(0,0,0,0.75)':'rgba(255,255,255,0.75)'}" font-size="9" font-family="JetBrains Mono" class="pizza-label">${ln}</text>`).join('');
-    return`<path d="${slicePath}" fill="${col}" fill-opacity="0.75" stroke="var(--surface)" stroke-width="1"/>${labelText}`;
-  }).join('');
-
-  return`<div style="margin-top:6px">
-    <div class="skill-group-title"><div class="skill-dot" style="background:#00d4ff"></div>Physical</div>
-    <div style="display:flex;justify-content:center">
-      <svg width="${SZ}" height="${SZ}" viewBox="0 0 ${SZ} ${SZ}" style="max-width:100%">
-        ${gridCircles}${spokeLines}${slicesHTML}
-        <circle cx="${CX}" cy="${CY}" r="${innerR}" fill="var(--surface2)" stroke="var(--border2)" stroke-width="1"/>
-      </svg>
     </div>
   </div>`;
-}
 
+  // Build radars
+  const techRadar=buildRadar(pA,pB,_cmpMode,false,COL_A,COL_B);
+  const physRadar=buildRadar(pA,pB,_cmpMode,true,COL_A,COL_B);
 
-// Build physical data link/unlink section for player overview tab
-function buildPhysMatchSection(p){
-  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season);
-  if(snap&&snap.physicalScore!=null){
-    // Already matched — show profile with unmatch option
-    const adjColor=(snap.physicalAdj||0)>=0?'var(--green)':'var(--red)';
-    const adjStr=(snap.physicalAdj||0)>=0?'+':'';
-    return`<div class="pst" style="margin-top:12px">Physical Data</div>
-    <div style="margin-top:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div style="font-weight:600;font-size:12px">${snap.fullName}</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);margin-top:2px">
-            ${snap.shortName}${snap.birthdate?' · DOB: '+snap.birthdate:''}
-          </div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;margin-top:4px">
-            <span style="color:var(--accent)">Score: ${snap.physicalScore.toFixed(1)}</span>
-            <span style="color:${adjColor};margin-left:8px">Adj: ${adjStr}${(snap.physicalAdj||0).toFixed(2)}</span>
-            <span style="color:var(--muted2);margin-left:8px">Games: ${snap.countPerf||'—'}</span>
-          </div>
-        </div>
-        ${ST._isEditor!==false?`<button class="btn btn-ghost" style="font-size:9px;padding:3px 8px;flex-shrink:0;margin-left:8px" onclick="unmatchPhysical('${p.id}','${snap.id}')">Unlink</button>`:''}
+  wrap.innerHTML=playerStrip+`
+    <div style="display:flex;gap:48px;justify-content:center;align-items:flex-start;flex-wrap:wrap;padding:24px 40px">
+      <div style="text-align:center">
+        <div class="radar-section-title">Technical</div>
+        ${techRadar}
+      </div>
+      <div style="text-align:center">
+        <div class="radar-section-title">Physical</div>
+        ${physRadar}
       </div>
     </div>`;
-  }
-  // Not matched — show link button (editor only)
-  if(ST._isEditor===false) return '';
-  return`<div class="pst" style="margin-top:12px">Physical Data</div>
-    <div style="margin-top:6px">
-      <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:11px" onclick="openPanelPhysMatch('${p.id}')">🔗 Link Physical Data</button>
-    </div>`;
 }
 
-// Panel-level physical match modal
-let _panelMatchPlayerId=null;
-function openPanelPhysMatch(playerId){
-  _panelMatchPlayerId=playerId;
-  const player=ST.players.find(p=>p.id===playerId);
-  if(!player) return;
-  const candidates=findPhysSnapsForPlayer(player);
-  document.getElementById('panelPhysMatchTitle').textContent='Link Physical: '+player.name;
-  const body=document.getElementById('panelPhysMatchBody');
-  if(!candidates.length){
-    body.innerHTML='<div style="padding:16px;color:var(--muted);font-size:11px;text-align:center">No physical candidates found for this player</div>';
+function buildRadar(pA,pB,mode,isPhys,colA,colB){
+  const isAdj=mode==='padj';
+  const R=200, CX=220, CY=220, N_RINGS=5;
+  const SIZE=440;
+
+  // Get axes
+  let axes=[];
+  if(isPhys){
+    axes=PHYS_METRICS.map(m=>({label:m.label,group:m.group,
+      valA:PHYS_PCT_CACHE[pA.id]?.[m.key]??null,
+      valB:PHYS_PCT_CACHE[pB.id]?.[m.key]??null}));
   } else {
-    body.innerHTML=candidates.slice(0,10).map(({snap,confidence,reason})=>{
-      const isTaken=snap.matchedPlayerId&&snap.matchedPlayerId!==player.id;
-      const takenBy=isTaken?ST.players.find(p=>p.id===snap.matchedPlayerId):null;
-      return`
-      <div class="pm-candidate ${confidence==='high'?'pm-auto':''}" style="margin:6px 0;${isTaken?'opacity:0.75;border-color:var(--gold)':''}"
-        onclick="confirmPanelPhysMatch('${snap.id}')">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:12px">${snap.fullName}</div>
-          <div style="font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace">
-            ${snap.shortName}${snap.birthdate?' · DOB: '+snap.birthdate:''}
-            ${snap.season?' · '+snap.season:''}
-          </div>
-          ${isTaken?`<div style="font-size:10px;color:var(--gold);font-family:'JetBrains Mono',monospace;margin-top:2px">⚠ Currently linked to: ${takenBy?takenBy.name:'another player'}</div>`:''}
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:10px;color:${confidence==='high'?'var(--green)':'var(--muted)'};font-family:'JetBrains Mono',monospace">${reason}</div>
-          <div style="font-size:10px;color:var(--accent);font-family:'JetBrains Mono',monospace">ID: ${snap.skillcornerId||'—'}</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-  document.getElementById('panelPhysMatchModal').classList.add('open');
-}
-
-async function confirmPanelPhysMatch(snapId){
-  const snap=PHYS.snapshots.find(s=>s.id===snapId);
-  if(!snap||!_panelMatchPlayerId) return;
-  // Unlink from previous player if reassigning
-  if(snap.matchedPlayerId&&snap.matchedPlayerId!==_panelMatchPlayerId){
-    const prev=ST.players.find(p=>p.id===snap.matchedPlayerId);
-    if(prev&&snap.physicalAdj!=null){
-      if(prev.rating!=null)    prev.rating   =Math.round((prev.rating   -snap.physicalAdj)*10)/10;
-      if(prev.potential!=null) prev.potential=Math.round((prev.potential-snap.physicalAdj)*10)/10;
-      if(prev.ptPriority!=null)prev.ptPriority=Math.max(0,Math.min(100,Math.round((prev.ptPriority-(snap.physicalAdj*2))*10)/10));
-      if(prev.history) prev.history=prev.history.filter(h=>!(h.type==='physical'&&h.season===snap.season));
-      prev.hasPhysical=false;
-      delete prev.skillcornerId; // remove stale link
-    }
-    snap.matchedPlayerId=null; snap.physicalAdj=null; snap.applied=false;
-  }
-  snap.matchedPlayerId=_panelMatchPlayerId;
-  snap.matchConfidence='manual';
-  // Persist Skillcorner ID on the Wyscout player for future auto-matching
-  const player=ST.players.find(p=>p.id===_panelMatchPlayerId);
-  if(player&&snap.skillcornerId) player.skillcornerId=snap.skillcornerId;
-  document.getElementById('panelPhysMatchModal').classList.remove('open');
-  showToast('Linked — applying physical data…','success');
-  computeAndApplyPhysical();
-  try{
-    await savePhysicalDB();
-    await queueGitHubSave(saveData);
-    showToast('Physical data linked and saved','success');
-    renderPanel();
-  }catch(e){ showToast('Save failed: '+e.message,'error'); }
-}
-
-async function confirmBySkillcornerId(){
-  const idInput=document.getElementById('panelPhysDirectId');
-  const scId=parseInt(idInput?.value);
-  if(!scId){showToast('Enter a valid Skillcorner ID','error');return;}
-  const snap=PHYS.snapshots.find(s=>s.skillcornerId===scId);
-  if(!snap){showToast('No physical record found for ID '+scId,'error');return;}
-  await confirmPanelPhysMatch(snap.id);
-}
-
-async function unmatchPhysical(playerId,snapId){
-  if(!confirm('Unlink this physical data? The rating adjustment will be reversed.')) return;
-  const snap=PHYS.snapshots.find(s=>s.id===snapId);
-  const player=ST.players.find(p=>p.id===playerId);
-  if(!snap||!player) return;
-  // Reverse physical adjustment
-  if(snap.physicalAdj!=null){
-    if(player.rating!=null)    player.rating   =Math.round((player.rating   -snap.physicalAdj)*10)/10;
-    if(player.potential!=null) player.potential=Math.round((player.potential-snap.physicalAdj)*10)/10;
-    if(player.ptPriority!=null)player.ptPriority=Math.max(0,Math.min(100,Math.round((player.ptPriority-(snap.physicalAdj*2))*10)/10));
-  }
-  // Remove physical history entry
-  if(player.history) player.history=player.history.filter(h=>!(h.type==='physical'&&h.season===snap.season));
-  player.hasPhysical=false;
-  delete player.skillcornerId;
-  snap.matchedPlayerId=null;
-  snap.matchConfidence=null;
-  snap.physicalAdj=null;
-  snap.applied=false;
-  snap.physicalScore=null;
-  buildPhysPercentileCache();
-  computeMetricBonuses();
-  computeAllLeaguePct();
-  saveState(); renderPanel();
-  showToast('Physical data unlinked','success');
-  queueGitHubSave(saveData);
-  try{ await savePhysicalDB(); } catch(e){ console.warn('Physical save failed',e); }
-}
-
-
-// ═══════════════════════════════════
-// CLUB BADGE CACHE
-// Fetches from TheSportsDB (browser CORS-allowed), persists to badge_map.json in repo
-// ═══════════════════════════════════
-let BADGE_MAP={}; // teamName → url | 'none'  (loaded from repo + session cache)
-let _badgeMapLoaded=false;
-let _badgeMapDirty=false;
-
-// Load badge_map.json from repo on startup
-async function loadBadgeMap(){
-  try{
-    const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/badge_map.json?cb='+Date.now());
-    if(r.ok){
-      const raw=await r.json();
-      // Only load confirmed good URLs — clear loading/none so they're retried
-      BADGE_MAP=Object.fromEntries(Object.entries(raw).filter(([,v])=>v&&v!=='loading'&&v!=='none'));
-    }
-  }catch(e){ BADGE_MAP={}; }
-  _badgeMapLoaded=true;
-}
-
-// Save badge_map.json back to repo (editor only, debounced)
-let _badgeSaveTimer=null;
-let _badgeSaveCount=0;
-function scheduleBadgeMapSave(){
-  if(!GH.token||!_badgeMapDirty) return;
-  _badgeSaveCount++;
-  // Save immediately after every 20 new badges found, or after 5s of inactivity
-  clearTimeout(_badgeSaveTimer);
-  if(_badgeSaveCount>=20){ _badgeSaveCount=0; _doSaveBadgeMap(); return; }
-  _badgeSaveTimer=setTimeout(()=>{ _badgeSaveCount=0; _doSaveBadgeMap(); }, 5000);
-}
-async function _doSaveBadgeMap(){
-    try{
-      // Strip any 'loading' entries before saving — they indicate interrupted fetches
-      const cleanMap=Object.fromEntries(Object.entries(BADGE_MAP).filter(([,v])=>v&&v!=='loading'));
-      const payload=JSON.stringify(cleanMap,null,2);
-      const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
-      const owner='JMSnowley',repo='Player-Dashboard',path='badge_map.json',branch='main';
-      const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
-      const tipSha=(await refR.json()).object.sha;
-      const commitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${tipSha}`,{headers});
-      const baseTree=(await commitR.json()).tree.sha;
-      const blobR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:payload,encoding:'utf-8'})});
-      const blobSha=(await blobR.json()).sha;
-      const treeR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
-      const newTreeSha=(await treeR.json()).sha;
-      const newCommitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'Badge map update',tree:newTreeSha,parents:[tipSha]})});
-      const newCommitSha=(await newCommitR.json()).sha;
-      await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:newCommitSha})});
-      _badgeMapDirty=false;
-    }catch(e){ console.warn('Badge map save failed',e); }
-}
-
-// Normalise a club name for fuzzy comparison
-function normClub(s){
-  if(!s) return '';
-  s=s.toLowerCase()
-    .replace(/ø/g,'o').replace(/ð/g,'d').replace(/þ/g,'th')
-    .replace(/ß/g,'ss').replace(/æ/g,'ae').replace(/œ/g,'oe');
-  s=s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  // Only strip pure organisational suffixes, NOT meaningful club words like real/united/athletic
-  s=s.replace(/\b(f\.?c\.?|a\.?f\.?c\.?|s\.?c\.?|c\.?f\.?|f\.?k\.?|s\.?k\.?|b\.?k\.?|n\.?k\.?)$/,'');
-  s=s.replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
-  return s;
-}
-
-// Score how well a TheSportsDB team matches our club name (higher = better)
-const BADGE_COMMON_WORDS=new Set(['united','city','town','rovers','wanderers','albion','county','club','football','soccer','hotspur','villa','palace','forest','dynamo','olympic','olympique','nacional','wednesday']);
-function matchScore(dbTeam,ourName){
-  const dn=normClub(dbTeam.strTeam||'');
-  const on=normClub(ourName);
-  if(!dn||!on) return 0;
-  let score=0;
-  // Sport scoring — only soccer/football counts; other sports get heavy penalty
-  const sport=dbTeam.strSport||'';
-  if(['Soccer','Football'].includes(sport)) score+=10;
-  else if(sport) score-=50; // basketball, esports etc. should never win
-  if(dn===on) return score+100;
-  if(dn.includes(on)||on.includes(dn)) score+=60;
-  const dAll=dn.split().filter(w=>w.length>1);
-  const oAll=on.split(' ').filter(w=>w.length>1);
-  const dDist=dAll.filter(w=>!BADGE_COMMON_WORDS.has(w));
-  const oDist=oAll.filter(w=>!BADGE_COMMON_WORDS.has(w));
-  const dCommon=dAll.filter(w=>BADGE_COMMON_WORDS.has(w));
-  const oCommon=oAll.filter(w=>BADGE_COMMON_WORDS.has(w));
-  const dWords=new Set(dDist.length?dDist:dAll);
-  const oWords=oDist.length?oDist:oAll;
-  const overlap=oWords.filter(w=>dWords.has(w));
-  if(oWords.length>=2&&dWords.size>=2){
-    const allMatch=overlap.length===oWords.length&&overlap.length===dWords.size;
-    if(allMatch) score+=overlap.reduce((s,w)=>s+(w.length>4?25:15),0);
-    else if(!overlap.length) score-=40;
-    else if(overlap.length/Math.max(oWords.length,dWords.size)>=0.8) score+=overlap.reduce((s,w)=>s+15,0);
-    else score-=20;
-  } else if(oWords.length===1){
-    if(overlap.length){
-      score+=(overlap[0].length>4?25:15);
-      // Penalise if common qualifiers differ (Man United vs Man City)
-      if(oCommon.length&&dCommon.length&&oCommon.join()!==dCommon.join()) score-=25;
-    } else score-=30;
-  }
-  return score;
-}
-
-// Generate search variants for a club name to maximise TheSportsDB hit rate
-function searchVariants(team){
-  const OVERRIDES={
-    // Dutch
-    'AZ':'AZ Alkmaar','PSV':'PSV Eindhoven','NEC':'NEC Nijmegen',
-    // Danish
-    'AGF':'AGF Aarhus','OB':'Odense Boldklub','FCK':'FC Copenhagen','København':'FC Copenhagen','FC København':'FC Copenhagen',
-    // Saudi
-    'Al Hilal':'Al-Hilal Saudi FC','Al Nassr':'Al-Nassr FC','Al Ittihad':'Al-Ittihad Club',
-    'Al Ahli':'Al-Ahli Saudi FC','Al Ettifaq':'Al-Ettifaq','Al Qadsiah':'Al-Qadsiah',
-    'Al Feiha':'Al-Feiha','Al Fateh':'Al-Fateh','Al Hazem':'Al-Hazem',
-    'Al Akhdoud':'Al-Akhdoud','Al Khaleej':'Al-Khaleej','Al Kholood':'Al-Kholood',
-    'Al Najma':'Al-Najma','Al Wahda':'Al-Wahda','Al Shabab':'Al-Shabab',
-    // Portuguese
-    'Porto':'FC Porto','Benfica':'SL Benfica','Sporting CP':'Sporting CP',
-    'Vitória SC':'Vitoria SC','Vitória SC':'Vitoria SC',
-    // English
-    'Man City':'Manchester City','Man Utd':'Manchester United',
-    'Spurs':'Tottenham Hotspur','Wolves':'Wolverhampton Wanderers',
-    'Nottm Forest':'Nottingham Forest','West Brom':'West Bromwich Albion',
-    'Sheff Utd':'Sheffield United','Sheff Wed':'Sheffield Wednesday',
-    'QPR':'Queens Park Rangers','Boro':'Middlesbrough',
-    'AFC Wimbledon':'AFC Wimbledon',
-    // Spanish
-    'Atlético Madrid':'Atletico Madrid','Atlético de Madrid':'Atletico Madrid',
-    'Celta Vigo':'Celta de Vigo',
-    // German
-    'Borussia Mgladbach':'Borussia Monchengladbach',
-    'RB Leipzig':'RasenBallsport Leipzig','Bayern München':'FC Bayern Munchen',
-    'Köln':'1. FC Koln','Mainz 05':'1. FSV Mainz 05',
-    '1. FC Union Berlin':'Union Berlin','Union Berlin':'Union Berlin',
-    'Eintracht Frankfurt':'Eintracht Frankfurt',
-    // French
-    'PSG':'Paris Saint-Germain',
-    // Italian
-    'Inter':'FC Internazionale','Inter Milan':'FC Internazionale','Internazionale':'FC Internazionale',
-    // Scottish
-    'St Mirren':'St. Mirren','St Johnstone':'St. Johnstone',
-    'Greenock Morton':'Morton FC','Queen of the South':'Queen of the South FC',
-    // Belgian
-    'Anderlecht':'RSC Anderlecht','Mechelen':'KV Mechelen',
-    'Charleroi':'Sporting Charleroi','Zulte-Waregem':'Zulte Waregem',
-    'Sint-Truiden':'Sint-Truiden VV','Union Saint-Gilloise':'Royale Union Saint-Gilloise',
-    'La Louvière':'La Louviere Centre',
-    // English lower leagues
-    'Gateshead':'Gateshead FC','Boston United':'Boston United FC',
-    'Sutton United':'Sutton United FC','Wealdstone':'Wealdstone FC',
-    'Halifax Town':'FC Halifax Town','Woking':'Woking FC',
-    'Scunthorpe United':'Scunthorpe United FC',
-    // Czech
-    'Viktoria Plzeň':'Viktoria Plzen',
-    // Saudi
-    'Al Ittihad':'Al-Ittihad Club','Al Kholood':'Al-Kholood',
-    // American
-    'New England':'New England Revolution',
-    'NYCFC':'New York City FC','NY Red Bulls':'New York Red Bulls',
-    'Seattle Sounders':'Seattle Sounders FC','Portland Timbers':'Portland Timbers',
-  };
-  const variants=[team];
-  const override=OVERRIDES[team];
-  if(override) variants.unshift(override);
-  // Strip trailing FC/AFC/SC/CF etc
-  const stripped=team.replace(/\s+(F\.?C\.?|A\.?F\.?C\.?|S\.?C\.?|C\.?F\.?)$/i,'').trim();
-  if(stripped!==team&&stripped.length>2) variants.push(stripped);
-  // Strip accents
-  const noAccent=team.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  if(noAccent!==team) variants.push(noAccent);
-  // Add "FC " prefix variant for clubs that might be stored that way
-  if(!team.match(/^(FC|AFC|SC|CF)\s/i)) variants.push('FC '+team);
-  return[...new Set(variants)];
-}
-
-// Fetch badge for a team from TheSportsDB, cache result
-// retryNone=true allows re-fetching entries previously marked 'none'
-async function fetchBadge(team, retryNone=false){
-  const cached=BADGE_MAP[team];
-  // Never treat 'loading' as a permanent cache — it means a previous fetch was interrupted
-  if(cached!==undefined && cached!=='loading' && cached!=='none') return cached;
-  if(cached==='none' && !retryNone) return cached;
-  if(BADGE_MAP[team]==='loading') {
-    // Already in flight — wait briefly then check again rather than firing a duplicate
-    await new Promise(r=>setTimeout(r,500));
-    if(BADGE_MAP[team]&&BADGE_MAP[team]!=='loading') return BADGE_MAP[team];
-  }
-  BADGE_MAP[team]='loading';
-  try{
-    const variants=searchVariants(team);
-    let bestMatch=null, bestScore=-999;
-    for(const variant of variants){
-      const q=encodeURIComponent(variant);
-      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${q}`);
-      if(!r.ok) continue;
-      const data=await r.json();
-      const teams=data.teams||[];
-      for(const t of teams){
-        const score=matchScore(t,team);
-        if(score>bestScore){ bestScore=score; bestMatch=t; }
-      }
-      if(bestScore>=60) break;
-    }
-    const url=bestScore>=10?bestMatch?.strBadge:null;
-    BADGE_MAP[team]=url?url+'/preview':'none';
-    if(url){
-      _badgeMapDirty=true;
-      scheduleBadgeMapSave();
-      // Upgrade any existing initials placeholders in the DOM right now
-      document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
-        const img=document.createElement('img');
-        img.className='player-badge';img.src=BADGE_MAP[team];img.alt=team;
-        img.style.cssText=el.style.cssText;
-        img.onerror=()=>{BADGE_MAP[team]='none';};
-        el.replaceWith(img);
+    const posConf=POS_CONFIG[pA.pos]||POS_CONFIG[pB.pos];
+    if(!posConf) return '<div style="color:var(--muted)">No data</div>';
+    const metricList=isAdj?posConf.pm:posConf.nm;
+    const skillMap=(METRIC_SKILLS[pA.pos]||METRIC_SKILLS[pB.pos]||{})[isAdj?'pm':'nm']||{};
+    const skillOrder=pA.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+    // Group metrics by skill, then flatten in order
+    const bySkill={};
+    skillOrder.forEach(s=>{bySkill[s]=[];});
+    metricList.forEach(m=>{
+      const s=skillMap[m]||skillOrder[0];
+      if(!bySkill[s]) bySkill[s]=[];
+      bySkill[s].push(m);
+    });
+    skillOrder.forEach(s=>{
+      (bySkill[s]||[]).forEach(m=>{
+        axes.push({label:m.replace(/^PAdj\s+/i,''),group:s,
+          valA:(pA[isAdj?'pm':'nm']||{})[m]??null,
+          valB:(pB[isAdj?'pm':'nm']||{})[m]??null});
       });
-    }
-  }catch(e){ BADGE_MAP[team]='none'; }
-  return BADGE_MAP[team];
-}
+    });
+  }
 
-// Prefetch badges using TheSportsDB league bulk lookups + per-team fallback
-async function prefetchAllBadges(){
-  const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
+  axes=axes.filter(a=>a.valA!=null||a.valB!=null);
+  if(!axes.length) return `<div style="color:var(--muted);font-size:12px;padding:20px">${isPhys?'No physical data':'No data'}</div>`;
 
-  // Step 1: Bulk fetch by league (1 req per league = all teams at once)
-  const LEAGUE_IDS={
-    'England 1':'4328','England 2':'4329','England 3':'4330','England 4':'4336',
-    'Spain 1':'4335','Italy 1':'4332','Germany 1':'4331','France 1':'4334',
-    'Scotland 1':'4480','Netherlands 1':'4337','Portugal 1':'4344',
-    'Belgium 1':'4396','Turkey 1':'4481','Denmark 1':'4346',
-    'Austria 1':'4443','Switzerland 1':'4342','Poland 1':'4422',
-    'Saudi Arabia 1':'4349','Brazil 1':'4351',
+  const n=axes.length;
+  const angleStep=2*Math.PI/n;
+  const startAngle=-Math.PI/2;
+
+  // Sector background colours per group
+  const SECTOR_COLORS={
+    'Passing':'rgba(124,111,205,0.08)','Dribbling & Carrying':'rgba(0,212,255,0.08)',
+    'Goal Threat':'rgba(245,200,66,0.08)','Aerial':'rgba(255,140,66,0.08)',
+    'Defending':'rgba(0,229,153,0.08)','Shot Stopping':'rgba(245,200,66,0.08)',
+    'Claims & Sweeping':'rgba(0,212,255,0.08)','Distribution':'rgba(124,111,205,0.08)',
+    // Physical groups
+    'speed':'rgba(0,212,255,0.08)','explosive':'rgba(245,200,66,0.08)',
+    'distance':'rgba(0,229,153,0.08)','tip':'rgba(204,112,64,0.08)',
+    'otip':'rgba(112,96,168,0.08)',
   };
-  const leagueTags=[...new Set(ST.players.map(p=>p.leagueTag).filter(Boolean))];
-  let newBadgesThisRound=0;
-  for(const tag of leagueTags){
-    const lid=LEAGUE_IDS[tag];
-    if(!lid) continue;
-    try{
-      const r=await fetch(`https://www.thesportsdb.com/api/v1/json/3/lookup_all_teams.php?id=${lid}`);
-      if(!r.ok) continue;
-      const data=await r.json();
-      const sdbTeams=data.teams||[];
-      for(const sdbTeam of sdbTeams){
-        if(!sdbTeam.strBadge) continue;
-        let bestTeam=null,bestScore=-999;
-        for(const ourTeam of teams){
-          const cur=BADGE_MAP[ourTeam];
-          if(cur&&cur!=='none'&&cur!=='loading') continue;
-          const score=matchScore(sdbTeam,ourTeam);
-          if(score>bestScore){bestScore=score;bestTeam=ourTeam;}
-        }
-        if(bestTeam&&bestScore>=20&&(!BADGE_MAP[bestTeam]||BADGE_MAP[bestTeam]==='none')){
-          BADGE_MAP[bestTeam]=sdbTeam.strBadge+'/preview';
-          _badgeMapDirty=true;
-          newBadgesThisRound++;
-          // Upgrade any existing initials in DOM immediately
-          document.querySelectorAll(`[data-badge-team="${CSS.escape(bestTeam)}"]`).forEach(el=>{
-            const img=document.createElement('img');
-            img.className='player-badge';img.src=BADGE_MAP[bestTeam];img.alt=bestTeam;
-            img.style.cssText=el.style.cssText;
-            img.onerror=()=>{BADGE_MAP[bestTeam]='none';};
-            el.replaceWith(img);
-          });
-        }
-      }
-      if(newBadgesThisRound>=20){scheduleBadgeMapSave();newBadgesThisRound=0;}
-      await new Promise(r=>setTimeout(r,800));
-    }catch(e){ /* ignore */ }
+
+  function ptAtVal(i,val,r=R){
+    const a=startAngle+i*angleStep;
+    const dist=val/100*r;
+    return{x:(CX+Math.cos(a)*dist).toFixed(2),y:(CY+Math.sin(a)*dist).toFixed(2)};
   }
-  if(newBadgesThisRound>0) scheduleBadgeMapSave();
-
-  // Step 2: Per-team fallback for anything still missing
-  const missing=teams.filter(t=>!BADGE_MAP[t]||BADGE_MAP[t]==='none');
-  const BATCH=2;
-  for(let i=0;i<missing.length;i+=BATCH){
-    await Promise.allSettled(missing.slice(i,i+BATCH).map(t=>fetchBadge(t,true)));
-    await new Promise(r=>setTimeout(r,1500));
-    if(_badgeMapDirty) scheduleBadgeMapSave();
+  function ptAtEdge(i,r=R){
+    const a=startAngle+i*angleStep;
+    return{x:(CX+Math.cos(a)*r).toFixed(2),y:(CY+Math.sin(a)*r).toFixed(2)};
   }
+
+  // Ring grid
+  let rings='';
+  for(let k=1;k<=N_RINGS;k++){
+    const r=R*k/N_RINGS;
+    const pts=Array.from({length:n},(_,i)=>ptAtEdge(i,r));
+    rings+=`<polygon points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="var(--border)" stroke-width="0.5" opacity="0.6"/>`;
+  }
+
+  // Sector backgrounds
+  let sectors='';
+  let currentGroup=null, sectorStart=0;
+  const drawSector=(from,to,group)=>{
+    if(to<=from) return;
+    const col=SECTOR_COLORS[group]||'rgba(255,255,255,0.03)';
+    const pts=[{x:CX,y:CY}];
+    for(let i=from;i<=to;i++) pts.push(ptAtEdge(i%n));
+    sectors+=`<polygon points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="${col}" stroke="none"/>`;
+  };
+  axes.forEach((a,i)=>{
+    if(a.group!==currentGroup){
+      if(currentGroup!==null) drawSector(sectorStart,i-1,currentGroup);
+      currentGroup=a.group; sectorStart=i;
+    }
+  });
+  if(currentGroup!==null) drawSector(sectorStart,n-1,currentGroup);
+
+  // Spoke lines
+  let spokes='';
+  axes.forEach((_,i)=>{
+    const e=ptAtEdge(i);
+    spokes+=`<line x1="${CX}" y1="${CY}" x2="${e.x}" y2="${e.y}" stroke="var(--border2)" stroke-width="0.8"/>`;
+  });
+
+  // Data polygon — fill with valA or 0 fallback
+  const polyA=axes.map((a,i)=>ptAtVal(i,a.valA??0));
+  const polyB=axes.map((a,i)=>ptAtVal(i,a.valB??0));
+  const ptsA=polyA.map(p=>p.x+','+p.y).join(' ');
+  const ptsB=polyB.map(p=>p.x+','+p.y).join(' ');
+
+  // Dot radius scale
+  const dotR=n>20?2.5:3;
+
+  // Labels — placed at edge + small offset
+  let labels='';
+  axes.forEach((a,i)=>{
+    const angle=startAngle+i*angleStep;
+    const lx=CX+Math.cos(angle)*(R+18);
+    const ly=CY+Math.sin(angle)*(R+18);
+    const anchor=Math.cos(angle)>0.1?'start':Math.cos(angle)<-0.1?'end':'middle';
+    const short=a.label.length>14?a.label.slice(0,13)+'…':a.label;
+    labels+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" fill="var(--muted2)" font-size="${n>20?7:8}" font-family="JetBrains Mono,monospace">${short}</text>`;
+  });
+
+  // Ring % labels
+  const ringLabels=['20','40','60','80','100'].map((v,k)=>{
+    const y=CY-(R*(k+1)/N_RINGS);
+    return`<text x="${CX+2}" y="${(y-1).toFixed(1)}" fill="var(--muted)" font-size="7" font-family="JetBrains Mono,monospace">${v}</text>`;
+  }).join('');
+
+  // Group legend
+  const skillOrder=pA.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+  const groupsInUse=isPhys
+    ?[...new Set(PHYS_METRICS.map(m=>m.group))]
+    :[...new Set(axes.map(a=>a.group))];
+  const legendItems=groupsInUse.map(g=>{
+    const col=SECTOR_COLORS[g]||'rgba(255,255,255,0.1)';
+    const solidCol=col.replace(/[\d.]+\)$/,'0.5)');
+    const labelText=isPhys?{speed:'Speed',explosive:'Explosive',distance:'Distance',tip:'In Poss.',otip:'Out of Poss.'}[g]||g:g;
+    return`<div style="display:flex;align-items:center;gap:4px;font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted2)">
+      <div style="width:10px;height:10px;border-radius:2px;background:${solidCol};flex-shrink:0"></div>${labelText}
+    </div>`;
+  }).join('');
+
+  return`<svg width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}" style="overflow:visible">
+    ${sectors}${rings}${spokes}
+    <polygon points="${ptsA}" fill="${colA}" fill-opacity="0.15" stroke="${colA}" stroke-width="1.8" stroke-linejoin="round"/>
+    <polygon points="${ptsB}" fill="${colB}" fill-opacity="0.15" stroke="${colB}" stroke-width="1.8" stroke-linejoin="round"/>
+    ${polyA.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${dotR}" fill="${colA}" stroke="var(--surface)" stroke-width="1"/>`).join('')}
+    ${polyB.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="${dotR}" fill="${colB}" stroke="var(--surface)" stroke-width="1"/>`).join('')}
+    ${labels}${ringLabels}
+  </svg>
+  <div style="display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;margin-top:8px;max-width:${SIZE}px">${legendItems}</div>`;
 }
 
-// Generate initials from team name
-function teamInitials(name){
-  if(!name) return '?';
-  const words=name.trim().split(/\s+/);
-  if(words.length===1) return name.slice(0,2).toUpperCase();
-  return words.filter(w=>w.length>2).slice(0,2).map(w=>w[0].toUpperCase()).join('')||name.slice(0,2).toUpperCase();
-}
 
-// Render badge element: initials immediately, upgrades to badge asynchronously
-function badgeEl(team,size=22){
-  if(!team) return `<div class="player-initials" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px">?</div>`;
-  const initials=teamInitials(team);
-  const esc=team.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  const cached=BADGE_MAP[team];
-  if(cached&&cached!=='loading'&&cached!=='none')
-    return `<img class="player-badge" src="${cached}" style="width:${size}px;height:${size}px" alt="${esc}" onerror="BADGE_MAP['${esc}']='none';this.outerHTML='<div class=player-initials style=width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px>${initials}</div>'"/>`;
-  // Show initials with data-badge-team so prefetch can upgrade it when badge arrives
-  return `<div class="player-initials" data-badge-team="${esc}" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px" title="${esc}">${initials}</div>`;
-}
+
 // ═══════════════════════════════════
 // FULL OVERVIEW
 // ═══════════════════════════════════
