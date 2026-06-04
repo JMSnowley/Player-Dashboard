@@ -2207,7 +2207,9 @@ function getFiltered(){
         return v>=lo&&v<=hi;
       });
     });
-  }  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
+  }
+  const sk=ST.sortKey||'rating';
+  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
     if(sk==='rank')return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
