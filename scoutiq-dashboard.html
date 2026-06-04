@@ -2276,8 +2276,15 @@ function renderTable(){
       <td>${ringCell(displayPTP(p),ptColor)}</td>
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
       <td style="min-width:110px">
-        <div style="font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${topRoleLabel}">${topRoleLabel}</div>
-        <div class="role-colorbar">${roleSegs}</div>
+        <div class="top3-skills">${(()=>{
+          const ss=computePlayerSkillScores(p);
+          const entries=Object.entries(ss).sort((a,b)=>b[1]-a[1]).slice(0,3);
+          if(!entries.length) return '<span style="color:var(--muted)">—</span>';
+          return entries.map(([name,val])=>`<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">
+            <div style="font-size:9px;color:var(--muted2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--accent)">${val}</div>
+          </div>`).join('');
+        })()}</div>
       </td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
       <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
@@ -3765,7 +3772,7 @@ function renderPanel(){
       return{path,color:pieColors[i%pieColors.length],label:v.label,val:v.val};
     });
     const topRole=vals.reduce((a,b)=>b.val>a.val?b:a,{val:0,label:'—'});
-    const swarmHtml=buildFOSwarms(p,'panel');
+    const swarmHtml=buildFOSwarms(p,'panel-avg');
     body.innerHTML=vals.some(v=>v.val>0)?`
       <div class="pst" style="margin-top:4px">Role Profile</div>
       <div class="pie-wrap">
@@ -4637,6 +4644,7 @@ function buildFullOverview(p){
     <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
     <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
       <div>
+        ${buildFOSwarms(p)}
         <div class="fo-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
             <div class="fo-section-title" style="margin-bottom:0;border:none">Technical Metrics</div>
@@ -4648,7 +4656,6 @@ function buildFullOverview(p){
           ${buildFOMetrics(p)}
         </div>
         ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
-        ${buildFOSwarms(p)}
       </div>
       <div>
         ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
@@ -5120,7 +5127,8 @@ function buildInsight(p,dr,dp,sortedRoles,snap){
 
 
 function buildFOSwarms(p, context='fo'){
-  const isAdj=_foMetricView==='padj';
+  const isAvg=context==='panel-avg';
+  const isAdj=!isAvg&&_foMetricView==='padj';
   const mode=isAdj?'pm':'nm';
   const MF_GROUP=['DM','CM','AM'];
   const poolPos=MF_GROUP.includes(p.pos)?MF_GROUP:[p.pos];
@@ -5247,13 +5255,20 @@ function buildFOSwarms(p, context='fo'){
   if(peers.length<4) return '';
 
   function metricVal(player,key){
-    const adjKey=isAdj&&PADJ_MAP[key]?PADJ_MAP[key]:key;
+    const adjKey=PADJ_MAP[key];
+    const nmV=(player.nm||{})[key];
+    const pmV=adjKey?(player.pm||{})[adjKey]:null;
+    if(isAvg){
+      // 50:50 average of normal and padj when both available
+      if(nmV!=null&&pmV!=null) return (nmV+pmV)/2;
+      if(nmV!=null) return nmV;
+      if(pmV!=null) return pmV;
+      return null;
+    }
     const src=isAdj?(player.pm||player.nm||{}):(player.nm||{});
-    const v=src[adjKey];
+    const v=src[isAdj&&adjKey?adjKey:key];
     if(v!=null) return v;
-    // fallback to nm if pm not available
-    const nm=player.nm||{};
-    return nm[adjKey]!=null?nm[adjKey]:(nm[key]!=null?nm[key]:null);
+    return (player.nm||{})[key]??null;
   }
 
   function skillScore(player, skill){
@@ -5283,8 +5298,10 @@ function buildFOSwarms(p, context='fo'){
     });
   }
 
-  const COL_W=60, TOP_PAD=8, BOT_PAD=8, CHART_H=110;
+  const COL_W=56, TOP_PAD=8, BOT_PAD=8, CHART_H=110;
   const TOTAL_H=CHART_H+TOP_PAD+BOT_PAD;
+  // Label width = widest skill name (auto via CSS)
+  const LABEL_MAX=context==='fo'?70:60;
 
   const swarmCols=skillList.map(skill=>{
     const raw=peers.map(x=>({id:x.id,name:x.name,team:x.team,score:skillScore(x,skill)}))
@@ -5333,7 +5350,7 @@ function buildFOSwarms(p, context='fo'){
         <defs><filter id="sw-glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
         ${dotsHtml}${playerDot}
       </svg>
-      <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:${skill.color};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1.2;max-width:${COL_W+4}px">${skill.name}</div>
+      <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:${skill.color};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1.2;width:${LABEL_MAX}px;word-break:break-word;overflow-wrap:break-word">${skill.name}</div>
       <div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:${playerScaled!=null?'#00d4ff':'var(--muted)'};font-weight:700">${playerScaled!=null?playerScaled:'—'}</div>
       ${rank!=null?`<div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:var(--muted2)">${rank}/${total}</div>`:''}
     </div>`;
@@ -5341,9 +5358,10 @@ function buildFOSwarms(p, context='fo'){
 
   if(!swarmCols) return '';
   const poolLabel=poolPos.join('/')+(poolPos.length>1?' (MF pool)':'');
-  const headerText=context==='panel'
-    ?`Skills · ${p.leagueTag} · ${peers.length} players · ${isAdj?'PAdj':'Normal'}`
-    :`Skills — ${p.leagueTag} · ${poolLabel} · ${peers.length} players · ${isAdj?'PAdj':'Normal'}`;
+  const modeLabel=isAvg?'Normal+PAdj avg':isAdj?'PAdj':'Normal';
+  const headerText=context==='panel-avg'||context==='panel'
+    ?`Skills · ${p.leagueTag} · ${peers.length} players · ${modeLabel}`
+    :`Skills — ${p.leagueTag} · ${poolLabel} · ${peers.length} players · ${modeLabel}`;
   return`<div class="fo-section">
     <div class="fo-section-title">${headerText}</div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:4px 0">
@@ -5471,7 +5489,12 @@ function calcSimilarity(p,x){
   const wyOverlap=pWy.filter(wp=>xWy.includes(wp)).length;
   const wyUnion=new Set([...pWy,...xWy]).size;
   const wySim=wyUnion?Math.round(wyOverlap/wyUnion*100):50;
-  return Math.round(roleSim*0.35+techSim*0.30+physSim*0.15+ageSim*0.12+wySim*0.08);
+  // Skill score similarity
+  const pSkills=computePlayerSkillScores(p);
+  const xSkills=computePlayerSkillScores(x);
+  const skillKeys=Object.keys(pSkills).filter(k=>xSkills[k]!=null);
+  const skillSim=skillKeys.length?skillKeys.reduce((s,k)=>s+(100-Math.abs(pSkills[k]-xSkills[k])),0)/skillKeys.length:50;
+  return Math.round(roleSim*0.25+techSim*0.20+skillSim*0.25+physSim*0.12+ageSim*0.10+wySim*0.08);
 }
 
 function buildFOSimilar(p,seasons){
