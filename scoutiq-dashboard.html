@@ -4895,34 +4895,15 @@ function buildFORecommendedClubs(p){
       return xdr*(1-xPotW)+xdp*xPotW;
     };
 
-    // Position rank using projected ratings
-    const posGroup=club.players.filter(x=>{
-      if(playerPos==='GK') return x.pos==='GK';
-      if(playerCompGroup==='DMCM') return MF_POOL.includes(x.pos);
-      return x.pos===playerPos;
-    }).concat([p]).sort((a,b)=>projRate(b)-projRate(a));
-    const posRank=posGroup.findIndex(x=>x.id===p.id)+1;
-    const posSize=posGroup.length;
-
-    // All outfield positions: peak at rank 1-2 (GK still strictly rank 1)
-    let posRankScore;
-    if(playerPos==='GK'){
-      posRankScore=posRank===1?100:posRank===2?60:posRank===3?25:5;
-    } else {
-      posRankScore=posRank===1?95:posRank===2?100:posRank===3?50:posRank===4?20:5;
-    }
-
-    // Squad rank using projected ratings — want 5th-8th overall
+    // Squad rank using projected ratings — want 3rd-8th overall (nailed-on starter, not the star)
     const squadAll=club.players.concat([p]).sort((a,b)=>projRate(b)-projRate(a));
     const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
-    let squadScore;
-    if(squadRank<=2) squadScore=20; // too dominant
-    else if(squadRank<=4) squadScore=60;
-    else if(squadRank<=8) squadScore=100; // ideal range
-    else if(squadRank<=12) squadScore=Math.max(20,65-(squadRank-8)*10);
-    else squadScore=10;
-
-    const playingTimeScore=(posRankScore*0.55+squadScore*0.45);
+    let playingTimeScore;
+    if(squadRank<=2) playingTimeScore=65; // strong signing, not too dominant
+    else if(squadRank<=4) playingTimeScore=88;
+    else if(squadRank<=8) playingTimeScore=100; // ideal
+    else if(squadRank<=12) playingTimeScore=Math.max(20,70-(squadRank-8)*12);
+    else playingTimeScore=10;
 
     // ── Cultural fit constants ─────────────────────────────────────
     // leagueTag → {country, language, region}
@@ -5103,11 +5084,11 @@ function buildFORecommendedClubs(p){
     scored.push({
       team:club.team,league:club.league,season:club.season,
       score:totalScore,
-      posRank,posSize,squadRank:Math.min(squadRank,squadAll.length-1),
+      squadRank:Math.min(squadRank,squadAll.length-1),
       playingTimeScore:Math.round(playingTimeScore),
       complementScore:Math.round(complementScore),
       culturalScore:Math.round(culturalScore),
-            topGap:clubWeakSkills.slice(0,2)
+      topGap:clubWeakSkills.slice(0,2)
     });
   });
 
@@ -5129,7 +5110,7 @@ function buildFORecommendedClubs(p){
           <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${c.team}</div>
           <div style="font-family:'Archivo Black',sans-serif;font-size:14px;color:${scoreCol};flex-shrink:0;margin-left:6px">${c.score}</div>
         </div>
-        <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season} · #${c.posRank} at pos · #${c.squadRank} in squad</div>
+        <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season} · #${c.squadRank} in squad</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
           <div>
             <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Playing Time</div>
