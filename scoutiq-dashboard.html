@@ -5068,11 +5068,27 @@ function buildFORecommendedClubs(p){
 
 
     // ── Combined score ────────────────────────────────────────────
-    const totalScore=Math.round(
+    // ── League quality cap ────────────────────────────────────────
+    // Use projected rating vs club's league elite threshold
+    // If player significantly exceeds the league's top level, cap the total score
+    const clubLQ=LEAGUE_QUALITY[club.league]||{elite:80};
+    const overshoot=projRating-clubLQ.elite; // how far above the league's elite bar
+    let qualityCap=100;
+    if(overshoot>20) qualityCap=40;
+    else if(overshoot>15) qualityCap=55;
+    else if(overshoot>10) qualityCap=68;
+    else if(overshoot>5) qualityCap=80;
+    else if(overshoot>0) qualityCap=90;
+    // Also check if below league's good threshold — flag as a significant step up
+    const undershoot=clubLQ.good-projRating;
+    if(undershoot>15) qualityCap=Math.min(qualityCap,45); // too big a jump
+    else if(undershoot>8) qualityCap=Math.min(qualityCap,65);
+
+    const totalScore=Math.min(qualityCap,Math.round(
       playingTimeScore*0.50+
       complementScore*0.30+
       culturalScore*0.20
-    );
+    ));
 
     scored.push({
       team:club.team,league:club.league,season:club.season,
