@@ -424,7 +424,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button id="physCaptureBtn" class="btn btn-gold" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
     <button id="physMatchBtn" class="btn btn-ghost" onclick="openPhysMatchModal()" style="display:none;font-size:11px">🔗 Match Physical</button>
     <button id="physApplyBtn" class="btn btn-ghost" onclick="applyPhysicalData()" style="display:none;font-size:11px">✓ Apply Physical</button>
-    <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:11px">⇄ Compare</button>
+
     <button id="setupBtn" class="btn btn-ghost" onclick="openSetupModal()">⚙ Setup</button>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode"><span class="tt-icon" id="themeIcon">☀</span></button>
   </div>
@@ -516,6 +516,8 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:10px;padding:4px 9px;white-space:nowrap">⚽ Best XI</button>
         <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:10px;padding:4px 9px;white-space:nowrap">⚽ Pot. XI</button>
         <button class="btn btn-ghost" onclick="openTeamOverview()" style="font-size:10px;padding:4px 9px;white-space:nowrap">🏟 Teams</button>
+        <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:10px;padding:4px 9px;white-space:nowrap">⇄ Compare</button>
+        <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:10px;padding:4px 9px;white-space:nowrap">⇄ Compare</button>
       </div>
     </div>
     <div class="ss">
@@ -3624,7 +3626,7 @@ function renderCompare(){
   const physRadar=buildRadar(pA,pB,_cmpMode,true,COL_A,COL_B);
 
   wrap.innerHTML=playerStrip+`
-    <div style="display:flex;gap:48px;justify-content:center;align-items:flex-start;flex-wrap:wrap;padding:24px 40px">
+    <div style="display:flex;gap:80px;justify-content:center;align-items:flex-start;flex-wrap:wrap;padding:24px 60px">
       <div style="text-align:center">
         <div class="radar-section-title">Technical</div>
         ${techRadar}
@@ -3638,8 +3640,8 @@ function renderCompare(){
 
 function buildRadar(pA,pB,mode,isPhys,colA,colB){
   const isAdj=mode==='padj';
-  const R=200, CX=220, CY=220, N_RINGS=5;
-  const SIZE=440;
+  const R=210, CX=260, CY=260, N_RINGS=5;
+  const SIZE=520;
 
   // Get axes
   let axes=[];
@@ -3707,14 +3709,22 @@ function buildRadar(pA,pB,mode,isPhys,colA,colB){
     rings+=`<polygon points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="var(--border)" stroke-width="0.5" opacity="0.6"/>`;
   }
 
-  // Sector backgrounds
+  // Sector backgrounds — expanded half a segment either side to cover gaps
   let sectors='';
   let currentGroup=null, sectorStart=0;
   const drawSector=(from,to,group)=>{
-    if(to<=from) return;
+    if(to<from) return;
     const col=SECTOR_COLORS[group]||'rgba(255,255,255,0.03)';
+    // Expand by half a segment either side
+    const expandAngle=angleStep*0.5;
+    const aFrom=startAngle+from*angleStep-expandAngle;
+    const aTo=startAngle+to*angleStep+expandAngle+angleStep;
+    const steps=Math.ceil((aTo-aFrom)/(Math.PI/32));
     const pts=[{x:CX,y:CY}];
-    for(let i=from;i<=to;i++) pts.push(ptAtEdge(i%n));
+    for(let i=0;i<=steps;i++){
+      const a=aFrom+(i/steps)*(aTo-aFrom);
+      pts.push({x:(CX+Math.cos(a)*R).toFixed(2),y:(CY+Math.sin(a)*R).toFixed(2)});
+    }
     sectors+=`<polygon points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="${col}" stroke="none"/>`;
   };
   axes.forEach((a,i)=>{
@@ -3739,17 +3749,32 @@ function buildRadar(pA,pB,mode,isPhys,colA,colB){
   const ptsB=polyB.map(p=>p.x+','+p.y).join(' ');
 
   // Dot radius scale
-  const dotR=n>20?2.5:3;
+  const dotR=n>20?2.5:3.5;
 
-  // Labels — placed at edge + small offset
+  // Labels — full text, split to 2 lines if >12 chars
   let labels='';
   axes.forEach((a,i)=>{
     const angle=startAngle+i*angleStep;
-    const lx=CX+Math.cos(angle)*(R+18);
-    const ly=CY+Math.sin(angle)*(R+18);
-    const anchor=Math.cos(angle)>0.1?'start':Math.cos(angle)<-0.1?'end':'middle';
-    const short=a.label.length>14?a.label.slice(0,13)+'…':a.label;
-    labels+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" fill="var(--muted2)" font-size="${n>20?7:8}" font-family="JetBrains Mono,monospace">${short}</text>`;
+    const lx=CX+Math.cos(angle)*(R+22);
+    const ly=CY+Math.sin(angle)*(R+22);
+    const anchor=Math.cos(angle)>0.15?'start':Math.cos(angle)<-0.15?'end':'middle';
+    const fs=n>20?7:8;
+    const words=a.label.split(' ');
+    // Split into at most 2 lines: try to split roughly in half by word count
+    let line1=a.label, line2='';
+    if(words.length>1){
+      const mid=Math.ceil(words.length/2);
+      line1=words.slice(0,mid).join(' ');
+      line2=words.slice(mid).join(' ');
+    }
+    if(line2){
+      labels+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" fill="var(--muted2)" font-size="${fs}" font-family="JetBrains Mono,monospace">
+        <tspan x="${lx.toFixed(1)}" dy="-0.6em">${line1}</tspan>
+        <tspan x="${lx.toFixed(1)}" dy="1.2em">${line2}</tspan>
+      </text>`;
+    } else {
+      labels+=`<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle" fill="var(--muted2)" font-size="${fs}" font-family="JetBrains Mono,monospace">${line1}</text>`;
+    }
   });
 
   // Ring % labels
@@ -4020,134 +4045,120 @@ function setMCV(v){ ST.metricChartView=v; renderPanel(); }
 function renderPanel(){
   const p=ST.players.find(x=>x.id===ST.panelId);
   if(!p) return;
-  const isEditor=GH.token||GH.isEditor;
-
-  // Header
+  const isEditor=!!(GH&&GH.token);
   document.getElementById('ppAv').innerHTML=badgeEl(p.team,36);
   document.getElementById('ppName').textContent=p.name;
   document.getElementById('ppSub').textContent=`${p.pos} · ${p.team} · ${p.leagueTag||''} · ${p.season||''}`;
-
   const body=document.getElementById('ppBody');
-  const tab=ST.panelTab;
 
-  if(tab==='overview'){
-    const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season);
-    const dr=displayRating(p)??0, dp=displayPotential(p)??0, dt=displayPTP(p)??0;
+  if(ST.panelTab==='overview'){
+    const dr=displayRating(p)??0,dp=displayPotential(p)??0,dt=displayPTP(p)??0;
     const rc=v=>v>=80?'#00e599':v>=60?'#7fd97f':v>=40?'#f5c842':v>=20?'#ff8c42':'#ff4d6a';
-    const scoreCards=['Rating','Potential','PT Pri.'].map((l,i)=>{
-      const v=[dr,dp,dt][i];
-      return `<div class="sg-cell"><div style="font-family:'Archivo Black',sans-serif;font-size:18px;color:${rc(v??0)}">${v!=null?v.toFixed(1):'—'}</div><div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px">${l}</div></div>`;
-    }).join('');
-
-    // Top skills
-    const skillScores=computePlayerSkillScores(p);
-    const topSkills=Object.entries(skillScores).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([name,val])=>{
-      const col=SKILL_COLOR_MAP[name]||'var(--accent)';
-      return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-        <div style="width:4px;height:14px;border-radius:2px;background:${col};flex-shrink:0"></div>
-        <div style="font-size:10px;flex:1">${name}</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${col}">${val}</div>
-      </div>`;
-    }).join('');
-
-    // Compare search section
-    const compareSection=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      <div style="font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Compare with</div>
-      <div style="position:relative">
-        <input id="cmpSearch" type="text" placeholder="Search player or club…"
-          style="width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;color:var(--text);font-size:11px;box-sizing:border-box;outline:none"
-          oninput="updateCmpSearch(this.value,'${p.id}','${p.pos}')"
-          onfocus="this.select()"
-        />
-        <div id="cmpSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--surface2);border:1px solid var(--border2);border-radius:0 0 6px 6px;max-height:180px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
-      </div>
-      <div id="cmpSelectedPlayer" style="display:none;margin-top:6px;padding:6px 10px;background:var(--surface3);border-radius:6px;display:flex;align-items:center;justify-content:space-between">
-        <span id="cmpSelectedName" style="font-size:11px"></span>
-        <button class="btn btn-ghost" style="font-size:10px;padding:3px 8px" onclick="launchCompare('${p.id}')">Go ⇄</button>
-      </div>
+    const scoreGrid=`<div class="sg">
+      ${[['Rating',dr],['Potential',dp],['PT Priority',dt],['League %ile',p.leaguePct]].map(([l,v])=>`
+        <div class="sg-item"><div class="sg-l">${l}</div><div class="sg-v" style="color:${rc(v??0)}">${v!=null?v.toFixed(1):'—'}</div></div>`).join('')}
     </div>`;
+    const meta=`<div style="font-size:10px;color:var(--muted2);margin-bottom:12px;line-height:1.5">
+      ${p.age?`Age <strong>${p.age}</strong> · `:''}${p.minutes?`<strong>${Math.round(p.minutes).toLocaleString()}</strong> mins`:''}
+      ${(p.nationalities||[]).length?` · ${p.nationalities.map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ')}`:''}
+    </div>`;
+    const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season);
+    const physHtml=isEditor&&p.pos!=='GK'?`<div class="pst" style="margin-top:10px">Physical Data</div>${buildPhysMatchSection(p)}`:'';
+    const compareHtml=`<div class="pst" style="margin-top:10px">Compare With</div>
+      <div style="position:relative;margin-bottom:6px">
+        <input id="cmpSearch" type="text" placeholder="Search player or club…"
+          style="width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:var(--text);font-size:11px;box-sizing:border-box;outline:none"
+          oninput="updateCmpSearch(this.value,'${p.id}','${p.pos}')"
+          onfocus="document.getElementById('cmpSearchResults').style.display=this.value.length>=2?'block':'none'"
+          onblur="setTimeout(()=>{const r=document.getElementById('cmpSearchResults');if(r)r.style.display='none';},200)"
+        />
+        <div id="cmpSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--surface2);border:1px solid var(--border2);border-radius:0 0 5px 5px;max-height:160px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5)"></div>
+      </div>
+      <div id="cmpSelectedPlayer" style="display:none;padding:6px 10px;background:var(--accent-dim);border:1px solid var(--accent-border);border-radius:5px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+        <span id="cmpSelectedName" style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--accent)"></span>
+        <button class="btn btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--accent);border-color:var(--accent)" onclick="launchCompare('${p.id}')">Go ⇄</button>
+      </div>`;
+    const transferHtml=isEditor?`<div class="pst" style="margin-top:10px">Hypothetical Transfer</div>${buildHypotheticalTransfer(p)}`:'';
+    body.innerHTML=scoreGrid+meta+compareHtml+transferHtml+physHtml;
 
-    // Hypothetical transfer (editor only)
-    const transferSection=isEditor?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      ${buildHypotheticalTransfer(p)}
-    </div>`:'';
-
-    // Physical match (editor only)
-    const physSection=isEditor&&p.pos!=='GK'?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-      ${buildPhysMatchSection(p)}
-    </div>`:'';
-
-    body.innerHTML=`
-      <div class="sg">${scoreCards}</div>
-      ${p.minutes?`<div style="font-size:10px;color:var(--muted);margin:4px 0 10px">${Math.round(p.minutes).toLocaleString()} mins · Age ${p.age||'—'} · ${(p.nationalities||[]).map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ')||'—'}</div>`:''}
-      ${topSkills?`<div style="margin-bottom:14px"><div style="font-size:9px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Top Skills</div>${topSkills}</div>`:''}
-      ${compareSection}
-      ${transferSection}
-      ${physSection}`;
-
-  } else if(tab==='roles'){
+  } else if(ST.panelTab==='roles'){
     const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
     const roleKeys=Object.keys(p.roles||{});
     const vals=(roleKeys.length?roleKeys:posConf.roles).map(r=>({label:r.replace(' %',''),val:p.roles&&p.roles[r]||0})).sort((a,b)=>b.val-a.val);
-    const topRole=vals.reduce((a,b)=>b.val>a.val?b:a,{val:0,label:'—'});
-    const swarmHtml=buildFOSwarms(p,'panel-avg');
     const COLORS=['#00d4ff','#f5c842','#00e599','#7b68ee','#ff8c42'];
     const pieSlices=vals.filter(v=>v.val>0).map((v,i)=>({...v,color:COLORS[i%COLORS.length]}));
+    const swarmHtml=buildFOSwarms(p,'panel-avg');
     body.innerHTML=vals.some(v=>v.val>0)?`
-      <div class="pst" style="margin-top:4px">Role Profile</div>
-      <div class="pie-wrap" style="display:flex;gap:16px;align-items:center;margin-bottom:12px">
-        <svg viewBox="0 0 100 100" width="90" height="90">${buildPieSVG(pieSlices)}</svg>
-        <div>${pieSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:8px;height:8px;border-radius:2px;background:${s.color}"></div><div style="font-size:10px">${s.label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2);margin-left:auto">${s.val.toFixed(1)}%</div></div>`).join('')}</div>
+      <div class="pst">Role Profile</div>
+      <div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">
+        <svg viewBox="0 0 100 100" width="84" height="84" style="flex-shrink:0">${buildPieSVG(pieSlices)}</svg>
+        <div style="flex:1;min-width:0">${pieSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <div style="width:8px;height:8px;border-radius:2px;background:${s.color};flex-shrink:0"></div>
+          <div style="font-size:10px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.label}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted2)">${s.val.toFixed(1)}%</div>
+        </div>`).join('')}</div>
       </div>
-      <div style="padding:0 0 12px">${swarmHtml}</div>
-    `:(swarmHtml?`<div style="padding:12px 0">${swarmHtml}</div>`:'<div style="padding:16px;color:var(--muted)">No role data available</div>');
+      ${swarmHtml}
+    `:(swarmHtml?`<div>${swarmHtml}</div>`:'<div style="padding:16px 0;color:var(--muted)">No role data available</div>');
 
-  } else if(tab==='metrics'){
+  } else if(ST.panelTab==='metrics'){
     const mv=ST.metricView||'normal';
     const posConf=POS_CONFIG[p.pos];
-    if(!posConf){body.innerHTML='<div style="padding:16px;color:var(--muted)">No metric config for this position</div>';return;}
+    if(!posConf){body.innerHTML="<div style='padding:16px 0;color:var(--muted)'>No metrics available</div>";return;}
     const metrics=posConf[mv]||[];
     const data=p[mv]||{};
     const skillMap=(METRIC_SKILLS[p.pos]||{})[mv]||{};
     const skillOrder=p.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
-    const peers=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&x.pos===p.pos&&x[mv]);
+    const MFG=['DM','CM','AM'];
+    const poolPos=MFG.includes(p.pos)?MFG:[p.pos];
+    const peers=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos.includes(x.pos)&&x[mv]);
     const getPool=m=>peers.map(x=>x[mv][m]).filter(v=>v!=null).sort((a,b)=>a-b);
-    const toggleHtml=`<div class="mtog" style="width:120px;margin-bottom:10px"><div class="mtog-btn ${mv==='normal'?'active':''}" onclick="setMV('normal')">Normal</div><div class="mtog-btn ${mv==='padj'?'active':''}" onclick="setMV('padj')">PAdj</div></div>`;
-    let html=toggleHtml;
+    const toggle=`<div class="mtog"><div class="mtog-btn ${mv==='normal'?'active':''}" onclick="setMV('normal')">Normal</div><div class="mtog-btn ${mv==='padj'?'active':''}" onclick="setMV('padj')">PAdj</div></div>`;
+    let html=toggle;
     const groups={};skillOrder.forEach(s=>{groups[s]=[];});
     metrics.forEach(m=>{const s=skillMap[m]||skillOrder[0];if(!groups[s])groups[s]=[];groups[s].push(m);});
     skillOrder.forEach(skill=>{
-      const mets=groups[skill]||[];
-      if(!mets.length) return;
+      const mets=groups[skill]||[];if(!mets.length)return;
       html+=`<div class="pst">${skill}</div>`;
       mets.forEach(m=>{
         const v=data[m];if(v==null)return;
         const pool=getPool(m);
         const pct=pool.length>=2?Math.round((pool.filter(x=>x<=v).length/pool.length)*100):50;
-        const bar=`<div style="height:4px;background:var(--surface3);border-radius:2px;margin-top:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a'};border-radius:2px"></div></div>`;
-        html+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px"><span style="font-size:10px;color:var(--muted2)">${m.replace(/^PAdj\s+/i,'')}</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px">${typeof v==='number'?v.toFixed(1):v}</span></div>${bar}`;
+        const col=pct>=80?'#00e599':pct>=60?'#7fd97f':pct>=40?'#f5c842':pct>=20?'#ff8c42':'#ff4d6a';
+        html+=`<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1px">
+          <span style="font-size:10px;color:var(--muted2)">${m.replace(/^PAdj\s+/i,'')}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px">${typeof v==='number'?v.toFixed(1):v}</span>
+        </div>
+        <div style="height:3px;background:var(--surface3);border-radius:2px;margin-bottom:6px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:2px"></div>
+        </div>`;
       });
     });
     body.innerHTML=html;
 
-  } else if(tab==='history'){
+  } else if(ST.panelTab==='history'){
     const hist=[...(p.history||[])].reverse();
-    if(!hist.length){body.innerHTML='<div style="padding:16px;color:var(--muted)">No capture history</div>';return;}
-    body.innerHTML=hist.map(h=>`<div class="hist-item" style="padding:8px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-        <span style="font-size:10px;font-weight:600">${h.type==='physical'?'Physical':'Technical'} · ${h.leagueTag||''}</span>
-        <span style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace">${h.capturedAt?h.capturedAt.slice(0,10):''}</span>
-      </div>
-      <div style="display:flex;gap:12px;font-size:10px;color:var(--muted2)">
-        ${h.rating!=null?`<span>Rat: <strong style="color:var(--text)">${h.rating.toFixed(1)}</strong></span>`:''}
-        ${h.potential!=null?`<span>Pot: <strong style="color:var(--text)">${h.potential.toFixed(1)}</strong></span>`:''}
-        ${h.physicalScore!=null?`<span>Phys: <strong style="color:var(--accent)">${h.physicalScore.toFixed(1)}</strong></span>`:''}
-        ${h.physicalAdj!=null?`<span>Adj: <strong style="color:var(--accent)">${h.physicalAdj>0?'+':''}${h.physicalAdj.toFixed(2)}</strong></span>`:''}
-      </div>
-      ${isEditor&&h.type!=='physical'?`<button class="btn btn-ghost" style="font-size:9px;padding:2px 6px;margin-top:4px;color:var(--red);border-color:var(--red)" onclick="deleteSnapshot('${p.id}','${h.capturedAt}')">Delete</button>`:''}
-    </div>`).join('');
+    if(!hist.length){body.innerHTML='<div style="padding:16px 0;color:var(--muted)">No history</div>';return;}
+    body.innerHTML=hist.map(h=>{
+      const isTech=h.type!=='physical';
+      return`<div class="hist-item">
+        <div style="padding:8px 10px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:10px;font-weight:600;color:${isTech?'var(--text)':'var(--accent)'}">${isTech?'Technical':'Physical'}${h.leagueTag?' · '+h.leagueTag:''}</span>
+          <span style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace">${(h.capturedAt||'').slice(0,10)}</span>
+        </div>
+        <div class="hist-grid" style="padding:0 10px 8px">
+          ${h.rating!=null?`<div><div class="sg-l">Rating</div><div class="sg-v" style="font-size:13px">${h.rating.toFixed(1)}</div></div>`:''}
+          ${h.potential!=null?`<div><div class="sg-l">Potential</div><div class="sg-v" style="font-size:13px">${h.potential.toFixed(1)}</div></div>`:''}
+          ${h.ptPriority!=null?`<div><div class="sg-l">PT Pri.</div><div class="sg-v" style="font-size:13px">${h.ptPriority.toFixed(1)}</div></div>`:''}
+          ${h.physicalScore!=null?`<div><div class="sg-l">Phys Score</div><div class="sg-v" style="font-size:13px;color:var(--accent)">${h.physicalScore.toFixed(1)}</div></div>`:''}
+          ${h.physicalAdj!=null?`<div><div class="sg-l">Phys Adj</div><div class="sg-v" style="font-size:13px;color:var(--accent)">${h.physicalAdj>0?'+':''}${h.physicalAdj.toFixed(2)}</div></div>`:''}
+        </div>
+        ${isEditor&&isTech?`<div style="padding:0 10px 8px"><button class="btn btn-ghost" style="font-size:9px;padding:2px 6px;color:var(--red);border-color:var(--red)" onclick="deleteSnapshot('${p.id}','${h.capturedAt}')">Delete</button></div>`:''}
+      </div>`;
+    }).join('');
   }
 }
+
 
 // ── Compare search in panel ───────────────────────────────────────────
 let _cmpSelectedId=null;
