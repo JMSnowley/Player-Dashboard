@@ -5084,10 +5084,20 @@ function buildFORecommendedClubs(p){
     if(undershoot>15) qualityCap=Math.min(qualityCap,45); // too big a jump
     else if(undershoot>8) qualityCap=Math.min(qualityCap,65);
 
+    // ── Dynamic weights based on potential ───────────────────────
+    // Cultural fit matters more at lower levels; elite players move for opportunity
+    // Linear scale: pot≤65 → cultural 25%, pot≥85 → cultural 5%
+    const pot=dp; // projected potential already computed above
+    const cultW=Math.max(0.05,Math.min(0.25,0.25-(pot-65)*0.01)); // 0.25 at 65, 0.05 at 85+
+    const compW=Math.max(0.25,Math.min(0.40,0.25+(pot-65)*0.0075)); // 0.25 at 65, 0.40 at 85+
+    const playW=Math.max(0.50,Math.min(0.55,0.50+(pot-65)*0.0025)); // 0.50 at 65, 0.55 at 85+
+    // Normalise so weights always sum to 1
+    const wSum=cultW+compW+playW;
+
     const totalScore=Math.min(qualityCap,Math.round(
-      playingTimeScore*0.50+
-      complementScore*0.30+
-      culturalScore*0.20
+      playingTimeScore*(playW/wSum)+
+      complementScore*(compW/wSum)+
+      culturalScore*(cultW/wSum)
     ));
 
     scored.push({
@@ -5140,7 +5150,7 @@ function buildFORecommendedClubs(p){
   }).join('');
 
   return`<div style="margin-top:4px">
-    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time (50%) · skill fit (30%) · cultural (20%)</div>
+    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time · skill fit · cultural fit (weight varies by potential)</div>
     ${rows}
   </div>`;
 }
