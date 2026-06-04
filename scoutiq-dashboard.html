@@ -4877,34 +4877,48 @@ function buildFORecommendedClubs(p){
     });
     if(samePosPlayers.length<2) return;
 
-    // ── Score 1: Playing Time (35%) ───────────────────────────────
-    // Position rank: rank player among same-pos players at this club
+    // ── Score 1: Playing Time (50%) ───────────────────────────────
+    // Use a projected rating that blends current + potential, weighted by age
+    // Younger players with high potential get more weight on potential
+    const dp=displayPotential(p)??dr;
+    const age=p.age||25;
+    // Projection weight on potential: 0.6 at 20, 0.4 at 23, 0.2 at 27, 0.0 at 30+
+    const potWeight=Math.max(0,Math.min(0.6,(30-age)/16.67));
+    const projRating=Math.round((dr*(1-potWeight)+dp*potWeight)*10)/10;
+
+    // Project incumbents similarly (use their own potential where available)
+    const projRate=x=>{
+      const xdr=displayRating(x)??0;
+      const xdp=displayPotential(x)??xdr;
+      const xAge=x.age||25;
+      const xPotW=Math.max(0,Math.min(0.6,(30-xAge)/16.67));
+      return xdr*(1-xPotW)+xdp*xPotW;
+    };
+
+    // Position rank using projected ratings
     const posGroup=club.players.filter(x=>{
       if(playerPos==='GK') return x.pos==='GK';
       if(playerCompGroup==='DMCM') return MF_POOL.includes(x.pos);
       return x.pos===playerPos;
-    }).concat([p]).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+    }).concat([p]).sort((a,b)=>projRate(b)-projRate(a));
     const posRank=posGroup.findIndex(x=>x.id===p.id)+1;
     const posSize=posGroup.length;
 
-    // Preferred position rank: GK/CF want rank 1, others happy with 1-2
+    // All outfield positions: peak at rank 1-2 (GK still strictly rank 1)
     let posRankScore;
-    if(playerPos==='GK'||playerPos==='CF'){
-      // GK/CF: peak at rank 1
-      posRankScore=posRank===1?100:posRank===2?65:posRank===3?30:10;
+    if(playerPos==='GK'){
+      posRankScore=posRank===1?100:posRank===2?60:posRank===3?25:5;
     } else {
-      // Others: peak at rank 1-2
       posRankScore=posRank===1?95:posRank===2?100:posRank===3?50:posRank===4?20:5;
     }
 
-    // Squad rank: rank among ALL players at club (want 3rd-8th)
-    const squadAll=club.players.concat([p]).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+    // Squad rank using projected ratings — want 5th-8th overall
+    const squadAll=club.players.concat([p]).sort((a,b)=>projRate(b)-projRate(a));
     const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
-    // Bell curve: peak at 3-8, penalise 1-2 (star), penalise 9+ (fringe)
     let squadScore;
     if(squadRank<=2) squadScore=20; // too dominant
     else if(squadRank<=4) squadScore=60;
-    else if(squadRank<=8) squadScore=100; // 90,82,74,66
+    else if(squadRank<=8) squadScore=100; // ideal range
     else if(squadRank<=12) squadScore=Math.max(20,65-(squadRank-8)*10);
     else squadScore=10;
 
