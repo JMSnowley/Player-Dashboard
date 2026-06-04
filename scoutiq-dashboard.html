@@ -4900,7 +4900,7 @@ function buildFORecommendedClubs(p){
     const squadAll=club.players.concat([p]).sort((a,b)=>projRate(b)-projRate(a));
     const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
     let playingTimeScore;
-    if(squadRank<=2) playingTimeScore=65; // strong signing, not too dominant
+    if(squadRank<=2) playingTimeScore=50; // strong signing, not too dominant
     else if(squadRank<=4) playingTimeScore=88;
     else if(squadRank<=8) playingTimeScore=100; // ideal
     else if(squadRank<=12) playingTimeScore=Math.max(20,70-(squadRank-8)*12);
