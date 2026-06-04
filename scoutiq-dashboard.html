@@ -4966,6 +4966,15 @@ function buildFOSwarms(p){
     'Dribbles + Offensive Duels':'PAdj Dribbles + Offensive Duels',
   };
 
+  // Physical metric label → PHYS_PCT_CACHE key
+  const PHYS_KEY={
+    'Avg. Top Speed':'psv99','Peak Top Speed':'top5psv99','Explosiveness':'top3timeHSR',
+    'Distance':'distP90','HSR In Poss.':'hsrDistTIP','Sprint In Poss.':'sprintDistTIP',
+    'HSR Out of Poss.':'hsrDistOTIP','Sprint Out of Poss.':'sprintDistOTIP',
+  };
+  // Convert physMetrics labels to cache keys
+  function physLabel2key(label){ return PHYS_KEY[label]||null; }
+
   const SKILL_DEFS={
     GK:[
       {name:'Shot Stopping',   color:'#f5c842', metrics:['Goals Prevented','Save %']},
@@ -4975,18 +4984,86 @@ function buildFOSwarms(p){
       {name:'Playing Long',    color:'#ff8c42', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
     ],
     CB:[
-      {name:'Ball Retention',  color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
-      {name:'Ball Progression',color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Passes to F3rd','Succ. Progressive Passes']},
-      {name:'Stepping In',     color:'#f5c842', metrics:['Carries','Dribbles + Offensive Duels']},
-      {name:'Aerial & Box',    color:'#ff8c42', metrics:['Aerial Duels','Aerial Duel Success','xG','Shots Blocked']},
-      {name:'1v1 Defending',   color:'#00e599', metrics:['Defensive Duels','Defensive Duel Success','Fouls (inv.)']},
-      {name:'Pace & Space',    color:'#f472b6', metrics:['Interceptions'],
-        physMetrics:['psv99','top5psv99','hsrDistOTIP','sprintDistOTIP']},
+      {name:'Press Resistance',  color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',  color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Passes to F3rd','Succ. Progressive Passes']},
+      {name:'Stepping In',       color:'#f5c842', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Aerial Threat',     color:'#ff8c42', metrics:['Aerial Duel Success','xG']},
+      {name:'Aggression',        color:'#ff4d6a', metrics:['Aerial Duels','Defensive Duels']},
+      {name:'1v1 Defending',     color:'#00e599', metrics:['Defensive Duel Success','Fouls (inv.)']},
+      {name:'Box Defending',     color:'#a78bfa', metrics:['Interceptions','Shots Blocked']},
+      {name:'Pace & Recovery',   color:'#f472b6', metrics:[], physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed','HSR Out of Poss.']},
+    ],
+    FB:[
+      {name:'Press Resistance',    color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',    color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',     color:'#f5c842', metrics:['Succ. Passes to Box','xA','Shot Assists']},
+      {name:'Crossing',            color:'#ff8c42', metrics:['Crosses','Cross Success']},
+      {name:'Carrying & Dynamism', color:'#00e599', metrics:['Carries','Dribbles + Offensive Duels'], physLabels:['HSR In Poss.']},
+      {name:'Pace & Explosiveness',color:'#f472b6', metrics:[], physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed']},
+      {name:'Goal Threat',         color:'#f5c842', metrics:['xG','Touches in Box']},
+      {name:'Intensity Defending', color:'#ff4d6a', metrics:['Defensive Duels','Defensive Duel Success','Fouls (inv.)'], physLabels:['HSR Out of Poss.']},
+      {name:'Backpost Def.',       color:'#a78bfa', metrics:['Aerial Duel Success','Interceptions']},
+    ],
+    DM:[
+      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',   color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Dynamism',    color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
+      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots']},
+      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',     color:'#00e599', metrics:['Aerial Duel Success','Defensive Duel Success']},
+      {name:'Cover & Position',   color:'#a78bfa', metrics:['Interceptions'], physLabels:['Distance']},
+    ],
+    CM:[
+      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',   color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Dynamism',    color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
+      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots']},
+      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',     color:'#00e599', metrics:['Aerial Duel Success','Defensive Duel Success']},
+      {name:'Cover & Position',   color:'#a78bfa', metrics:['Interceptions'], physLabels:['Distance']},
+    ],
+    AM:[
+      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',   color:'#00d4ff', metrics:['Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Dynamism',    color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
+      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots']},
+      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',     color:'#00e599', metrics:['Aerial Duel Success','Defensive Duel Success']},
+      {name:'Cover & Position',   color:'#a78bfa', metrics:['Interceptions'], physLabels:['Distance']},
+    ],
+    WF:[
+      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success','Fouls Won']},
+      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'Crossing',           color:'#00d4ff', metrics:['Crosses','Cross Success']},
+      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Explosiveness',color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
+      {name:'Runs Beyond',        color:'#00e599', metrics:['xG per Shot','Touches in Box'], physLabels:['HSR In Poss.']},
+      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots','xG Over/Underperformance']},
+      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels','Interceptions'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',     color:'#a78bfa', metrics:['Defensive Duel Success','Aerial Duel Success']},
+    ],
+    CF:[
+      {name:'Link Up Play',       color:'#7b68ee', metrics:['Pass Success'], physLabels:['Distance']},
+      {name:'Chance Creation',    color:'#f5c842', metrics:['xA','Shot Assists','Succ. Through Balls','Succ. Passes to Box']},
+      {name:'Hold Up Play',       color:'#ff8c42', metrics:['Dribble Success','Aerial Duel Success','Aerial Duels','Fouls Won']},
+      {name:'Engaging & Carrying',color:'#00d4ff', metrics:['Dribbles + Offensive Duels','Carries']},
+      {name:'Dynamism',           color:'#f472b6', metrics:[], physLabels:['HSR In Poss.','Sprint In Poss.']},
+      {name:'Pace & Explosiveness',color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
+      {name:'Box Movement',       color:'#f5c842', metrics:['xG','xG per Shot','Touches in Box']},
+      {name:'Finishing',          color:'#00e599', metrics:['xG Over/Underperformance','Adj Shot on Target Ratio']},
+      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Interceptions','Defensive Duels'], physLabels:['HSR Out of Poss.','Sprint Out of Poss.']},
     ],
   };
 
-  // Fall back to generic skill groups for positions not yet defined
-  const defs=SKILL_DEFS[p.pos]||null;
+  // Use MF defs for all three MF positions (they share a pool)
+  const posKey=MF_GROUP.includes(p.pos)?'DM':p.pos;
+  const defs=SKILL_DEFS[posKey]||null;
   const posConf=POS_CONFIG[p.pos];
   if(!posConf) return '';
 
@@ -5008,9 +5085,11 @@ function buildFOSwarms(p){
 
   function skillScore(player, skill){
     const nmVals=skill.metrics.map(m=>metricVal(player,m)).filter(v=>v!=null);
-    const physVals=(skill.physMetrics||[]).map(k=>{
+    const physVals=(skill.physLabels||[]).map(label=>{
+      const key=physLabel2key(label);
+      if(!key) return null;
       const pct=PHYS_PCT_CACHE[player.id];
-      return pct&&pct[k]!=null?pct[k]:null;
+      return pct&&pct[key]!=null?pct[key]:null;
     }).filter(v=>v!=null);
     const all=[...nmVals,...physVals];
     return all.length?all.reduce((a,b)=>a+b,0)/all.length:null;
@@ -5170,7 +5249,7 @@ function buildFOPhysical(p,snap){
 }
 
 function buildFOClubRank(p){
-  const teammates=ST.players.filter(x=>x.team===p.team&&x.season===p.season&&x.pos!=='GK').sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
+  const teammates=ST.players.filter(x=>x.team===p.team&&x.season===p.season).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
   const idx=teammates.findIndex(x=>x.id===p.id),rank=idx+1;
   const start=Math.max(0,idx-3),end=Math.min(teammates.length,idx+4);
   return`<div class="fo-rank-card"><div class="fo-rank-title">#${rank} of ${teammates.length} outfield</div>
