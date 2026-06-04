@@ -1695,7 +1695,7 @@ function renderRangeSlider(containerId,label,key,mn,mx){
     <div class="dual-wrap">
       <div class="range-track"><div class="range-fill" id="rf_${sk}"></div></div>
       <input type="range" id="rlo_${sk}" min="${mn}" max="${mx}" value="${mn}" step="1"
-    const esc=String(x.id).replace(/'/g,"&#39;");
+        oninput="updateSlider('${sk}','lo',this.value,'${key.replace(/'/g,"\\'")}',${mn},${mx})">
       <input type="range" id="rhi_${sk}" min="${mn}" max="${mx}" value="${mx}" step="1"
         oninput="updateSlider('${sk}','hi',this.value,'${key.replace(/'/g,"\\'")}',${mn},${mx})">
     </div></div>`;
