@@ -1551,7 +1551,8 @@ function initSliders(){
     });
   }
 
-  // Skill sliders — Normal and PAdj, grouped by position
+  // Skill sliders
+  try{
   const sc=document.getElementById('skillSliders');
   if(sc){
     const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
@@ -1612,6 +1613,8 @@ function initSliders(){
       });
     });
   }
+  }catch(e){console.warn('Skills slider init error:',e);}
+  // Metric sliders — split into Normal and PAdj, each grouped by skill
   const allSkills=[...SKILL_ORDER,'Shot Stopping','Claims & Sweeping','Distribution'];
   const mc=document.getElementById('metricSliders');
   if(mc){
