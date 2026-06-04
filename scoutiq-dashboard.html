@@ -5054,18 +5054,18 @@ function buildFORecommendedClubs(p){
     // Use projected rating vs club's league elite threshold
     // If player significantly exceeds the league's top level, cap the total score
     const clubLQ=LEAGUE_QUALITY[club.league]||{elite:80};
-    const overshoot=projRating-clubLQ.elite; // how far above the league's elite bar
+    const overshoot=projRating-clubLQ.elite;
     let qualityCap=100;
     if(overshoot>20) qualityCap=40;
     else if(overshoot>15) qualityCap=55;
     else if(overshoot>10) qualityCap=68;
-    else if(overshoot>5) qualityCap=80;
-    else if(overshoot>0) qualityCap=90;
-    // Also check if below league's good threshold — flag as a significant step up
+    else if(overshoot>5) qualityCap=82;
+    else if(overshoot>0) qualityCap=92;
+    // Undershoot: clubs buy potential, use projected rating, wider tolerance
     const undershoot=clubLQ.good-projRating;
-    if(undershoot>15) qualityCap=Math.min(qualityCap,45); // too big a jump
-    else if(undershoot>8) qualityCap=Math.min(qualityCap,65);
-
+    if(undershoot>20) qualityCap=Math.min(qualityCap,40);
+    else if(undershoot>12) qualityCap=Math.min(qualityCap,60);
+    else if(undershoot>6) qualityCap=Math.min(qualityCap,78);
     // ── Dynamic weights based on potential ───────────────────────
     // Cultural fit matters more at lower levels; elite players move for opportunity
     // Linear scale: pot≤65 → cultural 25%, pot≥85 → cultural 5%
@@ -5114,7 +5114,7 @@ function buildFORecommendedClubs(p){
         <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
           <div>
-            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Playing Time</div>
+            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Club Level</div>
             ${scoreBar(c.playingTimeScore,'#00d4ff')}
           </div>
           <div>
@@ -5132,7 +5132,7 @@ function buildFORecommendedClubs(p){
   }).join('');
 
   return`<div style="margin-top:4px">
-    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time · skill fit · cultural fit (weight varies by potential)</div>
+    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Club level · skill fit · cultural fit (weight varies by potential)</div>
     ${rows}
   </div>`;
 }
