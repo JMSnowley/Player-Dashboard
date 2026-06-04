@@ -4811,6 +4811,7 @@ function buildFullOverview(p){
     <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
     <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start">
       <div>
+        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
         ${buildFOSwarms(p)}
         <div class="fo-section">
           <div class="fo-section-title">Technical Metrics</div>
@@ -4819,7 +4820,6 @@ function buildFullOverview(p){
         ${p.pos!=='GK'&&snap?`<div class="fo-section"><div class="fo-section-title">Physical Metrics</div>${buildFOPhysical(p,snap)}</div>`:''}
       </div>
       <div>
-        ${sortedRoles.length?`<div class="fo-section"><div class="fo-section-title">Role Profile</div>${buildFORoleBar(sortedRoles)}</div>`:''}
         <div class="fo-section"><div class="fo-section-title">Club Ranking</div>${buildFOClubRank(p)}</div>
         <div class="fo-section">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -4902,9 +4902,9 @@ function buildFORecommendedClubs(p){
     const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
     // Bell curve: peak at 3-8, penalise 1-2 (star), penalise 9+ (fringe)
     let squadScore;
-    if(squadRank<=2) squadScore=40; // too dominant
-    else if(squadRank<=4) squadScore=100;
-    else if(squadRank<=8) squadScore=90-(squadRank-4)*8; // 90,82,74,66
+    if(squadRank<=2) squadScore=20; // too dominant
+    else if(squadRank<=4) squadScore=60;
+    else if(squadRank<=8) squadScore=100; // 90,82,74,66
     else if(squadRank<=12) squadScore=Math.max(20,65-(squadRank-8)*10);
     else squadScore=10;
 
@@ -5058,9 +5058,9 @@ function buildFORecommendedClubs(p){
     // ── Combined score ────────────────────────────────────────────
     const totalScore=Math.round(
       playingTimeScore*0.30+
-      complementScore*0.40+
+      complementScore*0.30+
       culturalScore*0.20+
-      levelScore*0.10
+      levelScore*0.20
     );
 
     scored.push({
@@ -5120,7 +5120,7 @@ function buildFORecommendedClubs(p){
   }).join('');
 
   return`<div style="margin-top:4px">
-    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time (30%) · skill fit (40%) · cultural (20%) · level (10%)</div>
+    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Playing time (30%) · skill fit (30%) · cultural (20%) · level (20%)</div>
     ${rows}
   </div>`;
 }
@@ -5855,7 +5855,7 @@ function buildFORoleBar(roles){
   const total=roles.reduce((s,r)=>s+r.v,0)||100;
   const COLORS=['#00d4ff','#f5c842','#00e599','#7b68ee','#ff8c42','#ff4d6a'];
   const filtered=roles.filter(r=>r.v>=1);
-  return`<div style="display:flex;height:28px;border-radius:6px;overflow:hidden;width:100%;margin-bottom:12px">
+  return`<div style="display:flex;height:10px;border-radius:4px;overflow:hidden;width:100%;margin-bottom:12px">
     ${filtered.map(({r,v},i)=>`<div title="${r}: ${v.toFixed(1)}%" style="width:${(v/total*100).toFixed(2)}%;background:${COLORS[i%COLORS.length]}"></div>`).join('')}
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:8px 14px">
