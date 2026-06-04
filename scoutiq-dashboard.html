@@ -820,6 +820,19 @@ const SKILL_COLORS = {
   'Distribution':    {color:'#7c6fcd', css:'var(--sk-dist)'},
 };
 
+const SKILL_COLOR_MAP={
+  'Shot Stopping':'#f5c842','Claiming Crosses':'#00d4ff','Sweeping Up':'#00e599',
+  'Playing Out':'#7b68ee','Playing Long':'#ff8c42','Press Resistance':'#64b5f6',
+  'Deep Progression':'#4dd0e1','Stepping In':'#ffb347','Aerial Threat':'#ff7043',
+  'Aggression':'#ff4d6a','1v1 Defending':'#66bb6a','Box Defending':'#ab47bc',
+  'Pace & Recovery':'#f472b6','Chance Creation':'#ffd54f','Crossing':'#26c6da',
+  'Carrying & Dynamism':'#aed581','Pace & Explosiveness':'#f06292','Goal Threat':'#ffca28',
+  'Intensity Defending':'#ef5350','Backpost Def.':'#7e57c2','1v1 Directness':'#ff9800',
+  'Pace & Dynamism':'#e91e8c','Press & Intensity':'#e53935','Duel Dominance':'#26a69a',
+  'Cover & Position':'#8d6e63','Runs Beyond':'#9ccc65','Link Up Play':'#5c6bc0',
+  'Hold Up Play':'#a5d6a7','Engaging & Carrying':'#00acc1','Dynamism':'#e040fb',
+  'Box Movement':'#ffb300','Finishing':'#43a047',
+};
 const SKILL_ORDER=['Passing','Dribbling & Carrying','Goal Threat','Aerial','Defending'];
 const GK_SKILL_ORDER=['Shot Stopping','Claims & Sweeping','Distribution'];
 
@@ -2283,13 +2296,25 @@ function renderTable(){
           // Find colour for each skill from SKILL_DEFS
           const MFG=['DM','CM','AM'];
           const pk=MFG.includes(p.pos)?'DM':p.pos;
-          const allDefs={GK:[{name:'Shot Stopping',color:'#f5c842'},{name:'Claiming Crosses',color:'#00d4ff'},{name:'Sweeping Up',color:'#00e599'},{name:'Playing Out',color:'#7b68ee'},{name:'Playing Long',color:'#ff8c42'}],CB:[{name:'Press Resistance',color:'#7b68ee'},{name:'Deep Progression',color:'#00d4ff'},{name:'Stepping In',color:'#f5c842'},{name:'Aerial Threat',color:'#ff8c42'},{name:'Aggression',color:'#ff4d6a'},{name:'1v1 Defending',color:'#00e599'},{name:'Box Defending',color:'#a78bfa'},{name:'Pace & Recovery',color:'#f472b6'}],FB:[{name:'Press Resistance',color:'#7b68ee'},{name:'Deep Progression',color:'#00d4ff'},{name:'Chance Creation',color:'#f5c842'},{name:'Crossing',color:'#ff8c42'},{name:'Carrying & Dynamism',color:'#00e599'},{name:'Pace & Explosiveness',color:'#f472b6'},{name:'Goal Threat',color:'#f5c842'},{name:'Intensity Defending',color:'#ff4d6a'},{name:'Backpost Def.',color:'#a78bfa'}],DM:[{name:'Press Resistance',color:'#7b68ee'},{name:'Deep Progression',color:'#00d4ff'},{name:'Chance Creation',color:'#f5c842'},{name:'1v1 Directness',color:'#ff8c42'},{name:'Pace & Dynamism',color:'#f472b6'},{name:'Goal Threat',color:'#f5c842'},{name:'Press & Intensity',color:'#ff4d6a'},{name:'Duel Dominance',color:'#00e599'},{name:'Cover & Position',color:'#a78bfa'}],WF:[{name:'Press Resistance',color:'#7b68ee'},{name:'Chance Creation',color:'#f5c842'},{name:'Crossing',color:'#00d4ff'},{name:'1v1 Directness',color:'#ff8c42'},{name:'Pace & Explosiveness',color:'#f472b6'},{name:'Runs Beyond',color:'#00e599'},{name:'Goal Threat',color:'#f5c842'},{name:'Press & Intensity',color:'#ff4d6a'},{name:'Duel Dominance',color:'#a78bfa'}],CF:[{name:'Link Up Play',color:'#7b68ee'},{name:'Chance Creation',color:'#f5c842'},{name:'Hold Up Play',color:'#ff8c42'},{name:'Engaging & Carrying',color:'#00d4ff'},{name:'Dynamism',color:'#f472b6'},{name:'Pace & Explosiveness',color:'#f472b6'},{name:'Box Movement',color:'#f5c842'},{name:'Finishing',color:'#00e599'},{name:'Press & Intensity',color:'#ff4d6a'}]};
-          const defs=allDefs[pk]||[];
-          const colorMap=Object.fromEntries(defs.map(d=>[d.name,d.color]));
-          return entries.map(([name,val])=>{
+          // Use global SKILL_COLOR_MAP — no need for position-specific allDefs
+          const colorMap=SKILL_COLOR_MAP;
+          // Pool-rescale val to match swarm display: 0=worst in league+pos, 100=best
+          const MFG2=['DM','CM','AM'];
+          const poolPos2=MFG2.includes(p.pos)?MFG2:[p.pos];
+          const peers2=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos2.includes(x.pos)&&(x.minutes||0)>=300);
+          // Get all peer scores for each skill to rescale
+          const allPeerScores={};
+          entries.forEach(([name])=>{
+            const vals=peers2.map(x=>{const ss=computePlayerSkillScores(x);return ss[name]??null;}).filter(v=>v!=null);
+            allPeerScores[name]=vals;
+          });
+          return entries.map(([name,rawVal])=>{
             const col=colorMap[name]||'var(--accent)';
-            const barW=Math.round(val*0.7);
-            return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px" title="'+name+': '+val+'">'
+            const pool=allPeerScores[name]||[];
+            const mn=pool.length?Math.min(...pool):0, mx=pool.length?Math.max(...pool):100;
+            const scaledVal=mx>mn?Math.round(((rawVal-mn)/(mx-mn))*100):100;
+            const barW=Math.round(scaledVal);  // val is 0-100, bar fill % = val
+            return '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px" title="'+name+': '+scaledVal+'">'
               +'<div style="width:72px;height:5px;background:var(--surface3);border-radius:3px;flex-shrink:0;overflow:hidden">'
               +'<div style="width:'+barW+'%;height:100%;background:'+col+';border-radius:3px"></div></div>'
               +'<div style="font-size:9px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px">'+name+'</div></div>';
@@ -5163,87 +5188,87 @@ function buildFOSwarms(p, context='fo'){
 
   const SKILL_DEFS={
     GK:[
-      {name:'Shot Stopping',   color:'#f5c842', metrics:['Goals Prevented','Save %']},
-      {name:'Claiming Crosses',color:'#00d4ff', metrics:['Claims','Claim Success']},
-      {name:'Sweeping Up',     color:'#00e599', metrics:['Sweeps']},
-      {name:'Playing Out',     color:'#7b68ee', metrics:['Pass Success']},
-      {name:'Playing Long',    color:'#ff8c42', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Shot Stopping',color:SKILL_COLOR_MAP['Shot Stopping']||'#8a9bb0', metrics:['Goals Prevented','Save %']},
+      {name:'Claiming Crosses',color:SKILL_COLOR_MAP['Claiming Crosses']||'#8a9bb0', metrics:['Claims','Claim Success']},
+      {name:'Sweeping Up',color:SKILL_COLOR_MAP['Sweeping Up']||'#8a9bb0', metrics:['Sweeps']},
+      {name:'Playing Out',color:SKILL_COLOR_MAP['Playing Out']||'#8a9bb0', metrics:['Pass Success']},
+      {name:'Playing Long',color:SKILL_COLOR_MAP['Playing Long']||'#8a9bb0', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
     ],
     CB:[
-      {name:'Press Resistance',  color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
-      {name:'Deep Progression',  color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Passes to F3rd','Succ. Progressive Passes']},
-      {name:'Stepping In',       color:'#f5c842', metrics:['Carries','Dribbles + Offensive Duels']},
-      {name:'Aerial Threat',     color:'#ff8c42', metrics:['Aerial Duel Success','xG']},
-      {name:'Aggression',        color:'#ff4d6a', metrics:['Aerial Duels','Defensive Duels']},
-      {name:'1v1 Defending',     color:'#00e599', metrics:['Defensive Duel Success','Fouls (inv.)']},
-      {name:'Box Defending',     color:'#a78bfa', metrics:['Interceptions','Shots Blocked']},
-      {name:'Pace & Recovery',   color:'#f472b6', metrics:[], physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed','HSR Out of Poss.']},
+      {name:'Press Resistance',color:SKILL_COLOR_MAP['Press Resistance']||'#8a9bb0', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',color:SKILL_COLOR_MAP['Deep Progression']||'#8a9bb0', metrics:['Adj Long Pass Success','Succ. Passes to F3rd','Succ. Progressive Passes']},
+      {name:'Stepping In',color:SKILL_COLOR_MAP['Stepping In']||'#8a9bb0', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Aerial Threat',color:SKILL_COLOR_MAP['Aerial Threat']||'#8a9bb0', metrics:['Aerial Duel Success','xG']},
+      {name:'Aggression',color:SKILL_COLOR_MAP['Aggression']||'#8a9bb0', metrics:['Aerial Duels','Defensive Duels']},
+      {name:'1v1 Defending',color:SKILL_COLOR_MAP['1v1 Defending']||'#8a9bb0', metrics:['Defensive Duel Success','Fouls (inv.)']},
+      {name:'Box Defending',color:SKILL_COLOR_MAP['Box Defending']||'#8a9bb0', metrics:['Interceptions','Shots Blocked']},
+      {name:'Pace & Recovery',color:SKILL_COLOR_MAP['Pace & Recovery']||'#8a9bb0', metrics:[], physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed','HSR Out of Poss.']},
     ],
     FB:[
-      {name:'Press Resistance',    color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
-      {name:'Deep Progression',    color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
-      {name:'Chance Creation',     color:'#f5c842', metrics:['Succ. Passes to Box','xA','Shot Assists']},
-      {name:'Crossing',            color:'#ff8c42', metrics:['Crosses','Cross Success']},
-      {name:'Carrying & Dynamism', color:'#00e599', metrics:['Carries','Dribbles + Offensive Duels'], physLabels:['HSR In Poss.']},
-      {name:'Pace & Explosiveness',color:'#f472b6', metrics:[], physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed']},
-      {name:'Goal Threat',         color:'#f5c842', metrics:['xG','Touches in Box']},
-      {name:'Intensity Defending', color:'#ff4d6a', metrics:['Defensive Duels','Defensive Duel Success','Fouls (inv.)'], physLabels:['HSR Out of Poss.']},
-      {name:'Backpost Def.',       color:'#a78bfa', metrics:['Aerial Duel Success','Interceptions']},
+      {name:'Press Resistance',color:SKILL_COLOR_MAP['Press Resistance']||'#8a9bb0', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',color:SKILL_COLOR_MAP['Deep Progression']||'#8a9bb0', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',color:SKILL_COLOR_MAP['Chance Creation']||'#8a9bb0', metrics:['Succ. Passes to Box','xA','Shot Assists']},
+      {name:'Crossing',color:SKILL_COLOR_MAP['Crossing']||'#8a9bb0', metrics:['Crosses','Cross Success']},
+      {name:'Carrying & Dynamism',color:SKILL_COLOR_MAP['Carrying & Dynamism']||'#8a9bb0', metrics:['Carries','Dribbles + Offensive Duels'], physLabels:['HSR In Poss.']},
+      {name:'Pace & Explosiveness',color:SKILL_COLOR_MAP['Pace & Explosiveness']||'#8a9bb0', metrics:[], physLabels:['Explosiveness','Avg. Top Speed','Peak Top Speed']},
+      {name:'Goal Threat',color:SKILL_COLOR_MAP['Goal Threat']||'#8a9bb0', metrics:['xG','Touches in Box']},
+      {name:'Intensity Defending',color:SKILL_COLOR_MAP['Intensity Defending']||'#8a9bb0', metrics:['Defensive Duels','Defensive Duel Success','Fouls (inv.)'], physLabels:['HSR Out of Poss.']},
+      {name:'Backpost Def.',color:SKILL_COLOR_MAP['Backpost Def.']||'#8a9bb0', metrics:['Aerial Duel Success','Interceptions']},
     ],
     DM:[
-      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
-      {name:'Deep Progression',   color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
-      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
-      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
-      {name:'Pace & Dynamism',    color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
-      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots']},
-      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
-      {name:'Duel Dominance',     color:'#00e599', metrics:['Aerial Duel Success','Defensive Duel Success']},
-      {name:'Cover & Position',   color:'#a78bfa', metrics:['Interceptions'], physLabels:['Distance']},
+      {name:'Press Resistance',color:SKILL_COLOR_MAP['Press Resistance']||'#8a9bb0', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',color:SKILL_COLOR_MAP['Deep Progression']||'#8a9bb0', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',color:SKILL_COLOR_MAP['Chance Creation']||'#8a9bb0', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'1v1 Directness',color:SKILL_COLOR_MAP['1v1 Directness']||'#8a9bb0', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Dynamism',color:SKILL_COLOR_MAP['Pace & Dynamism']||'#8a9bb0', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
+      {name:'Goal Threat',color:SKILL_COLOR_MAP['Goal Threat']||'#8a9bb0', metrics:['xG','Shots']},
+      {name:'Press & Intensity',color:SKILL_COLOR_MAP['Press & Intensity']||'#8a9bb0', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',color:SKILL_COLOR_MAP['Duel Dominance']||'#8a9bb0', metrics:['Aerial Duel Success','Defensive Duel Success']},
+      {name:'Cover & Position',color:SKILL_COLOR_MAP['Cover & Position']||'#8a9bb0', metrics:['Interceptions'], physLabels:['Distance']},
     ],
     CM:[
-      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
-      {name:'Deep Progression',   color:'#00d4ff', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
-      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
-      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
-      {name:'Pace & Dynamism',    color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
-      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots']},
-      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
-      {name:'Duel Dominance',     color:'#00e599', metrics:['Aerial Duel Success','Defensive Duel Success']},
-      {name:'Cover & Position',   color:'#a78bfa', metrics:['Interceptions'], physLabels:['Distance']},
+      {name:'Press Resistance',color:SKILL_COLOR_MAP['Press Resistance']||'#8a9bb0', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',color:SKILL_COLOR_MAP['Deep Progression']||'#8a9bb0', metrics:['Adj Long Pass Success','Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',color:SKILL_COLOR_MAP['Chance Creation']||'#8a9bb0', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'1v1 Directness',color:SKILL_COLOR_MAP['1v1 Directness']||'#8a9bb0', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Dynamism',color:SKILL_COLOR_MAP['Pace & Dynamism']||'#8a9bb0', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
+      {name:'Goal Threat',color:SKILL_COLOR_MAP['Goal Threat']||'#8a9bb0', metrics:['xG','Shots']},
+      {name:'Press & Intensity',color:SKILL_COLOR_MAP['Press & Intensity']||'#8a9bb0', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',color:SKILL_COLOR_MAP['Duel Dominance']||'#8a9bb0', metrics:['Aerial Duel Success','Defensive Duel Success']},
+      {name:'Cover & Position',color:SKILL_COLOR_MAP['Cover & Position']||'#8a9bb0', metrics:['Interceptions'], physLabels:['Distance']},
     ],
     AM:[
-      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success']},
-      {name:'Deep Progression',   color:'#00d4ff', metrics:['Succ. Progressive Passes','Succ. Passes to F3rd']},
-      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
-      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
-      {name:'Pace & Dynamism',    color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
-      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots']},
-      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
-      {name:'Duel Dominance',     color:'#00e599', metrics:['Aerial Duel Success','Defensive Duel Success']},
-      {name:'Cover & Position',   color:'#a78bfa', metrics:['Interceptions'], physLabels:['Distance']},
+      {name:'Press Resistance',color:SKILL_COLOR_MAP['Press Resistance']||'#8a9bb0', metrics:['Pass Success','Dribble Success']},
+      {name:'Deep Progression',color:SKILL_COLOR_MAP['Deep Progression']||'#8a9bb0', metrics:['Succ. Progressive Passes','Succ. Passes to F3rd']},
+      {name:'Chance Creation',color:SKILL_COLOR_MAP['Chance Creation']||'#8a9bb0', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'1v1 Directness',color:SKILL_COLOR_MAP['1v1 Directness']||'#8a9bb0', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Dynamism',color:SKILL_COLOR_MAP['Pace & Dynamism']||'#8a9bb0', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','HSR In Poss.']},
+      {name:'Goal Threat',color:SKILL_COLOR_MAP['Goal Threat']||'#8a9bb0', metrics:['xG','Shots']},
+      {name:'Press & Intensity',color:SKILL_COLOR_MAP['Press & Intensity']||'#8a9bb0', metrics:['Defensive Duels'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',color:SKILL_COLOR_MAP['Duel Dominance']||'#8a9bb0', metrics:['Aerial Duel Success','Defensive Duel Success']},
+      {name:'Cover & Position',color:SKILL_COLOR_MAP['Cover & Position']||'#8a9bb0', metrics:['Interceptions'], physLabels:['Distance']},
     ],
     WF:[
-      {name:'Press Resistance',   color:'#7b68ee', metrics:['Pass Success','Dribble Success','Fouls Won']},
-      {name:'Chance Creation',    color:'#f5c842', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
-      {name:'Crossing',           color:'#00d4ff', metrics:['Crosses','Cross Success']},
-      {name:'1v1 Directness',     color:'#ff8c42', metrics:['Carries','Dribbles + Offensive Duels']},
-      {name:'Pace & Explosiveness',color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
-      {name:'Runs Beyond',        color:'#00e599', metrics:['xG per Shot','Touches in Box'], physLabels:['HSR In Poss.']},
-      {name:'Goal Threat',        color:'#f5c842', metrics:['xG','Shots','xG Over/Underperformance']},
-      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Defensive Duels','Interceptions'], physLabels:['HSR Out of Poss.']},
-      {name:'Duel Dominance',     color:'#a78bfa', metrics:['Defensive Duel Success','Aerial Duel Success']},
+      {name:'Press Resistance',color:SKILL_COLOR_MAP['Press Resistance']||'#8a9bb0', metrics:['Pass Success','Dribble Success','Fouls Won']},
+      {name:'Chance Creation',color:SKILL_COLOR_MAP['Chance Creation']||'#8a9bb0', metrics:['Succ. Through Balls','Succ. Passes to Box','xA','Shot Assists']},
+      {name:'Crossing',color:SKILL_COLOR_MAP['Crossing']||'#8a9bb0', metrics:['Crosses','Cross Success']},
+      {name:'1v1 Directness',color:SKILL_COLOR_MAP['1v1 Directness']||'#8a9bb0', metrics:['Carries','Dribbles + Offensive Duels']},
+      {name:'Pace & Explosiveness',color:SKILL_COLOR_MAP['Pace & Explosiveness']||'#8a9bb0', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
+      {name:'Runs Beyond',color:SKILL_COLOR_MAP['Runs Beyond']||'#8a9bb0', metrics:['xG per Shot','Touches in Box'], physLabels:['HSR In Poss.']},
+      {name:'Goal Threat',color:SKILL_COLOR_MAP['Goal Threat']||'#8a9bb0', metrics:['xG','Shots','xG Over/Underperformance']},
+      {name:'Press & Intensity',color:SKILL_COLOR_MAP['Press & Intensity']||'#8a9bb0', metrics:['Defensive Duels','Interceptions'], physLabels:['HSR Out of Poss.']},
+      {name:'Duel Dominance',color:SKILL_COLOR_MAP['Duel Dominance']||'#8a9bb0', metrics:['Defensive Duel Success','Aerial Duel Success']},
     ],
     CF:[
-      {name:'Link Up Play',       color:'#7b68ee', metrics:['Pass Success'], physLabels:['Distance']},
-      {name:'Chance Creation',    color:'#f5c842', metrics:['xA','Shot Assists','Succ. Through Balls','Succ. Passes to Box']},
-      {name:'Hold Up Play',       color:'#ff8c42', metrics:['Dribble Success','Aerial Duel Success','Aerial Duels','Fouls Won']},
-      {name:'Engaging & Carrying',color:'#00d4ff', metrics:['Dribbles + Offensive Duels','Carries']},
-      {name:'Dynamism',           color:'#f472b6', metrics:[], physLabels:['HSR In Poss.','Sprint In Poss.']},
-      {name:'Pace & Explosiveness',color:'#f472b6', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
-      {name:'Box Movement',       color:'#f5c842', metrics:['xG','xG per Shot','Touches in Box']},
-      {name:'Finishing',          color:'#00e599', metrics:['xG Over/Underperformance','Adj Shot on Target Ratio']},
-      {name:'Press & Intensity',  color:'#ff4d6a', metrics:['Interceptions','Defensive Duels'], physLabels:['HSR Out of Poss.','Sprint Out of Poss.']},
+      {name:'Link Up Play',color:SKILL_COLOR_MAP['Link Up Play']||'#8a9bb0', metrics:['Pass Success'], physLabels:['Distance']},
+      {name:'Chance Creation',color:SKILL_COLOR_MAP['Chance Creation']||'#8a9bb0', metrics:['xA','Shot Assists','Succ. Through Balls','Succ. Passes to Box']},
+      {name:'Hold Up Play',color:SKILL_COLOR_MAP['Hold Up Play']||'#8a9bb0', metrics:['Dribble Success','Aerial Duel Success','Aerial Duels','Fouls Won']},
+      {name:'Engaging & Carrying',color:SKILL_COLOR_MAP['Engaging & Carrying']||'#8a9bb0', metrics:['Dribbles + Offensive Duels','Carries']},
+      {name:'Dynamism',color:SKILL_COLOR_MAP['Dynamism']||'#8a9bb0', metrics:[], physLabels:['HSR In Poss.','Sprint In Poss.']},
+      {name:'Pace & Explosiveness',color:SKILL_COLOR_MAP['Pace & Explosiveness']||'#8a9bb0', metrics:[], physLabels:['Avg. Top Speed','Peak Top Speed','Explosiveness']},
+      {name:'Box Movement',color:SKILL_COLOR_MAP['Box Movement']||'#8a9bb0', metrics:['xG','xG per Shot','Touches in Box']},
+      {name:'Finishing',color:SKILL_COLOR_MAP['Finishing']||'#8a9bb0', metrics:['xG Over/Underperformance','Adj Shot on Target Ratio']},
+      {name:'Press & Intensity',color:SKILL_COLOR_MAP['Press & Intensity']||'#8a9bb0', metrics:['Interceptions','Defensive Duels'], physLabels:['HSR Out of Poss.','Sprint Out of Poss.']},
     ],
   };
 
