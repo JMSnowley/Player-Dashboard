@@ -4815,8 +4815,8 @@ function buildFullOverview(p){
           const tooltip=`4+ yrs: ${formatValue(v4)} | 2 yrs: ${formatValue(v2)} | 1 yr: ${formatValue(v1)} | 6 mo: ${formatValue(v6m)}`;
           return`<div class="fo-score-card" title="${tooltip}" style="cursor:default;flex:1.2">
             <div class="fo-score-val" style="color:#00d4ff;font-size:22px">${formatValue(v3)}</div>
-            <div class="fo-score-lbl">Transfer Value</div>
-            <div style="font-size:8px;color:var(--muted);margin-top:2px">(3yr contract · hover)</div>
+            <div class="fo-score-lbl">xTV</div>
+            <div style="font-size:8px;color:var(--muted);margin-top:2px">(3yr · hover for range)</div>
           </div>`;
         })()}
       </div>
@@ -4855,7 +4855,7 @@ const LEAGUE_VALUE_MULT={
   'Scotland 1':7.5,'Scotland 2':1.5,'Scotland 3':0.5,'Scotland 4':0.2,
   'Germany 1':70,'Germany 2':20,'Spain 1':75,'Spain 2':20,
   'Italy 1':62,'Italy 2':18,'France 1':50,'France 2':14,
-  'Netherlands 1':30,'Belgium 1':26,'Portugal 1':22,'Portugal 2':8,
+  'Netherlands 1':30,'Belgium 1':18,'Portugal 1':22,'Portugal 2':8,
   'Czech Republic 1':5,'Austria 1':6,'Turkey 1':12,'Switzerland 1':8,
   'Greece 1':5,'Croatia 1':3,'Serbia 1':3,'Norway 1':6,'Sweden 1':6,
   'Denmark 1':7,'Poland 1':5,'Australia 1':2,
@@ -4871,28 +4871,27 @@ const LEAGUE_TRANSFER_BUDGET={
   'Greece 1':0.8,'Norway 1':0.8,'Sweden 1':0.8,'Denmark 1':1.2,
   'Australia 1':0.3,'USA 1':1,'MLS':1,'Brazil 1':2,'Argentina 1':1,
 };
-const POS_TRANSFER_MULT={'GK':0.7,'CB':0.8,'FB':0.9,'DM':0.95,'CM':1.0,'AM':1.1,'WF':1.2,'CF':1.30};
+const POS_TRANSFER_MULT={'GK':0.65,'CB':0.75,'FB':0.82,'DM':0.90,'CM':1.0,'AM':1.08,'WF':1.18,'CF':1.20};
+const POS_TRANSFER_CAP={'GK':60,'CB':90,'FB':70,'DM':100,'CM':110,'AM':120,'WF':140,'CF':150};
 
-function calcPlayerValue(p, yearsRemaining=2.5){
+function calcPlayerValue(p, yearsRemaining=3.0){
   const dr=displayRating(p)??0;
   const dp=displayPotential(p)??dr;
   const age=p.age||25; const pos=p.pos||'CM';
-  const league=p.leagueTag||''; const mins=p.minutes||1000;
-  const leaguePct=p.leaguePct??50;
-
-  const ageMult=age<=19?0.65:age<=21?0.80:age<=23?0.92:age<=26?1.0:age<=28?0.90:age<=30?0.72:age<=32?0.48:age<=34?0.28:0.12;
-  // Steeper drop-off at 6 months
+  const league=p.leagueTag||''; const leaguePct=p.leaguePct??50;
+  const ageCurve={18:0.55,19:0.65,20:0.75,21:0.82,22:0.90,23:1.0,24:1.0,25:1.0,26:1.0,
+    27:0.88,28:0.75,29:0.62,30:0.48,31:0.28,32:0.18,33:0.10,34:0.06};
+  const ageMult=ageCurve[age]||(age>34?0.05:0.55);
   const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.20;
   const base=Math.pow(Math.max(0,dr-58),2.3);
   const lv=LEAGUE_VALUE_MULT[league]||3.0;
   const pm=POS_TRANSFER_MULT[pos]||1.0;
   let potPremium=1.0;
-  if(age<=27&&dp>dr){ const gap=dp-dr; potPremium=1+(gap*0.020*Math.max(0,(28-age))/8); }
-  const minsFactor=Math.min(1.0,Math.max(0.4,mins/2000));
-
-  // Club prestige: top clubs demand significantly higher fees (Rangers vs Hearts real-world data)
-  // Exponential curve: top 10% of league clubs (Celtic/Rangers) get 2.2x premium
-  // Middle clubs get modest premium, bottom clubs slight discount
+  if(age<=26&&dp>dr){
+    const gap=dp-dr;
+    const youthBoost=age<23?Math.max(0,(25-age))/5:0;
+    potPremium=1+(gap*0.025*(1+youthBoost));
+  }
   const leaguePlayers=ST.players.filter(x=>x.leagueTag===league&&x.season===p.season&&x.rating);
   const teamAvgs={};
   leaguePlayers.forEach(x=>{if(!teamAvgs[x.team])teamAvgs[x.team]={s:0,n:0};teamAvgs[x.team].s+=x.rating;teamAvgs[x.team].n++;});
@@ -4900,14 +4899,11 @@ function calcPlayerValue(p, yearsRemaining=2.5){
   const clubRank=sorted.findIndex(x=>x.t===p.team)+1||Math.ceil(sorted.length/2);
   const nTeams=Math.max(sorted.length,4);
   const clubPct=(nTeams-clubRank)/(nTeams-1);
-  const prestigeMult=clubPct>=0.90?2.2:clubPct>=0.75?1.7:clubPct>=0.50?1.3:clubPct>=0.25?1.0:0.80;
-
-  // League percentile premium — high performers and physical standouts rewarded
+  const prestigeMult=clubPct>=0.90?1.8:clubPct>=0.75?1.5:clubPct>=0.50?1.25:clubPct>=0.25?1.0:0.80;
   const pctMult=0.90+0.25*(leaguePct/100);
-
-  const raw=base*lv*ageMult*pm*potPremium*minsFactor*contractMult*prestigeMult*pctMult*0.00065;
-  const maxVal=180*contractMult; // cap scales with contract length
-  return Math.round(Math.min(maxVal,Math.max(0.05,raw))*10)/10;
+  const raw=base*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
+  const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
+  return Math.round(Math.min(posCap,Math.max(0.05,raw*contractMult))*10)/10;
 }
 
 
@@ -5377,14 +5373,7 @@ function buildFORecommendedClubs(p){
       else if(contextGap>0) qualityCap=Math.min(qualityCap,82);
       else if(contextGap>-5) qualityCap=Math.min(qualityCap,92);
     }
-    // ── Financial feasibility cap ─────────────────────────────────
-    // Player's estimated value vs buying club's typical max transfer budget
-    // Budget = league mid-revenue × 15% (typical max single-player spend)
-    // Use 2.5yr contract assumption (default mid-range)
-    const playerValue=calcPlayerValue(p,2.5);
-    const clubBudget=LEAGUE_TRANSFER_BUDGET[club.league]||0.5;
-    // Allow some flex — clubs can occasionally exceed budget for right player (+50%)
-    if(playerValue>clubBudget*1.5) qualityCap=Math.min(qualityCap,Math.max(30,Math.round((clubBudget*1.5/playerValue)*80)));
+
     // Cultural fit matters more at lower levels; elite players move for opportunity
     const pot=dp;
     const cultW=Math.max(0.05,Math.min(0.22,0.22-(pot-65)*0.01));
