@@ -1044,6 +1044,7 @@ function loadState(){
     if(s){
       const p=JSON.parse(s);
       ST.players=p.players||[];
+      window._xtvPrestige={}; // clear xTV prestige cache on data reload
       if(p.cfg){
         ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})},dbTab:p.cfg.dbTab||ST.cfg.dbTab};
       }
@@ -4886,15 +4887,17 @@ function buildFullOverview(p){
 
 // ── Player Valuation Model ────────────────────────────────────────────
 const LEAGUE_VALUE_MULT={
-  'England 1':85,'England 2':7,'England 3':2.5,'England 4':1.2,
-  'Scotland 1':7.5,'Scotland 2':1.5,'Scotland 3':0.5,'Scotland 4':0.2,
-  'Germany 1':70,'Germany 2':8,'Spain 1':75,'Spain 2':8,
-  'Italy 1':62,'Italy 2':7,'France 1':50,'France 2':6,
-  'Netherlands 1':30,'Belgium 1':18,'Portugal 1':22,'Portugal 2':4,
-  'Czech Republic 1':3,'Austria 1':4,'Turkey 1':12,'Switzerland 1':6,
-  'Greece 1':3,'Croatia 1':2,'Serbia 1':2,'Norway 1':3,'Sweden 1':3,
-  'Denmark 1':4,'Poland 1':2.5,'Australia 1':1.5,
-  'USA 1':3,'MLS':3,'Brazil 1':12,'Argentina 1':6,
+  'England 1':7,'England 2':3.3,'England 3':1.1,'England 4':0.45,
+  'England 5':0.18,
+  'Scotland 1':4.0,'Scotland 2':0.50,'Scotland 3':0.12,'Scotland 4':0.05,
+  'Germany 1':6.5,'Germany 2':0.95,'Spain 1':7.0,'Spain 2':0.95,
+  'Italy 1':5.5,'Italy 2':0.70,'France 1':4.5,'France 2':0.50,
+  'Netherlands 1':2.5,'Netherlands 2':0.50,
+  'Belgium 1':1.8,'Portugal 1':1.8,'Portugal 2':0.30,
+  'Czech Republic 1':0.25,'Austria 1':0.35,'Turkey 1':1.0,'Switzerland 1':0.50,
+  'Greece 1':0.25,'Croatia 1':0.20,'Serbia 1':0.20,
+  'Norway 1':0.25,'Sweden 1':0.25,'Denmark 1':0.35,'Poland 1':0.20,
+  'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Brazil 1':1.5,'Argentina 1':0.80,
 };
 const LEAGUE_TRANSFER_BUDGET={
   'England 1':30,'England 2':3,'England 3':0.5,'England 4':0.3,
@@ -4918,8 +4921,12 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     27:0.88,28:0.75,29:0.62,30:0.48,31:0.28,32:0.18,33:0.10,34:0.06};
   const ageMult=ageCurve[age]||(age>34?0.05:0.55);
   const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.20;
-  const base=Math.pow(Math.max(0,dr-58),2.3);
-  const lv=LEAGUE_VALUE_MULT[league]||3.0;
+  // Steeper exponential with higher floor — creates separation at top, collapses lower end
+  const base=Math.pow(Math.max(0,dr-62),2.8);
+  // Youth potential floor: young players with high potential carry value even at low rating
+  const youthFloor=(age<=22&&dp>72)?Math.pow(Math.max(0,dp-58),1.5)*0.15:0;
+  const effBase=Math.max(base,youthFloor);
+  const lv=LEAGUE_VALUE_MULT[league]||0.1;
   const pm=POS_TRANSFER_MULT[pos]||1.0;
   let potPremium=1.0;
   if(age<=26&&dp>dr){
@@ -4927,20 +4934,28 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     const youthBoost=age<23?Math.max(0,(25-age))/5:0;
     potPremium=1+(gap*0.025*(1+youthBoost));
   }
-  const leaguePlayers=ST.players.filter(x=>x.leagueTag===league&&x.season===p.season&&x.rating);
-  const teamAvgs={};
-  leaguePlayers.forEach(x=>{if(!teamAvgs[x.team])teamAvgs[x.team]={s:0,n:0};teamAvgs[x.team].s+=x.rating;teamAvgs[x.team].n++;});
-  const sorted=Object.entries(teamAvgs).map(([t,v])=>({t,avg:v.s/v.n})).sort((a,b)=>b.avg-a.avg);
-  const clubRank=sorted.findIndex(x=>x.t===p.team)+1||Math.ceil(sorted.length/2);
-  const nTeams=Math.max(sorted.length,4);
-  const clubPct=(nTeams-clubRank)/(nTeams-1);
-  const prestigeMult=clubPct>=0.90?1.8:clubPct>=0.75?1.5:clubPct>=0.50?1.25:clubPct>=0.25?1.0:0.80;
+  // Memoised prestige: only compute once per club/season
+  const presKey=`${p.team}|${league}|${p.season||''}`;
+  if(!window._xtvPrestige) window._xtvPrestige={};
+  if(window._xtvPrestige[presKey]===undefined){
+    const lp=ST.players.filter(x=>x.leagueTag===league&&x.season===p.season&&x.rating);
+    const ta={};
+    lp.forEach(x=>{if(!ta[x.team])ta[x.team]={s:0,n:0};ta[x.team].s+=x.rating;ta[x.team].n++;});
+    const sorted=Object.entries(ta).map(([t,v])=>({t,avg:v.s/v.n})).sort((a,b)=>b.avg-a.avg);
+    const n=Math.max(sorted.length,4);
+    sorted.forEach((c,i)=>{
+      const cp=(n-(i+1))/(n-1);
+      const pr=cp>=0.90?1.8:cp>=0.75?1.5:cp>=0.50?1.25:cp>=0.25?1.0:0.80;
+      window._xtvPrestige[`${c.t}|${league}|${p.season||''}`]=pr;
+    });
+    if(window._xtvPrestige[presKey]===undefined) window._xtvPrestige[presKey]=1.0;
+  }
+  const prestigeMult=window._xtvPrestige[presKey]||1.0;
   const pctMult=0.90+0.25*(leaguePct/100);
-  const raw=base*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
+  const raw=effBase*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
   return Math.round(Math.min(posCap,Math.max(0.05,raw*contractMult))*10)/10;
 }
-
 
 function formatValue(v){
   if(v>=100) return '£'+Math.round(v)+'M';
@@ -4997,7 +5012,11 @@ function buildFORecommendedClubs(p){
     });
     if(samePosPlayers.length<2) return;
 
-    // ── Score: Age Fit ────────────────────────────────────────────
+    // ── League tier floor ─────────────────────────────────────────
+    // Players 30th+ percentile proven at their tier — don't recommend lower tiers
+    const playerTier=LEAGUE_QUALITY[p.leagueTag]?.tier;
+    const clubTier=LEAGUE_QUALITY[club.league]?.tier;
+    if(playerTier&&clubTier&&clubTier>playerTier&&(p.leaguePct??50)>=30) return;
     // Map player age onto club avg age scale
     // Club avg ages range ~19-32, players 16-44 — different scales
     // A player of 18 ideally targets clubs with ~23 avg age (youngest clubs)
