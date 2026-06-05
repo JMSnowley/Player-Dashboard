@@ -4917,8 +4917,9 @@ function buildFORecommendedClubs(p){
     // Squad rank using projected ratings
     const squadAll=club.players.concat([p]).sort((a,b)=>projRate(b)-projRate(a));
     const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
+    const clubLQ_early=LEAGUE_QUALITY[club.league]||{good:60,elite:80};
     const playerLQ_=LEAGUE_QUALITY[p.leagueTag];
-    const steppingUp=playerLQ_&&clubLQ&&(clubLQ.good>playerLQ_.good);
+    const steppingUp=playerLQ_&&clubLQ_early&&(clubLQ_early.good>playerLQ_.good);
     let playingTimeScore;
     if(squadRank<=2) playingTimeScore=steppingUp?72:50;
     else if(squadRank<=4) playingTimeScore=88;
@@ -4991,6 +4992,67 @@ function buildFORecommendedClubs(p){
       'Albania':{lang:['Albanian'],country:'Albania'},'Kosovo':{lang:['Albanian'],country:'Kosovo'},
       'Bosnia':{lang:['Bosnian'],country:'Bosnia'},'North Macedonia':{lang:['Macedonian'],country:'North Macedonia'},
       'Saudi Arabia':{lang:['Arabic'],country:'Saudi Arabia'},
+    // French-speaking Africa & Caribbean
+    "Côte d'Ivoire":{lang:['French'],country:"Côte d'Ivoire"},
+    'Algeria':{lang:['Arabic','French'],country:'Algeria'},
+    'Tunisia':{lang:['Arabic','French'],country:'Tunisia'},
+    'Congo DR':{lang:['French'],country:'Congo DR'},
+    'Congo':{lang:['French'],country:'Congo'},
+    'Mali':{lang:['French'],country:'Mali'},
+    'Guinea':{lang:['French'],country:'Guinea'},
+    'Burkina Faso':{lang:['French'],country:'Burkina Faso'},
+    'Benin':{lang:['French'],country:'Benin'},
+    'Togo':{lang:['French'],country:'Togo'},
+    'Gabon':{lang:['French'],country:'Gabon'},
+    'Guadeloupe':{lang:['French'],country:'Guadeloupe'},
+    'Martinique':{lang:['French'],country:'Martinique'},
+    'French Guiana':{lang:['French'],country:'French Guiana'},
+    'Madagascar':{lang:['French'],country:'Madagascar'},
+    'Haiti':{lang:['French'],country:'Haiti'},
+    'Comoros':{lang:['Arabic','French'],country:'Comoros'},
+    'Central African Republic':{lang:['French'],country:'Central African Republic'},
+    // Portuguese-speaking Africa
+    'Angola':{lang:['Portuguese'],country:'Angola'},
+    'Mozambique':{lang:['Portuguese'],country:'Mozambique'},
+    'Cape Verde Islands':{lang:['Portuguese'],country:'Cape Verde Islands'},
+    'Guinea-Bissau':{lang:['Portuguese'],country:'Guinea-Bissau'},
+    // English-speaking
+    'Republic of Ireland':{lang:['English'],country:'Republic of Ireland'},
+    'United States':{lang:['English'],country:'United States'},
+    'Australia':{lang:['English'],country:'Australia'},
+    'New Zealand':{lang:['English'],country:'New Zealand'},
+    'Jamaica':{lang:['English'],country:'Jamaica'},
+    'Trinidad and Tobago':{lang:['English'],country:'Trinidad and Tobago'},
+    'South Africa':{lang:['English','Zulu','Xhosa'],country:'South Africa'},
+    'Zimbabwe':{lang:['English'],country:'Zimbabwe'},
+    'Zambia':{lang:['English'],country:'Zambia'},
+    'Kenya':{lang:['English'],country:'Kenya'},
+    'Tanzania':{lang:['English'],country:'Tanzania'},
+    'Sierra Leone':{lang:['English'],country:'Sierra Leone'},
+    'Liberia':{lang:['English'],country:'Liberia'},
+    'Gambia':{lang:['English'],country:'Gambia'},
+    'Barbados':{lang:['English'],country:'Barbados'},
+    'Jamaica':{lang:['English'],country:'Jamaica'},
+    'Suriname':{lang:['Dutch'],country:'Suriname'},
+    'Curaçao':{lang:['Dutch'],country:'Curaçao'},
+    // Spanish-speaking
+    'Ecuador':{lang:['Spanish'],country:'Ecuador'},
+    'Venezuela':{lang:['Spanish'],country:'Venezuela'},
+    'Paraguay':{lang:['Spanish'],country:'Paraguay'},
+    'Peru':{lang:['Spanish'],country:'Peru'},
+    'Honduras':{lang:['Spanish'],country:'Honduras'},
+    'Panama':{lang:['Spanish'],country:'Panama'},
+    'Dominican Republic':{lang:['Spanish'],country:'Dominican Republic'},
+    // Turkish
+    'Türkiye':{lang:['Turkish'],country:'Turkey'},
+    // Other European
+    'Bosnia and Herzegovina':{lang:['Bosnian'],country:'Bosnia'},
+    'Montenegro':{lang:['Serbian'],country:'Montenegro'},
+    'Luxembourg':{lang:['French','German','Luxembourgish'],country:'Luxembourg'},
+    'Georgia':{lang:['Georgian'],country:'Georgia'},
+    'Armenia':{lang:['Armenian'],country:'Armenia'},
+    'Israel':{lang:['Hebrew'],country:'Israel'},
+    'Korea Republic':{lang:['Korean'],country:'South Korea'},
     };
     // Border/proximity bonus pairs (directional — symmetric implied)
     const BORDER_BONUS={
@@ -5026,7 +5088,12 @@ function buildFORecommendedClubs(p){
     }
     // Shared language
     const langMatch=clubMeta.lang.some(l=>playerLangs.includes(l));
-    if(langMatch) culturalScore+=15;
+    // Language bonus scales with potential — elite players more likely to move for language fit
+    // Low pot (<65): +8, mid pot (70): +15, high pot (80): +20, elite (85+): +25
+    if(langMatch){
+      const langBonus=Math.round(Math.max(8,Math.min(25,8+(pot-65)*0.68)));
+      culturalScore+=langBonus;
+    }
     // Same region
     if(clubMeta.region&&clubMeta.region===playerCurrentMeta.region) culturalScore+=10;
     culturalScore=Math.min(100,culturalScore);
@@ -5071,7 +5138,7 @@ function buildFORecommendedClubs(p){
     // ── League quality cap ────────────────────────────────────────
     // Use projected rating vs club's league elite threshold
     // If player significantly exceeds the league's top level, cap the total score
-    const clubLQ=LEAGUE_QUALITY[club.league]||{elite:80};
+    const clubLQ=clubLQ_early;
     const overshoot=projRating-clubLQ.elite;
     let qualityCap=100;
     if(overshoot>20) qualityCap=40;
@@ -5122,8 +5189,9 @@ function buildFORecommendedClubs(p){
     });
   });
 
-  const top=scored.filter(c=>c.score>=75).sort((a,b)=>b.score-a.score).slice(0,5);
-  if(!top.length) return '<div style="color:var(--muted);font-size:11px;padding:8px 0">No strong club matches found (minimum score: 75)</div>';
+  const minScore=dr<60?70:75;
+  const top=scored.filter(c=>c.score>=minScore).sort((a,b)=>b.score-a.score).slice(0,5);
+  if(!top.length) return `<div style="color:var(--muted);font-size:11px;padding:8px 0">No strong club matches found (minimum score: ${minScore})</div>`;
 
   const scoreBar=(v,col)=>`<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:2px">
     <div style="height:100%;width:${v}%;background:${col};border-radius:2px"></div>
