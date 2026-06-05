@@ -5005,7 +5005,7 @@ const LEAGUE_VALUE_MULT={
   'Belgium 1':1.8,'Portugal 1':4.5,'Portugal 2':0.30,
   'Czech Republic 1':0.25,'Austria 1':0.45,'Turkey 1':1.0,'Switzerland 1':0.55,
   'Greece 1':0.25,'Croatia 1':0.25,'Serbia 1':0.20,
-  'Norway 1':0.25,'Sweden 1':0.30,'Denmark 1':0.45,'Poland 1':0.22,
+  'Norway 1':0.25,'Sweden 1':0.30,'Denmark 1':1.5,'Poland 1':0.22,
   'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Saudi Arabia 1':0.35,'Brazil 1':1.5,'Argentina 1':0.80,
   'Bulgaria 1':0.18,'Ukraine 1':0.50,'Croatia 1':0.25,'UAE 1':0.35,
 };
@@ -5143,29 +5143,40 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // League minimum floor — any player with meaningful presence in that league
   // commands a minimum fee regardless of age/rating
   const LEAGUE_MIN_VALUE={
-    'England 1':0.5,'England 2':0.10,'England 3':0.03,'England 4':0.015,
+    'England 1':0.5,'England 2':0.10,'England 3':0.03,'England 4':0.015,'England 5':0.005,
     'Scotland 1':0.05,'Scotland 2':0.01,'Scotland 3':0.004,'Scotland 4':0.002,
     'Germany 1':0.40,'Germany 2':0.08,'Spain 1':0.40,'Spain 2':0.08,
     'Italy 1':0.30,'Italy 2':0.06,'France 1':0.20,'France 2':0.05,
-    'Netherlands 1':0.15,'Belgium 1':0.10,'Portugal 1':0.20,'Saudi Arabia 1':0.10,'Turkey 1':0.20,'UAE 1':0.10,'Ukraine 1':0.05,
-    'Turkey 1':0.08,'Switzerland 1':0.05,'Austria 1':0.04,
-    'Brazil 1':0.08,'USA 1':0.04,'MLS':0.04,
+    'Netherlands 1':0.15,'Netherlands 2':0.03,
+    'Belgium 1':0.10,'Portugal 1':0.20,'Portugal 2':0.03,
+    'Austria 1':0.15,'Switzerland 1':0.15,'Denmark 1':0.20,'Sweden 1':0.15,
+    'Norway 1':0.05,'Poland 1':0.05,'Czech Republic 1':0.05,'Greece 1':0.04,
+    'Turkey 1':0.08,'Croatia 1':0.04,'Serbia 1':0.02,'Bulgaria 1':0.02,
+    'Ukraine 1':0.05,'Romania 1':0.02,'Slovakia 1':0.02,'Hungary 1':0.02,
+    'Saudi Arabia 1':0.10,'UAE 1':0.10,'USA 1':0.04,'MLS':0.04,'Australia 1':0.02,
+    'Brazil 1':0.08,'Argentina 1':0.04,
   };
   const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*((p.minutes||0)>=300?1:0.5);
   // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top club
   // in a recognised youth pipeline league signals a major market premium.
   // Only applies to leagues with strong international youth sale history.
-  const ELITE_YOUTH_LEAGUES=new Set(['England 1','Germany 1','Spain 1','Italy 1','France 1','Portugal 1','Netherlands 1']); // Saudi/Turkey intentionally excluded
+  // Elite youth pipeline leagues, tiered by strength of academy reputation
+  // Big 5: England, Germany, Spain, Italy, France
+  // Pipeline 2: Portugal, Netherlands (Benfica/Ajax level — regular big-fee sales)
+  // Pipeline 3: Denmark, Austria, Switzerland, Sweden (Nordsjælland/Salzburg/Basel level)
+  // Saudi/Turkey intentionally excluded
+  const ELITE_YOUTH_BIG5=new Set(['England 1','Germany 1','Spain 1','Italy 1','France 1']);
+  const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1']);
+  const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1']);
   let eliteYouthMult=1.0;
-  if(age<=22&&(p.minutes||0)>=600&&ELITE_YOUTH_LEAGUES.has(league)&&(p.leaguePct??0)>=25){
-    // Big 5 leagues (LVM>=4.5): full effect even at prestige 1.25+
-    // Portugal/Netherlands: require prestige >=1.5 (top-3 club in league)
-    const isBig5=lv>=4.5;
+  if(age<=22&&(p.minutes||0)>=600&&(p.leaguePct??0)>=25){
     let baseMult=0;
-    if(isBig5){
+    if(ELITE_YOUTH_BIG5.has(league)){
       baseMult=prestigeMult>=1.8?8.0:prestigeMult>=1.5?3.5:prestigeMult>=1.25?1.8:0;
-    } else {
+    } else if(ELITE_YOUTH_P2.has(league)){
       baseMult=prestigeMult>=1.8?6.0:prestigeMult>=1.5?4.0:0;
+    } else if(ELITE_YOUTH_P3.has(league)){
+      baseMult=prestigeMult>=1.8?3.0:prestigeMult>=1.5?2.0:0;
     }
     if(baseMult>0){
       const pctAdj=1.0+(leaguePct/100)*0.6;
@@ -5183,7 +5194,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // Youth direct value is applied as a floor — prestige and pct still apply
   const youthVal=youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
-  const modelVal=Math.max(youthVal,Math.max(0.05,raw*contractMult));
+  const modelVal=Math.max(youthVal,Math.max(0.01,raw*contractMult));
   return Math.round(Math.min(posCap,Math.max(leagueMin,modelVal))*10)/10;
 }
 
