@@ -5091,7 +5091,7 @@ function buildFORecommendedClubs(p){
     // Language bonus scales with potential — elite players more likely to move for language fit
     // Low pot (<65): +8, mid pot (70): +15, high pot (80): +20, elite (85+): +25
     if(langMatch){
-      const langBonus=Math.round(Math.max(8,Math.min(25,8+(pot-65)*0.68)));
+      const langBonus=Math.round(Math.max(8,Math.min(25,8+(dp-65)*0.68)));
       culturalScore+=langBonus;
     }
     // Same region
@@ -5151,15 +5151,28 @@ function buildFORecommendedClubs(p){
     if(undershoot>20) qualityCap=Math.min(qualityCap,40);
     else if(undershoot>12) qualityCap=Math.min(qualityCap,60);
     else if(undershoot>6) qualityCap=Math.min(qualityCap,78);
-    // Minutes floor: player with 900+ mins at their league shouldn't drop
-    // more than ~1 league level. Measure by gap between their league's good
-    // threshold and the target club's good threshold.
+    // ── Club level floor ──────────────────────────────────────────
+    // A player's current club level acts as their baseline — even poor performers
+    // have demonstrated they can function at that level.
+    // Floor strictness scales with league percentile:
+    //   High performer (70%ile+): floor = 1.5 leagues below (more mobile)
+    //   Mid performer (40-70%ile): floor = 1 league below
+    //   Low performer (<40%ile): floor = 1 league below (club level protects them)
+    // Additionally, high performers can stretch further upward.
     const playerLQ=LEAGUE_QUALITY[p.leagueTag];
     const playerMins=p.minutes||0;
-    if(playerMins>=900&&playerLQ&&clubLQ){
+    const leaguePct=p.leaguePct??50;
+    if(playerLQ&&clubLQ){
       const qualityDrop=playerLQ.good-clubLQ.good; // positive = target is lower quality
-      if(qualityDrop>=18) qualityCap=Math.min(qualityCap,35); // ~2+ leagues down
-      else if(qualityDrop>=10) qualityCap=Math.min(qualityCap,55); // borderline 2 leagues
+      // Hard floor based on percentile — scales how far below current level is acceptable
+      const floorGap=leaguePct>=70?22:leaguePct>=40?14:10;
+      if(qualityDrop>=floorGap+8) qualityCap=Math.min(qualityCap,35); // way too far down
+      else if(qualityDrop>=floorGap) qualityCap=Math.min(qualityCap,55); // borderline
+      // Upward stretch: high performers can target higher than their raw rating suggests
+      // Relax the undershoot cap for top performers
+      if(leaguePct>=75&&undershoot>0&&undershoot<=12){
+        qualityCap=Math.min(100,qualityCap+Math.round(leaguePct*0.15)); // up to +15 for 100%ile
+      }
     }
     // ── Dynamic weights based on potential ───────────────────────
     // Cultural fit matters more at lower levels; elite players move for opportunity
