@@ -4902,16 +4902,23 @@ function buildFORecommendedClubs(p){
     const age=p.age||25;
     // Projection weight on potential: 0.6 at 20, 0.4 at 23, 0.2 at 27, 0.0 at 30+
     const potWeight=Math.max(0,Math.min(0.6,(30-age)/16.67));
-    const projRating=Math.round((dr*(1-potWeight)+dp*potWeight)*10)/10;
+    // Reverse position score adjustments so all positions compare on equal footing
+    const _POS_ADJ={GK:-1.5,CB:-1,FB:-2,DM:-0.5,CM:-1.5,AM:-2,WF:0,CF:0.5};
+    const projRatingNeutral=dr-(_POS_ADJ[playerPos]||0);
+    const projPotNeutral=dp-(_POS_ADJ[playerPos]||0);
+    const projRating=projRatingNeutral*(1-potWeight)+projPotNeutral*potWeight;
 
     // Project incumbents with reduced potential weight (~40% of player's potWeight)
-    // Clubs assess current squad quality, not their ceiling
+    // Clubs assess current squad quality, not their ceiling.
     const projRate=x=>{
       const xdr=displayRating(x)??0;
       const xdp=displayPotential(x)??xdr;
+      const xpos=x.pos||'';
       const xAge=x.age||25;
       const xPotW=Math.max(0,Math.min(0.6,(30-xAge)/16.67))*0.4;
-      return xdr*(1-xPotW)+xdp*xPotW;
+      const neutral=xdr-(_POS_ADJ[xpos]||0);
+      const neutralPot=xdp-(_POS_ADJ[xpos]||0);
+      return neutral*(1-xPotW)+neutralPot*xPotW;
     };
 
     // Squad rank using projected ratings
@@ -5096,13 +5103,36 @@ function buildFORecommendedClubs(p){
     const englishClub=clubMeta.lang&&clubMeta.lang.includes('English');
     const englishPlayer=playerLangs.includes('English');
     const nearEngBonus=(playerNearEng&&englishClub&&!langMatch)||(clubNearEng&&englishPlayer&&!langMatch);
+    // Iberian/Latin language proximity: Portuguese↔Spanish are ~89% mutually intelligible
+    // Major real-world movement corridors: Brazil↔Spain, Portugal↔Spain, Argentina↔Portugal etc.
+    const playerSpeaksPortuguese=playerLangs.includes('Portuguese');
+    const playerSpeaksSpanish=playerLangs.includes('Spanish');
+    const clubPortuguese=clubMeta.lang&&clubMeta.lang.includes('Portuguese');
+    const clubSpanish=clubMeta.lang&&clubMeta.lang.includes('Spanish');
+    const iberianProximity=!langMatch&&(
+      (playerSpeaksPortuguese&&clubSpanish)||(playerSpeaksSpanish&&clubPortuguese)
+    );
+    // Also: Italian is close to Spanish/Portuguese — partial bonus
+    const playerSpeaksItalian=playerLangs.includes('Italian');
+    const clubItalian=clubMeta.lang&&clubMeta.lang.includes('Italian');
+    const romanicProximity=!langMatch&&!iberianProximity&&(
+      (playerSpeaksItalian&&(clubSpanish||clubPortuguese))||
+      ((playerSpeaksSpanish||playerSpeaksPortuguese)&&clubItalian)
+    );
     if(langMatch){
       const langBonus=Math.round(Math.max(8,Math.min(25,8+(dp-65)*0.68)));
       culturalScore+=langBonus;
     } else if(nearEngBonus){
-      // Partial credit — near-English fluency, scaled with potential (more relevant at higher levels)
       const nearBonus=Math.round(Math.max(5,Math.min(15,5+(dp-65)*0.5)));
       culturalScore+=nearBonus;
+    } else if(iberianProximity){
+      // Strong partial bonus — Portuguese/Spanish speakers adapt quickly to each other's leagues
+      const iberBonus=Math.round(Math.max(8,Math.min(18,8+(dp-65)*0.5)));
+      culturalScore+=iberBonus;
+    } else if(romanicProximity){
+      // Weaker partial bonus — still some shared Latin roots
+      const romanBonus=Math.round(Math.max(4,Math.min(10,4+(dp-65)*0.3)));
+      culturalScore+=romanBonus;
     }
     // Same region
     if(clubMeta.region&&clubMeta.region===playerCurrentMeta.region) culturalScore+=10;
