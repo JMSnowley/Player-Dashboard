@@ -562,6 +562,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="potential" onclick="setSort('potential')">Potential</th>
           <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Pri.</th>
           <th data-sort="leaguePct" onclick="setSort('leaguePct')">League %ile</th>
+          <th data-sort="xtv" onclick="setSort('xtv')" class="r">xTV</th>
           <th>Top Skills</th>
           <th data-sort="capturedAt" onclick="setSort('capturedAt')">Captured</th>
           <th></th>
@@ -2222,6 +2223,10 @@ function getFiltered(){
       if(diff!==0) return ST.sortDir*diff;
       return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
     }
+    if(sk==='xtv'){
+      const av=calcPlayerValue(a,3.0), bv=calcPlayerValue(b,3.0);
+      return ST.sortDir*(bv-av);
+    }
     if(NUMERIC_FIELDS.has(sk)){
       const av=parseFloat(a[sk]??-Infinity), bv=parseFloat(b[sk]??-Infinity);
       return ST.sortDir*(bv-av);
@@ -2416,6 +2421,7 @@ function renderTable(){
       <td>${ringCell(displayPotential(p),potColor)}</td>
       <td>${ringCell(displayPTP(p),ptColor)}</td>
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
+      <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00d4ff;white-space:nowrap">${formatValue(calcPlayerValue(p,3.0))}</td>
       <td style="min-width:110px">
         <div class="top3-skills">${(()=>{
           const ss=_getSkillScore(p);
@@ -4851,15 +4857,15 @@ function buildFullOverview(p){
 
 // ── Player Valuation Model ────────────────────────────────────────────
 const LEAGUE_VALUE_MULT={
-  'England 1':85,'England 2':22,'England 3':7,'England 4':3.5,
+  'England 1':85,'England 2':7,'England 3':2.5,'England 4':1.2,
   'Scotland 1':7.5,'Scotland 2':1.5,'Scotland 3':0.5,'Scotland 4':0.2,
-  'Germany 1':70,'Germany 2':20,'Spain 1':75,'Spain 2':20,
-  'Italy 1':62,'Italy 2':18,'France 1':50,'France 2':14,
-  'Netherlands 1':30,'Belgium 1':18,'Portugal 1':22,'Portugal 2':8,
-  'Czech Republic 1':5,'Austria 1':6,'Turkey 1':12,'Switzerland 1':8,
-  'Greece 1':5,'Croatia 1':3,'Serbia 1':3,'Norway 1':6,'Sweden 1':6,
-  'Denmark 1':7,'Poland 1':5,'Australia 1':2,
-  'USA 1':4,'MLS':4,'Brazil 1':15,'Argentina 1':8,
+  'Germany 1':70,'Germany 2':8,'Spain 1':75,'Spain 2':8,
+  'Italy 1':62,'Italy 2':7,'France 1':50,'France 2':6,
+  'Netherlands 1':30,'Belgium 1':18,'Portugal 1':22,'Portugal 2':4,
+  'Czech Republic 1':3,'Austria 1':4,'Turkey 1':12,'Switzerland 1':6,
+  'Greece 1':3,'Croatia 1':2,'Serbia 1':2,'Norway 1':3,'Sweden 1':3,
+  'Denmark 1':4,'Poland 1':2.5,'Australia 1':1.5,
+  'USA 1':3,'MLS':3,'Brazil 1':12,'Argentina 1':6,
 };
 const LEAGUE_TRANSFER_BUDGET={
   'England 1':30,'England 2':3,'England 3':0.5,'England 4':0.3,
