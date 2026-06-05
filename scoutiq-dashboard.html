@@ -5151,7 +5151,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     'Turkey 1':0.08,'Switzerland 1':0.05,'Austria 1':0.04,
     'Brazil 1':0.08,'USA 1':0.04,'MLS':0.04,
   };
-  const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*(p.minutes||0)>=300?1:0.5;
+  const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*((p.minutes||0)>=300?1:0.5);
   // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top club
   // in a recognised youth pipeline league signals a major market premium.
   // Only applies to leagues with strong international youth sale history.
