@@ -4877,6 +4877,24 @@ function buildFORecommendedClubs(p){
     });
     if(samePosPlayers.length<2) return;
 
+    // ── Score: Age Fit ────────────────────────────────────────────
+    // Map player age onto club avg age scale
+    // Club avg ages range ~19-32, players 16-44 — different scales
+    // A player of 18 ideally targets clubs with ~23 avg age (youngest clubs)
+    // A player of 26 targets clubs with ~26.5 avg age (median)
+    // Formula: idealClubAge = 23 + (playerAge-18)*0.35, capped 23-29
+    const playerAge=p.age||25;
+    const idealClubAge=Math.max(23,Math.min(29,23+(playerAge-18)*0.35));
+    const clubPlayersWithAge=club.players.filter(x=>x.age&&x.minutes>0);
+    let ageFitScore=70;
+    if(clubPlayersWithAge.length>=4){
+      const totalMins=clubPlayersWithAge.reduce((s,x)=>s+(x.minutes||0),0);
+      const wtAvgAge=clubPlayersWithAge.reduce((s,x)=>s+((x.age||25)*(x.minutes||0)),0)/totalMins;
+      const ageDiff=Math.abs(idealClubAge-wtAvgAge);
+      // Generous tolerance — within 1yr=100, within 3yr=80, wider drops off
+      ageFitScore=ageDiff<=0.5?100:ageDiff<=1?95:ageDiff<=2?85:ageDiff<=3?75:ageDiff<=4.5?60:ageDiff<=6?42:25;
+    }
+
     // ── Score 1: Playing Time (50%) ───────────────────────────────
     // Use a projected rating that blends current + potential, weighted by age
     // Younger players with high potential get more weight on potential
@@ -5066,22 +5084,31 @@ function buildFORecommendedClubs(p){
     if(undershoot>20) qualityCap=Math.min(qualityCap,40);
     else if(undershoot>12) qualityCap=Math.min(qualityCap,60);
     else if(undershoot>6) qualityCap=Math.min(qualityCap,78);
+    // Minutes floor: player with 900+ mins at current league tier shouldn't
+    // drop more than 1 tier. Find if target club is 2+ tiers below player's league.
+    const playerLQ=LEAGUE_QUALITY[p.leagueTag]||{tier:3};
+    const playerMins=p.minutes||0;
+    if(playerMins>=900&&playerLQ.tier&&clubLQ.tier){
+      const tierDrop=clubLQ.tier-playerLQ.tier; // positive = lower league
+      if(tierDrop>=2) qualityCap=Math.min(qualityCap,55);
+      else if(tierDrop>=3) qualityCap=Math.min(qualityCap,35);
+    }
     // ── Dynamic weights based on potential ───────────────────────
     // Cultural fit matters more at lower levels; elite players move for opportunity
     // Linear scale: pot≤65 → cultural 25%, pot≥85 → cultural 5%
-    const pot=dp; // projected potential already computed above
-    const cultW=Math.max(0.05,Math.min(0.25,0.25-(pot-65)*0.01)); // 0.25 at 65, 0.05 at 85+
-    const compW=Math.max(0.25,Math.min(0.40,0.25+(pot-65)*0.0075)); // 0.25 at 65, 0.40 at 85+
-    const playW=Math.max(0.50,Math.min(0.55,0.50+(pot-65)*0.0025)); // 0.50 at 65, 0.55 at 85+
-    // Normalise so weights always sum to 1
-    const wSum=cultW+compW+playW;
+    const pot=dp;
+    const cultW=Math.max(0.05,Math.min(0.25,0.25-(pot-65)*0.01));
+    const compW=Math.max(0.25,Math.min(0.38,0.25+(pot-65)*0.0065));
+    const playW=Math.max(0.45,Math.min(0.50,0.50+(pot-65)*0.0025));
+    const ageW=0.10; // age fit — 10% weight
+    const wSum=cultW+compW+playW+ageW;
 
     const totalScore=Math.min(qualityCap,Math.round(
       playingTimeScore*(playW/wSum)+
       complementScore*(compW/wSum)+
-      culturalScore*(cultW/wSum)
+      culturalScore*(cultW/wSum)+
+      ageFitScore*(ageW/wSum)
     ));
-
     scored.push({
       team:club.team,league:club.league,season:club.season,
       score:totalScore,
@@ -5089,6 +5116,7 @@ function buildFORecommendedClubs(p){
       playingTimeScore:Math.round(playingTimeScore),
       complementScore:Math.round(complementScore),
       culturalScore:Math.round(culturalScore),
+      ageFitScore:Math.round(ageFitScore),
       topGap:clubWeakSkills.slice(0,2)
     });
   });
@@ -5112,7 +5140,7 @@ function buildFORecommendedClubs(p){
           <div style="font-family:'Archivo Black',sans-serif;font-size:14px;color:${scoreCol};flex-shrink:0;margin-left:6px">${c.score}</div>
         </div>
         <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px">
           <div>
             <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Club Level</div>
             ${scoreBar(c.playingTimeScore,'#00d4ff')}
@@ -5124,6 +5152,10 @@ function buildFORecommendedClubs(p){
           <div>
             <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Cultural</div>
             ${scoreBar(c.culturalScore,'#a78bfa')}
+          </div>
+          <div>
+            <div style="font-size:8px;color:var(--muted2);font-family:'JetBrains Mono',monospace">Age Fit</div>
+            ${scoreBar(c.ageFitScore,'#f472b6')}
           </div>
         </div>
         ${gapStr?`<div style="font-size:8px;color:var(--muted);margin-top:3px;font-family:'JetBrains Mono',monospace">${gapStr}</div>`:''}
