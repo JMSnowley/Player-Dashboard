@@ -3752,7 +3752,116 @@ function renderCompare(){
         <div class="radar-section-title">Physical</div>
         ${physRadar}
       </div>
+    </div>
+    ${buildCompareSwarms(pA,pB,COL_A,COL_B)}`;
+}
+
+function buildCompareSwarms(pA,pB,colA,colB){
+  if(!pA.leagueTag||!pB.leagueTag||pA.leagueTag!==pB.leagueTag) return '';
+  const league=pA.leagueTag, season=pA.season||pB.season;
+  const MF_GROUP=['DM','CM','AM'];
+  const allPoolPos=[...new Set([...(MF_GROUP.includes(pA.pos)?['DM','CM','AM']:[pA.pos]),
+                                ...(MF_GROUP.includes(pB.pos)?['DM','CM','AM']:[pB.pos])])];
+  const peers=ST.players.filter(x=>
+    x.leagueTag===league&&x.season===season&&allPoolPos.includes(x.pos)&&(x.minutes||0)>=300);
+  if(peers.length<4) return '';
+  // Ensure skill defs cached (warm cache if needed)
+  if(!window._SKILL_DEFS_CACHE) buildFOSwarms(pA,'compare-warm');
+  const isAdj=_cmpMode==='padj';
+  const PADJ_MAP={
+    'Claims':'PAdj Claims','Sweeps':'PAdj Sweeps',
+    'Succ. Passes to F3rd':'PAdj Succ. Passes to F3rd',
+    'Succ. Progressive Passes':'PAdj Succ. Progressive Passes',
+    'Aerial Duels':'PAdj Aerial Duels','xG':'PAdj xG','Shots Blocked':'PAdj Shots Blocked',
+    'Defensive Duels':'PAdj Defensive Duels','Fouls (inv.)':'PAdj Fouls (inv.)',
+    'Interceptions':'PAdj Interceptions','Carries':'PAdj Carries',
+    'Dribbles + Offensive Duels':'PAdj Dribbles + Offensive Duels'};
+  const PHYS_KEY={
+    'Avg. Top Speed':'psv99','Peak Top Speed':'top5psv99','Explosiveness':'top3timeHSR',
+    'Distance':'distP90','HSR In Poss.':'hsrDistTIP','Sprint In Poss.':'sprintDistTIP',
+    'HSR Out of Poss.':'hsrDistOTIP','Sprint Out of Poss.':'sprintDistOTIP'};
+  function mVal(player,key){
+    const adjKey=PADJ_MAP[key];
+    const src=isAdj?(player.pm||player.nm||{}):(player.nm||{});
+    return src[isAdj&&adjKey?adjKey:key]??((player.nm||{})[key]??null);
+  }
+  function sScore(player,skill){
+    const nm=skill.metrics.map(m=>mVal(player,m)).filter(v=>v!=null);
+    const ph=(skill.physLabels||[]).map(label=>{
+      const key=PHYS_KEY[label]; if(!key) return null;
+      const pc=PHYS_PCT_CACHE[player.id]; return pc&&pc[key]!=null?pc[key]:null;
+    }).filter(v=>v!=null);
+    const all=[...nm,...ph]; return all.length?all.reduce((a,b)=>a+b)/all.length:null;
+  }
+  const dualHtml=buildDualSwarms(pA,pB,peers,colA,colB,sScore);
+  if(!dualHtml) return '';
+  return `<div style="padding:0 32px 24px;border-top:1px solid var(--border2);margin-top:8px">
+    <div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:16px">
+      <span>Skills · ${league} · ${peers.length} players</span>
+      <span style="color:${colA}">● ${pA.name}</span>
+      <span style="color:${colB}">● ${pB.name}</span>
+    </div>
+    ${dualHtml}
+  </div>`;
+}
+
+
+function buildDualSwarms(pA,pB,peers,colA,colB,sScore){
+  const MF_GROUP=['DM','CM','AM'];
+  const posKey=pos=>MF_GROUP.includes(pos)?'DM':pos;
+  const COL_W=56,TOP_PAD=8,CHART_H=110,TOTAL_H=CHART_H+TOP_PAD+8,LABEL_MAX=70;
+  if(!window._SKILL_DEFS_CACHE) return '';
+  const posA=posKey(pA.pos);
+  const defs=window._SKILL_DEFS_CACHE[posA];
+  if(!defs||!defs.length) return '';
+
+  const cols=defs.map(skill=>{
+    const raw=peers.map(x=>({id:x.id,name:x.name,team:x.team,score:sScore(x,skill)}))
+      .filter(x=>x.score!=null);
+    if(raw.length<3) return null;
+    const rawScores=raw.map(x=>x.score);
+    const mn=Math.min(...rawScores),mx=Math.max(...rawScores),range=mx-mn||1;
+    const rescale=v=>Math.round(((v-mn)/range)*100);
+    const scaled=raw.map(x=>({...x,score:rescale(x.score)}));
+
+    const sA=sScore(pA,skill),sB=sScore(pB,skill);
+    const scA=sA!=null?rescale(sA):null,scB=sB!=null?rescale(sB):null;
+
+    const dotsHtml=scaled.map(s=>{
+      if(s.id===pA.id||s.id===pB.id) return '';
+      const yPct=1-(s.score/100);
+      const y=(TOP_PAD+yPct*CHART_H).toFixed(1);
+      const hash=s.id?String(s.id).split('').reduce((h,ch)=>((h<<5)+h)+ch.charCodeAt(0)|0,5381)&0x7fffffff:0;
+      const jitter=((hash%22)-11);
+      const x=(COL_W/2+jitter).toFixed(1);
+      const tip=`${s.name} (${s.team}): ${s.score}`;
+      return`<circle cx="${x}" cy="${y}" r="3.5" fill="${skill.color}" opacity="0.32"
+        onmouseenter="showSwarmTip(event,'${tip.replace(/'/g,"&#39;")}')" onmouseleave="hideSwarmTip()"/>`;
+    }).join('');
+
+    const dotA=scA!=null?`<circle cx="${(COL_W*0.38).toFixed(1)}" cy="${(TOP_PAD+(1-scA/100)*CHART_H).toFixed(1)}" r="5.5"
+      fill="${colA}" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" style="filter:drop-shadow(0 0 4px ${colA}88)"
+      onmouseenter="showSwarmTip(event,'${pA.name}: ${scA}')" onmouseleave="hideSwarmTip()"/>`:'' ;
+    const dotB=scB!=null?`<circle cx="${(COL_W*0.62).toFixed(1)}" cy="${(TOP_PAD+(1-scB/100)*CHART_H).toFixed(1)}" r="5.5"
+      fill="${colB}" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" style="filter:drop-shadow(0 0 4px ${colB}88)"
+      onmouseenter="showSwarmTip(event,'${pB.name}: ${scB}')" onmouseleave="hideSwarmTip()"/>`:'' ;
+
+    const scoreRow=`<div style="display:flex;justify-content:center;gap:6px;font-size:9px;font-family:'JetBrains Mono',monospace">
+      <span style="color:${colA}">${scA!=null?scA:'—'}</span>
+      <span style="color:var(--muted2)">·</span>
+      <span style="color:${colB}">${scB!=null?scB:'—'}</span>
     </div>`;
+
+    return`<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+      <svg width="${COL_W}" height="${TOTAL_H}" viewBox="0 0 ${COL_W} ${TOTAL_H}" style="overflow:visible;cursor:default">
+        ${dotsHtml}${dotA}${dotB}
+      </svg>
+      <div style="font-size:8px;font-family:'JetBrains Mono',monospace;color:${skill.color};text-transform:uppercase;letter-spacing:0.5px;text-align:center;line-height:1.2;width:${LABEL_MAX}px;word-break:break-word">${skill.name}</div>
+      ${scoreRow}
+    </div>`;
+  }).filter(Boolean).join('');
+
+  return`<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:4px 0">${cols}</div>`;
 }
 
 function buildRadar(pA,pB,mode,isPhys,colA,colB){
@@ -4953,11 +5062,24 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   }
   const prestigeMult=window._xtvPrestige[presKey]||1.0;
   const pctMult=0.90+0.25*(leaguePct/100);
+  // League minimum floor — any player with meaningful presence in that league
+  // commands a minimum fee regardless of age/rating
+  const LEAGUE_MIN_VALUE={
+    'England 1':0.5,'England 2':0.10,'England 3':0.03,'England 4':0.015,
+    'Scotland 1':0.05,'Scotland 2':0.01,'Scotland 3':0.004,'Scotland 4':0.002,
+    'Germany 1':0.40,'Germany 2':0.08,'Spain 1':0.40,'Spain 2':0.08,
+    'Italy 1':0.30,'Italy 2':0.06,'France 1':0.20,'France 2':0.05,
+    'Netherlands 1':0.15,'Belgium 1':0.10,'Portugal 1':0.10,
+    'Turkey 1':0.08,'Switzerland 1':0.05,'Austria 1':0.04,
+    'Brazil 1':0.08,'USA 1':0.04,'MLS':0.04,
+  };
+  const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*(p.minutes||0)>=300?1:0.5;
   const raw=base*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
   // Youth direct value is applied as a floor — prestige and pct still apply
   const youthVal=youthDirectVal*prestigeMult*pctMult*contractMult;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
-  return Math.round(Math.min(posCap,Math.max(youthVal,Math.max(0.05,raw*contractMult)))*10)/10;
+  const modelVal=Math.max(youthVal,Math.max(0.05,raw*contractMult));
+  return Math.round(Math.min(posCap,Math.max(leagueMin,modelVal))*10)/10;
 }
 
 function formatValue(v){
@@ -6079,6 +6201,8 @@ function buildFOSwarms(p, context='fo'){
       {name:'Press & Intensity',color:SKILL_COLOR_MAP['Press & Intensity']||'#8a9bb0', metrics:['Interceptions','Defensive Duels'], physLabels:['HSR Out of Poss.','Sprint Out of Poss.']},
     ],
   };
+  // Cache for use by buildDualSwarms in compare view
+  window._SKILL_DEFS_CACHE=SKILL_DEFS;
 
   // Use MF defs for all three MF positions (they share a pool)
   const posKey=MF_GROUP.includes(p.pos)?'DM':p.pos;
