@@ -5084,14 +5084,15 @@ function buildFORecommendedClubs(p){
     if(undershoot>20) qualityCap=Math.min(qualityCap,40);
     else if(undershoot>12) qualityCap=Math.min(qualityCap,60);
     else if(undershoot>6) qualityCap=Math.min(qualityCap,78);
-    // Minutes floor: player with 900+ mins at current league tier shouldn't
-    // drop more than 1 tier. Find if target club is 2+ tiers below player's league.
-    const playerLQ=LEAGUE_QUALITY[p.leagueTag]||{tier:3};
+    // Minutes floor: player with 900+ mins at their league shouldn't drop
+    // more than ~1 league level. Measure by gap between their league's good
+    // threshold and the target club's good threshold.
+    const playerLQ=LEAGUE_QUALITY[p.leagueTag];
     const playerMins=p.minutes||0;
-    if(playerMins>=900&&playerLQ.tier&&clubLQ.tier){
-      const tierDrop=clubLQ.tier-playerLQ.tier; // positive = lower league
-      if(tierDrop>=2) qualityCap=Math.min(qualityCap,55);
-      else if(tierDrop>=3) qualityCap=Math.min(qualityCap,35);
+    if(playerMins>=900&&playerLQ&&clubLQ){
+      const qualityDrop=playerLQ.good-clubLQ.good; // positive = target is lower quality
+      if(qualityDrop>=18) qualityCap=Math.min(qualityCap,35); // ~2+ leagues down
+      else if(qualityDrop>=10) qualityCap=Math.min(qualityCap,55); // borderline 2 leagues
     }
     // ── Dynamic weights based on potential ───────────────────────
     // Cultural fit matters more at lower levels; elite players move for opportunity
@@ -5182,7 +5183,10 @@ const LEAGUE_QUALITY={
   'Portugal 1':   {tier:2,name:'Primeira Liga',        good:63,top:70,elite:75},
   'Brazil 1':     {tier:2,name:'Brasileirão',          good:64,top:70,elite:75},
   'Austria 1':    {tier:3,name:'Austrian Bundesliga',  good:62,top:68,elite:73},
-  'Scotland 1':   {tier:3,name:'Scottish Premiership', good:62,top:69,elite:74},
+  'Scotland 1':   {tier:3,name:'Scottish Premiership',  good:62,top:69,elite:74},
+  'Scotland 2':   {tier:4,name:'Scottish Championship', good:55,top:62,elite:67},
+  'Scotland 3':   {tier:5,name:'Scottish League One',   good:48,top:55,elite:60},
+  'Scotland 4':   {tier:6,name:'Scottish League Two',   good:42,top:48,elite:54},
   'Switzerland 1':{tier:3,name:'Swiss Super League',   good:61,top:68,elite:73},
   'Poland 1':     {tier:3,name:'Ekstraklasa',          good:61,top:67,elite:72},
   'USA 1':        {tier:3,name:'MLS',                  good:61,top:67,elite:72},
