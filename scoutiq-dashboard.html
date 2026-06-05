@@ -4927,12 +4927,40 @@ function buildFORecommendedClubs(p){
     const clubLQ_early=LEAGUE_QUALITY[club.league]||{good:60,elite:80};
     const playerLQ_=LEAGUE_QUALITY[p.leagueTag];
     const steppingUp=playerLQ_&&clubLQ_early&&(clubLQ_early.good>playerLQ_.good);
+
+    // Club quality rank within its own league
+    // Compare target club's avg rating vs player's current club's avg rating
+    // Penalise lateral/downward moves within same league
+    const sameLeague=club.league===p.leagueTag&&club.season===p.season;
+    let clubQualityScore=85; // default — cross-league moves don't apply this
+    if(sameLeague){
+      const leagueClubs={}; // team → avg rating
+      ST.players.filter(x=>x.leagueTag===club.league&&x.season===club.season&&x.rating)
+        .forEach(x=>{ if(!leagueClubs[x.team])leagueClubs[x.team]={sum:0,n:0};
+          leagueClubs[x.team].sum+=x.rating; leagueClubs[x.team].n++; });
+      const clubAvgs=Object.entries(leagueClubs).map(([t,v])=>({team:t,avg:v.sum/v.n}))
+        .sort((a,b)=>b.avg-a.avg);
+      const nClubs=clubAvgs.length;
+      const targetRank=clubAvgs.findIndex(x=>x.team===club.team)+1;
+      const playerClubRank=clubAvgs.findIndex(x=>x.team===p.team)+1;
+      const rankDiff=playerClubRank-targetRank; // positive=moving to better club
+      if(rankDiff>=1) clubQualityScore=100;       // moving up within league
+      else if(rankDiff===0) clubQualityScore=85;  // same quality tier
+      else if(rankDiff>=-1) clubQualityScore=75;
+      else if(rankDiff>=-2) clubQualityScore=65;
+      else if(rankDiff>=-3) clubQualityScore=55;
+      else if(rankDiff>=-5) clubQualityScore=42;
+      else clubQualityScore=30;
+    }
+
     let playingTimeScore;
     if(squadRank<=2) playingTimeScore=steppingUp?72:50;
     else if(squadRank<=4) playingTimeScore=88;
     else if(squadRank<=8) playingTimeScore=100;
     else if(squadRank<=12) playingTimeScore=Math.max(20,70-(squadRank-8)*12);
     else playingTimeScore=10;
+    // Blend squad rank (60%) with club quality rank (40%)
+    playingTimeScore=Math.round(playingTimeScore*0.60+clubQualityScore*0.40);
     // leagueTag → {country, language, region}
     const LEAGUE_META={
       'England 1':{country:'England',lang:['English'],region:'British Isles'},
@@ -4964,6 +4992,7 @@ function buildFORecommendedClubs(p){
       'Serbia 1':{country:'Serbia',lang:['Serbian'],region:'Balkans'},
       'Saudi Arabia 1':{country:'Saudi Arabia',lang:['Arabic'],region:'Middle East'},
       'MLS':{country:'USA',lang:['English','Spanish'],region:'North America'},
+      'USA 1':{country:'USA',lang:['English','Spanish'],region:'North America'},
       'Brazil 1':{country:'Brazil',lang:['Portuguese'],region:'South America'},
       'Argentina 1':{country:'Argentina',lang:['Spanish'],region:'South America'},
     };
@@ -5026,7 +5055,7 @@ function buildFORecommendedClubs(p){
     // English-speaking
     'Republic of Ireland':{lang:['English'],country:'Republic of Ireland'},
     'United States':{lang:['English'],country:'United States'},
-    'Australia':{lang:['English'],country:'Australia'},
+    'Australia 1':{country:'Australia',lang:['English'],region:'Oceania'},
     'New Zealand':{lang:['English'],country:'New Zealand'},
     'Jamaica':{lang:['English'],country:'Jamaica'},
     'Trinidad and Tobago':{lang:['English'],country:'Trinidad and Tobago'},
@@ -5135,7 +5164,14 @@ function buildFORecommendedClubs(p){
       culturalScore+=romanBonus;
     }
     // Same region
-    if(clubMeta.region&&clubMeta.region===playerCurrentMeta.region) culturalScore+=10;
+    // Anglosphere: UK, Ireland, Australia, NZ, USA, Canada share deep cultural ties
+    // despite geographic distance — add on top of language match, not instead of it
+    const ANGLOSPHERE_COUNTRIES=new Set(['England','Scotland','Wales','Ireland','Northern Ireland',
+      'Republic of Ireland','Australia','New Zealand','United States','USA','Canada']);
+    const playerAnglosphere=playerNatCountries.some(c=>ANGLOSPHERE_COUNTRIES.has(c))||
+      ANGLOSPHERE_COUNTRIES.has(playerCurrentMeta.country);
+    const clubAnglosphere=ANGLOSPHERE_COUNTRIES.has(clubMeta.country);
+    if(playerAnglosphere&&clubAnglosphere) culturalScore+=12; // stacks with language bonus
     culturalScore=Math.min(100,culturalScore);
 
     // ── Score 2: Skill Complementarity (30%) ─────────────────────
@@ -5312,6 +5348,7 @@ const LEAGUE_QUALITY={
   'Switzerland 1':{tier:3,name:'Swiss Super League',   good:61,top:68,elite:73},
   'Poland 1':     {tier:3,name:'Ekstraklasa',          good:61,top:67,elite:72},
   'USA 1':        {tier:3,name:'MLS',                  good:61,top:67,elite:72},
+  'Australia 1':  {tier:4,name:'A-League',             good:55,top:61,elite:66},
   'England 3':    {tier:3,name:'League One',           good:62,top:67,elite:72},
   'England 4':    {tier:4,name:'League Two',           good:59,top:64,elite:68},
   'England 5':    {tier:4,name:'National League',      good:57,top:62,elite:66},
