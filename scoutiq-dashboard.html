@@ -4847,13 +4847,20 @@ function buildFORecommendedClubs(p){
   const complementGroup=pos=>MF_POOL.includes(pos)?'DMCM':(pos==='AM'?'AM':pos);
   const playerCompGroup=complementGroup(playerPos);
 
-  // Build candidate list: all clubs in all leagues, excluding player's own club
-  // Require ≥2 same-position players captured for meaningful comparison
-  const clubMap={}; // key: team|leagueTag|season
+  // Build candidate list: all clubs across all seasons (use most recent per team/league)
+  // This handles both winter and summer leagues having different season labels
+  const clubMap={}; // key: team|leagueTag — keep most recent season per club
   ST.players.forEach(x=>{
-    if(x.pos==='GK'&&playerPos!=='GK') return; // cross-pos only for GK if player is GK
-    const key=`${x.team}|${x.leagueTag}|${x.season}`;
-    if(!clubMap[key]) clubMap[key]={team:x.team,league:x.leagueTag,season:x.season,players:[]};
+    if(x.pos==='GK'&&playerPos!=='GK') return;
+    const key=`${x.team}|${x.leagueTag}`;
+    if(!clubMap[key]){
+      clubMap[key]={team:x.team,league:x.leagueTag,season:x.season,players:[]};
+    } else if(x.season>clubMap[key].season){
+      // Keep most recent season's data
+      clubMap[key].season=x.season; clubMap[key].players=[];
+    } else if(x.season<clubMap[key].season){
+      return; // skip older season data
+    }
     clubMap[key].players.push(x);
   });
 
@@ -4927,6 +4934,7 @@ function buildFORecommendedClubs(p){
     const clubLQ_early=LEAGUE_QUALITY[club.league]||{good:60,elite:80};
     const playerLQ_=LEAGUE_QUALITY[p.leagueTag];
     const steppingUp=playerLQ_&&clubLQ_early&&(clubLQ_early.good>playerLQ_.good);
+    const steppingDown=playerLQ_&&clubLQ_early&&(clubLQ_early.good<playerLQ_.good);
 
     // Club quality rank within its own league
     // Compare target club's avg rating vs player's current club's avg rating
@@ -4977,9 +4985,15 @@ function buildFORecommendedClubs(p){
     else if(squadRank<=4) playingTimeScore=88;
     else if(squadRank<=8) playingTimeScore=100;
     else if(squadRank<=12) playingTimeScore=Math.max(20,70-(squadRank-8)*12);
-    else playingTimeScore=10;
+    else if(squadRank<=18) playingTimeScore=steppingDown?55:Math.max(20,70-(squadRank-8)*12);
+    else playingTimeScore=steppingDown?35:10;
     // Blend squad rank (60%) with club quality rank (40%)
-    playingTimeScore=Math.round(playingTimeScore*0.60+clubQualityScore*0.40);
+    // But cap club quality contribution if squad rank is very poor — 
+    // a better club can't rescue a player who'd be their worst player
+    const effectiveCQ=squadRank>16?Math.min(clubQualityScore,45):
+                      squadRank>12?Math.min(clubQualityScore,65):
+                      clubQualityScore;
+    playingTimeScore=Math.round(playingTimeScore*0.60+effectiveCQ*0.40);
     // leagueTag → {country, language, region}
     const LEAGUE_META={
       'England 1':{country:'England',lang:['English'],region:'British Isles'},
