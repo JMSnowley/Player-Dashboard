@@ -5002,11 +5002,12 @@ const LEAGUE_VALUE_MULT={
   'Germany 1':6.5,'Germany 2':0.95,'Spain 1':7.0,'Spain 2':0.95,
   'Italy 1':5.5,'Italy 2':0.70,'France 1':4.5,'France 2':0.50,
   'Netherlands 1':2.5,'Netherlands 2':0.50,
-  'Belgium 1':1.8,'Portugal 1':1.8,'Portugal 2':0.30,
-  'Czech Republic 1':0.25,'Austria 1':0.35,'Turkey 1':1.0,'Switzerland 1':0.50,
-  'Greece 1':0.25,'Croatia 1':0.20,'Serbia 1':0.20,
-  'Norway 1':0.25,'Sweden 1':0.25,'Denmark 1':0.35,'Poland 1':0.20,
-  'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Brazil 1':1.5,'Argentina 1':0.80,
+  'Belgium 1':1.8,'Portugal 1':4.5,'Portugal 2':0.30,
+  'Czech Republic 1':0.25,'Austria 1':0.45,'Turkey 1':1.0,'Switzerland 1':0.55,
+  'Greece 1':0.25,'Croatia 1':0.25,'Serbia 1':0.20,
+  'Norway 1':0.25,'Sweden 1':0.30,'Denmark 1':0.45,'Poland 1':0.22,
+  'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Saudi Arabia 1':0.35,'Brazil 1':1.5,'Argentina 1':0.80,
+  'Bulgaria 1':0.18,'Ukraine 1':0.50,'Croatia 1':0.25,'UAE 1':0.35,
 };
 const LEAGUE_TRANSFER_BUDGET={
   'England 1':30,'England 2':3,'England 3':0.5,'England 4':0.3,
@@ -5048,6 +5049,71 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const presKey=`${p.team}|${league}|${p.season||''}`;
   if(!window._xtvPrestige) window._xtvPrestige={};
   if(window._xtvPrestige[presKey]===undefined){
+    // Hardcoded overrides based on real-world transfer power (discussed/calibrated manually)
+    const PRESTIGE_OVERRIDE={
+      // Scotland 1
+      'Celtic':1.8,'Rangers':1.8,'Hearts':1.4,
+      // England 1
+      'Manchester City':1.8,'Liverpool':1.8,'Arsenal':1.8,'Chelsea':1.8,
+      'Manchester United':1.8,'Tottenham Hotspur':1.8,
+      'Newcastle United':1.5,'Aston Villa':1.5,'Brighton':1.5,
+      'West Ham United':1.25,'Wolverhampton Wanderers':1.25,'Everton':1.25,
+      'Leicester City':1.25,'Nottingham Forest':1.25,'Fulham':1.25,
+      'Crystal Palace':1.0,'Brentford':1.0,'Bournemouth':1.0,
+      'Burnley':0.80,'Sunderland':0.80,'Southampton':0.80,'Leeds United':0.80,
+      // England 2
+      'Coventry City':1.25,'Middlesbrough':1.25,'Ipswich Town':1.25,
+      'Sheffield United':1.25,
+      // England 3
+      'Bolton Wanderers':1.1,'Portsmouth':1.1,'Charlton Athletic':1.1,
+      'Oxford United':1.1,'Sheffield Wednesday':1.1,
+      // England 4
+      'Bradford City':1.05,'Wrexham':1.05,'Stockport County':1.05,
+      // Austria 1
+      'Salzburg':1.8,
+      'Sturm Graz':1.5,'Rapid Wien':1.5,'LASK':1.5,
+      // Bulgaria 1
+      'Ludogorets':1.5,'Levski Sofia':1.5,
+      // Czech Republic 1
+      'Slavia Praha':1.8,'Sparta Praha':1.8,'Viktoria Plzeň':1.5,
+      // Denmark 1
+      'Nordsjælland':1.8,'Midtjylland':1.8,'Brøndby':1.5,'København':1.5,
+      // Poland 1
+      'Lech Poznań':1.5,'Legia Warszawa':1.5,
+      // Sweden 1
+      'AIK':1.5,'Djurgården':1.5,'Malmö FF':1.5,'Häcken':1.5,
+      // Switzerland 1
+      'Basel':1.8,'Young Boys':1.8,
+      // Croatia 1 (not yet in DB)
+      'Dinamo Zagreb':1.8,'Hajduk Split':1.5,
+      // Ukraine 1 (not yet in DB)
+      'Shakhtar Donetsk':1.8,'Dynamo Kyiv':1.8,
+      // Turkey 1
+      'Galatasaray':1.8,'Fenerbahçe':1.8,'Fenerbahce':1.8,'Beşiktaş':1.8,'Besiktas':1.8,
+      'Trabzonspor':1.25,'Istanbul Basaksehir':1.25,'İstanbul Başakşehir':1.25,
+      // Germany 1
+      'Bayern München':1.8,'Borussia Dortmund':1.8,
+      'RB Leipzig':1.5,'Bayer Leverkusen':1.5,'Eintracht Frankfurt':1.5,
+      // Spain 1
+      'Real Madrid':1.8,'Barcelona':1.8,'Atlético Madrid':1.8,
+      'Athletic Club':1.5,'Real Sociedad':1.5,'Villarreal':1.5,'Sevilla':1.5,
+      // Italy 1
+      'Internazionale':1.8,'Juventus':1.8,'Milan':1.8,'Napoli':1.8,
+      'Roma':1.5,'Lazio':1.5,'Atalanta':1.5,'Fiorentina':1.5,
+      // France 1
+      'PSG':1.8,'Monaco':1.5,'AS Monaco':1.5,
+      'Olympique Lyonnais':1.5,'Olympique Marseille':1.5,'Lille':1.5,
+      // Netherlands 1
+      'Ajax':1.8,'PSV':1.8,'Feyenoord':1.8,
+      'AZ':1.5,'Twente':1.5,'Utrecht':1.5,
+      // Belgium 1
+      'Club Brugge':1.8,
+      'Union Saint-Gilloise':1.5,'Genk':1.25,'Gent':1.25,
+      'Standard Liège':1.25,'Anderlecht':1.25,
+      // Portugal 1
+      'Benfica':1.8,'Sporting CP':1.8,'Porto':1.8,
+      'Sporting Braga':1.5,'Vitória Guimarães':1.5,
+    };
     const lp=ST.players.filter(x=>x.leagueTag===league&&x.season===p.season&&x.rating);
     const ta={};
     lp.forEach(x=>{if(!ta[x.team])ta[x.team]={s:0,n:0};ta[x.team].s+=x.rating;ta[x.team].n++;});
@@ -5055,7 +5121,19 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     const n=Math.max(sorted.length,4);
     sorted.forEach((c,i)=>{
       const cp=(n-(i+1))/(n-1);
-      const pr=cp>=0.90?1.8:cp>=0.75?1.5:cp>=0.50?1.25:cp>=0.25?1.0:0.80;
+      // Use override if available, otherwise compute from rank+LVM curve
+      let pr;
+      if(PRESTIGE_OVERRIDE[c.t]!==undefined){
+        pr=PRESTIGE_OVERRIDE[c.t];
+      } else if(lv>=4.5){
+        pr=cp>=0.90?1.8:cp>=0.75?1.5:cp>=0.50?1.25:cp>=0.25?1.0:0.80;
+      } else if(lv>=3.5){
+        pr=cp>=0.90?1.8:cp>=0.75?1.3:cp>=0.50?1.0:cp>=0.25?0.90:0.75;
+      } else if(lv>=1.5){
+        pr=cp>=0.90?1.4:cp>=0.75?1.1:cp>=0.50?1.0:0.80;
+      } else {
+        pr=cp>=0.90?1.2:0.90;
+      }
       window._xtvPrestige[`${c.t}|${league}|${p.season||''}`]=pr;
     });
     if(window._xtvPrestige[presKey]===undefined) window._xtvPrestige[presKey]=1.0;
@@ -5069,25 +5147,39 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     'Scotland 1':0.05,'Scotland 2':0.01,'Scotland 3':0.004,'Scotland 4':0.002,
     'Germany 1':0.40,'Germany 2':0.08,'Spain 1':0.40,'Spain 2':0.08,
     'Italy 1':0.30,'Italy 2':0.06,'France 1':0.20,'France 2':0.05,
-    'Netherlands 1':0.15,'Belgium 1':0.10,'Portugal 1':0.10,
+    'Netherlands 1':0.15,'Belgium 1':0.10,'Portugal 1':0.20,'Saudi Arabia 1':0.10,'Turkey 1':0.20,'UAE 1':0.10,'Ukraine 1':0.05,
     'Turkey 1':0.08,'Switzerland 1':0.05,'Austria 1':0.04,
     'Brazil 1':0.08,'USA 1':0.04,'MLS':0.04,
   };
   const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*(p.minutes||0)>=300?1:0.5;
-  // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top-10%
-  // club in a major league is an exceptional signal. Bypasses normal age discount.
-  // Only applies to major leagues (LVM >= 4.5) to exclude lower-league loan players.
-  const ELITE_LEAGUE_THRESHOLD=4.5;
+  // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top club
+  // in a recognised youth pipeline league signals a major market premium.
+  // Only applies to leagues with strong international youth sale history.
+  const ELITE_YOUTH_LEAGUES=new Set(['England 1','Germany 1','Spain 1','Italy 1','France 1','Portugal 1','Netherlands 1']); // Saudi/Turkey intentionally excluded
   let eliteYouthMult=1.0;
-  if(age<=22&&(p.minutes||0)>=600&&lv>=ELITE_LEAGUE_THRESHOLD&&(p.leaguePct??0)>=25){
-    let baseMult=prestigeMult>=1.8?8.0:prestigeMult>=1.5?3.5:prestigeMult>=1.25?1.8:1.0;
-    if(baseMult>1.0){
+  if(age<=22&&(p.minutes||0)>=600&&ELITE_YOUTH_LEAGUES.has(league)&&(p.leaguePct??0)>=25){
+    // Big 5 leagues (LVM>=4.5): full effect even at prestige 1.25+
+    // Portugal/Netherlands: require prestige >=1.5 (top-3 club in league)
+    const isBig5=lv>=4.5;
+    let baseMult=0;
+    if(isBig5){
+      baseMult=prestigeMult>=1.8?8.0:prestigeMult>=1.5?3.5:prestigeMult>=1.25?1.8:0;
+    } else {
+      baseMult=prestigeMult>=1.8?6.0:prestigeMult>=1.5?4.0:0;
+    }
+    if(baseMult>0){
       const pctAdj=1.0+(leaguePct/100)*0.6;
       const minsAdj=Math.min(1.4,1.0+((p.minutes||0)-600)/3000);
       eliteYouthMult=baseMult*pctAdj*minsAdj;
     }
   }
-  const raw=base*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
+  // Marquee player boost: Saudi/Turkey/MLS have top imported players whose
+  // value reflects European market, not the local league quality
+  // Smooth blend based on how far above the league 'good' threshold the player is
+  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:58,boost:18.0},'UAE 1':{good:58,boost:18.0},'Turkey 1':{good:64,boost:8.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
+  const _mq=MARQUEE_LEAGUES[league];
+  const effectiveLV=_mq?Math.max(lv,lv+(_mq.boost-lv)*Math.min(1.0,Math.max(0,(dr-(_mq.good+4))/8.0))):lv;
+  const raw=base*effectiveLV*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
   // Youth direct value is applied as a floor — prestige and pct still apply
   const youthVal=youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
@@ -5305,6 +5397,10 @@ function buildFORecommendedClubs(p){
       'Croatia 1':{country:'Croatia',lang:['Croatian'],region:'Balkans'},
       'Serbia 1':{country:'Serbia',lang:['Serbian'],region:'Balkans'},
       'Saudi Arabia 1':{country:'Saudi Arabia',lang:['Arabic'],region:'Middle East'},
+      'UAE 1':{country:'United Arab Emirates',lang:['Arabic'],region:'Middle East'},
+      'Bulgaria 1':{country:'Bulgaria',lang:['Bulgarian'],region:'Eastern Europe'},
+      'Ukraine 1':{country:'Ukraine',lang:['Ukrainian'],region:'Eastern Europe'},
+      'Croatia 1':{country:'Croatia',lang:['Croatian'],region:'Eastern Europe'},
       'MLS':{country:'USA',lang:['English','Spanish'],region:'North America'},
       'USA 1':{country:'USA',lang:['English','Spanish'],region:'North America'},
       'Brazil 1':{country:'Brazil',lang:['Portuguese'],region:'South America'},
@@ -5665,6 +5761,10 @@ const LEAGUE_QUALITY={
   'England 4':    {tier:4,name:'League Two',           good:59,top:64,elite:68},
   'England 5':    {tier:4,name:'National League',      good:57,top:62,elite:66},
   'Saudi Arabia 1':{tier:3,name:'Saudi Pro League',    good:59,top:66,elite:72},
+  'Bulgaria 1':   {tier:3,name:'Bulgarian First League',good:60,top:66,elite:71},
+  'Ukraine 1':    {tier:2,name:'Ukrainian Premier League',good:63,top:70,elite:75},
+  'Croatia 1':    {tier:3,name:'HNL',                  good:60,top:66,elite:71},
+  'UAE 1':        {tier:3,name:'UAE Pro League',        good:59,top:65,elite:71},
 };
 
 function ratingContext(dr,dp,leagueTag,age){
