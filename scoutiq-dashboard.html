@@ -2450,6 +2450,13 @@ function renderTable(){
   if(sortedTh){sortedTh.classList.add('sorted');const s=document.createElement('span');s.className='sort-arrow';s.style.cssText='margin-left:3px;font-size:8px;opacity:.7';s.textContent=ST.sortDir<0?'▼':'▲';sortedTh.appendChild(s);}
   renderPagination(total,page,limit);
   updateSelBar(list);
+  // Fetch badges for newly visible teams
+  setTimeout(()=>{
+    document.querySelectorAll('[data-badge-team]').forEach(el=>{
+      const t=el.getAttribute('data-badge-team');
+      if(t&&!BADGE_MAP[t]) fetchBadge(t);
+    });
+  },50);
 }
 
 function renderPagination(total,page,limit){
@@ -3930,7 +3937,9 @@ async function loadBadgeMap(){
     const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/badge_map.json?cb='+Date.now());
     if(r.ok){
       const raw=await r.json();
-      BADGE_MAP=Object.fromEntries(Object.entries(raw).filter(([,v])=>v&&v!=='loading'&&v!=='none'));
+      // Load all entries including 'none' so we know what's been attempted
+      // but we'll retry 'none' entries on next prefetch pass
+      BADGE_MAP=Object.fromEntries(Object.entries(raw).filter(([,v])=>v&&v!=='loading'));
     }
   }catch(e){ BADGE_MAP={}; }
 }
@@ -4051,7 +4060,8 @@ function searchVariants(team){
 }
 
 async function fetchBadge(team,retryNone=false){
-  if(BADGE_MAP[team]!==undefined&&!retryNone) return BADGE_MAP[team];
+  if(BADGE_MAP[team]!==undefined&&BADGE_MAP[team]!=='none'&&!retryNone) return BADGE_MAP[team];
+  if(BADGE_MAP[team]==='loading') return null;
   BADGE_MAP[team]='loading';
   try{
     const variants=searchVariants(team);
@@ -4068,11 +4078,11 @@ async function fetchBadge(team,retryNone=false){
       }
       if(bestScore>=50) break;
     }
-    const sdbTeam=bestTeam;
-    if(bestTeam&&bestScore>=20&&(!BADGE_MAP[bestTeam.strTeam]||BADGE_MAP[bestTeam.strTeam]==='none')){
-      BADGE_MAP[team]=sdbTeam.strBadge+'/preview';
-    } else if(bestTeam&&bestScore>=20) {
-      BADGE_MAP[team]=sdbTeam.strBadge+'/preview';
+    if(bestTeam&&bestScore>=20){
+      // strBadge may or may not have /preview — normalise to always use /preview
+      let badgeUrl=bestTeam.strBadge||'';
+      if(badgeUrl&&!badgeUrl.endsWith('/preview')) badgeUrl+='/preview';
+      BADGE_MAP[team]=badgeUrl||'none';
     } else {
       BADGE_MAP[team]='none';
     }
@@ -4081,7 +4091,9 @@ async function fetchBadge(team,retryNone=false){
   document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
     const url=BADGE_MAP[team];
     if(url&&url!=='none'&&url!=='loading'){
-      const img=document.createElement('img');img.className='player-badge';img.src=url;img.alt=team;img.style.cssText=el.style.cssText;img.onerror=()=>{BADGE_MAP[team]='none';};el.replaceWith(img);
+      const img=document.createElement('img');img.className='player-badge';img.src=url;img.alt=team;img.style.cssText=el.style.cssText;
+      img.onerror=()=>{BADGE_MAP[team]='none';img.replaceWith(el);};
+      el.replaceWith(img);
     }
   });
   return BADGE_MAP[team];
@@ -4106,10 +4118,27 @@ function badgeEl(team,size=22){
 }
 
 async function prefetchAllBadges(){
-  const teams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
-  for(const t of teams){
-    if(!BADGE_MAP[t]) await fetchBadge(t);
-    await new Promise(r=>setTimeout(r,120));
+  const allTeams=[...new Set(ST.players.map(p=>p.team).filter(Boolean))];
+  // First: immediately fetch badges for teams visible on screen (no delay)
+  const visibleTeams=[...new Set(
+    Array.from(document.querySelectorAll('[data-badge-team]'))
+      .map(el=>el.getAttribute('data-badge-team')).filter(Boolean)
+  )];
+  for(const t of visibleTeams){
+    if(!BADGE_MAP[t]||BADGE_MAP[t]==='none') await fetchBadge(t,BADGE_MAP[t]==='none');
+  }
+  // Second: fetch remaining unfetched teams with short delay
+  for(const t of allTeams){
+    if(!BADGE_MAP[t]){
+      await fetchBadge(t);
+      await new Promise(r=>setTimeout(r,25));
+    }
+  }
+  // Third: retry teams previously marked 'none' (may have been transient failures)
+  const noneTeams=allTeams.filter(t=>BADGE_MAP[t]==='none');
+  for(const t of noneTeams){
+    await fetchBadge(t,true);
+    await new Promise(r=>setTimeout(r,50));
   }
 }
 
