@@ -4914,17 +4914,17 @@ function buildFORecommendedClubs(p){
       return xdr*(1-xPotW)+xdp*xPotW;
     };
 
-    // Squad rank using projected ratings — want 3rd-8th overall (nailed-on starter, not the star)
+    // Squad rank using projected ratings
     const squadAll=club.players.concat([p]).sort((a,b)=>projRate(b)-projRate(a));
     const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
+    const playerLQ_=LEAGUE_QUALITY[p.leagueTag];
+    const steppingUp=playerLQ_&&clubLQ&&(clubLQ.good>playerLQ_.good);
     let playingTimeScore;
-    if(squadRank<=2) playingTimeScore=50; // strong signing, not too dominant
+    if(squadRank<=2) playingTimeScore=steppingUp?72:50;
     else if(squadRank<=4) playingTimeScore=88;
-    else if(squadRank<=8) playingTimeScore=100; // ideal
+    else if(squadRank<=8) playingTimeScore=100;
     else if(squadRank<=12) playingTimeScore=Math.max(20,70-(squadRank-8)*12);
     else playingTimeScore=10;
-
-    // ── Cultural fit constants ─────────────────────────────────────
     // leagueTag → {country, language, region}
     const LEAGUE_META={
       'England 1':{country:'England',lang:['English'],region:'British Isles'},
@@ -5100,10 +5100,10 @@ function buildFORecommendedClubs(p){
     const pot=dp;
     const cultW=Math.max(0.05,Math.min(0.25,0.25-(pot-65)*0.01));
     const compW=Math.max(0.25,Math.min(0.38,0.25+(pot-65)*0.0065));
-    const playW=Math.max(0.45,Math.min(0.50,0.50+(pot-65)*0.0025));
-    const ageW=0.10; // age fit — 10% weight
+    // When stepping up a league, reduce Club Level weight — being top there is expected
+    const playW=steppingUp?Math.max(0.35,Math.min(0.40,0.40+(pot-65)*0.0015)):Math.max(0.45,Math.min(0.50,0.50+(pot-65)*0.0025));
+    const ageW=0.10;
     const wSum=cultW+compW+playW+ageW;
-
     const totalScore=Math.min(qualityCap,Math.round(
       playingTimeScore*(playW/wSum)+
       complementScore*(compW/wSum)+
@@ -5122,8 +5122,8 @@ function buildFORecommendedClubs(p){
     });
   });
 
-  const top=scored.filter(c=>c.score>=80).sort((a,b)=>b.score-a.score).slice(0,5);
-  if(!top.length) return '<div style="color:var(--muted);font-size:11px;padding:8px 0">No strong club matches found (minimum score: 80)</div>';
+  const top=scored.filter(c=>c.score>=75).sort((a,b)=>b.score-a.score).slice(0,5);
+  if(!top.length) return '<div style="color:var(--muted);font-size:11px;padding:8px 0">No strong club matches found (minimum score: 75)</div>';
 
   const scoreBar=(v,col)=>`<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:2px">
     <div style="height:100%;width:${v}%;background:${col};border-radius:2px"></div>
