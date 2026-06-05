@@ -4931,6 +4931,13 @@ function buildFORecommendedClubs(p){
     // Squad rank using projected ratings
     const squadAll=club.players.concat([p]).sort((a,b)=>projRate(b)-projRate(a));
     const squadRank=squadAll.findIndex(x=>x.id===p.id)+1;
+    // Also compute player's percentile within the target league (position-agnostic)
+    // This gives a more realistic sense of where they'd sit in that league context
+    const leaguePlayers=ST.players.filter(x=>x.leagueTag===club.league&&(x.minutes||0)>=300);
+    const leagueProjRatings=leaguePlayers.map(x=>projRate(x)).sort((a,b)=>a-b);
+    const playerProj=projRating;
+    const leaguePctRank=leagueProjRatings.length>0?
+      Math.round((leagueProjRatings.filter(v=>v<=playerProj).length/leagueProjRatings.length)*100):50;
     const clubLQ_early=LEAGUE_QUALITY[club.league]||{good:60,elite:80};
     const playerLQ_=LEAGUE_QUALITY[p.leagueTag];
     const steppingUp=playerLQ_&&clubLQ_early&&(clubLQ_early.good>playerLQ_.good);
@@ -4987,6 +4994,10 @@ function buildFORecommendedClubs(p){
     else if(squadRank<=12) playingTimeScore=Math.max(20,70-(squadRank-8)*12);
     else if(squadRank<=18) playingTimeScore=steppingDown?55:Math.max(20,70-(squadRank-8)*12);
     else playingTimeScore=steppingDown?35:10;
+    // Apply league percentile as a floor — a player competitive within the league
+    // gets a minimum playing time score regardless of squad rank
+    const leaguePctFloor=leaguePctRank>=60?65:leaguePctRank>=40?55:leaguePctRank>=25?42:leaguePctRank>=10?28:10;
+    playingTimeScore=Math.max(playingTimeScore,leaguePctFloor);
     // Blend squad rank (60%) with club quality rank (40%)
     // But cap club quality contribution if squad rank is very poor — 
     // a better club can't rescue a player who'd be their worst player
