@@ -4923,9 +4923,10 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.20;
   // Steeper exponential with higher floor — creates separation at top, collapses lower end
   const base=Math.pow(Math.max(0,dr-62),2.8);
-  // Youth potential floor: young players with high potential carry value even at low rating
-  const youthFloor=(age<=22&&dp>72)?Math.pow(Math.max(0,dp-58),1.5)*0.15:0;
-  const effBase=Math.max(base,youthFloor);
+  // Youth direct value: young players with potential carry market value regardless of current league
+  // Bypasses LVM entirely — their value is international/future, not current-league-based
+  const _youthAgeFactor={18:1.5,19:1.4,20:1.2,21:1.0,22:0.80}[age]||0;
+  const youthDirectVal=(_youthAgeFactor>0&&dp>=62)?Math.pow(Math.max(0,dp-60),1.6)*_youthAgeFactor*0.0108:0;
   const lv=LEAGUE_VALUE_MULT[league]||0.1;
   const pm=POS_TRANSFER_MULT[pos]||1.0;
   let potPremium=1.0;
@@ -4952,9 +4953,11 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   }
   const prestigeMult=window._xtvPrestige[presKey]||1.0;
   const pctMult=0.90+0.25*(leaguePct/100);
-  const raw=effBase*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
+  const raw=base*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
+  // Youth direct value is applied as a floor — prestige and pct still apply
+  const youthVal=youthDirectVal*prestigeMult*pctMult*contractMult;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
-  return Math.round(Math.min(posCap,Math.max(0.05,raw*contractMult))*10)/10;
+  return Math.round(Math.min(posCap,Math.max(youthVal,Math.max(0.05,raw*contractMult)))*10)/10;
 }
 
 function formatValue(v){
