@@ -4931,26 +4931,45 @@ function buildFORecommendedClubs(p){
     // Club quality rank within its own league
     // Compare target club's avg rating vs player's current club's avg rating
     // Penalise lateral/downward moves within same league
+    // For cross-league: use absolute avg rating gap between clubs
     const sameLeague=club.league===p.leagueTag&&club.season===p.season;
-    let clubQualityScore=85; // default — cross-league moves don't apply this
-    if(sameLeague){
-      const leagueClubs={}; // team → avg rating
+    let clubQualityScore=85;
+    {
+      const leagueClubs={};
       ST.players.filter(x=>x.leagueTag===club.league&&x.season===club.season&&x.rating)
-        .forEach(x=>{ if(!leagueClubs[x.team])leagueClubs[x.team]={sum:0,n:0};
-          leagueClubs[x.team].sum+=x.rating; leagueClubs[x.team].n++; });
-      const clubAvgs=Object.entries(leagueClubs).map(([t,v])=>({team:t,avg:v.sum/v.n}))
-        .sort((a,b)=>b.avg-a.avg);
-      const nClubs=clubAvgs.length;
-      const targetRank=clubAvgs.findIndex(x=>x.team===club.team)+1;
-      const playerClubRank=clubAvgs.findIndex(x=>x.team===p.team)+1;
-      const rankDiff=playerClubRank-targetRank; // positive=moving to better club
-      if(rankDiff>=1) clubQualityScore=100;       // moving up within league
-      else if(rankDiff===0) clubQualityScore=85;  // same quality tier
-      else if(rankDiff>=-1) clubQualityScore=75;
-      else if(rankDiff>=-2) clubQualityScore=65;
-      else if(rankDiff>=-3) clubQualityScore=55;
-      else if(rankDiff>=-5) clubQualityScore=42;
-      else clubQualityScore=30;
+        .forEach(x=>{if(!leagueClubs[x.team])leagueClubs[x.team]={sum:0,n:0};
+          leagueClubs[x.team].sum+=x.rating;leagueClubs[x.team].n++;});
+      const clubAvgRating=leagueClubs[club.team]?leagueClubs[club.team].sum/leagueClubs[club.team].n:0;
+      const playerLeagueClubs={};
+      ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&x.rating)
+        .forEach(x=>{if(!playerLeagueClubs[x.team])playerLeagueClubs[x.team]={sum:0,n:0};
+          playerLeagueClubs[x.team].sum+=x.rating;playerLeagueClubs[x.team].n++;});
+      const playerClubAvgRating=playerLeagueClubs[p.team]?playerLeagueClubs[p.team].sum/playerLeagueClubs[p.team].n:0;
+      if(sameLeague){
+        // Same league: use rank difference
+        const clubAvgs=Object.entries(leagueClubs).map(([t,v])=>({team:t,avg:v.sum/v.n}))
+          .sort((a,b)=>b.avg-a.avg);
+        const nClubs=clubAvgs.length;
+        const targetRank=clubAvgs.findIndex(x=>x.team===club.team)+1;
+        const playerClubRank=clubAvgs.findIndex(x=>x.team===p.team)+1;
+        const rankDiff=playerClubRank-targetRank;
+        if(rankDiff>=1) clubQualityScore=100;
+        else if(rankDiff===0) clubQualityScore=85;
+        else if(rankDiff>=-1) clubQualityScore=75;
+        else if(rankDiff>=-2) clubQualityScore=65;
+        else if(rankDiff>=-3) clubQualityScore=55;
+        else if(rankDiff>=-5) clubQualityScore=42;
+        else clubQualityScore=30;
+      } else if(clubAvgRating>0&&playerClubAvgRating>0){
+        // Cross-league: use absolute avg rating gap
+        const ratingGap=clubAvgRating-playerClubAvgRating; // positive=target is better club
+        if(ratingGap>=2) clubQualityScore=100;       // meaningfully better club
+        else if(ratingGap>=-1) clubQualityScore=88;  // comparable
+        else if(ratingGap>=-3) clubQualityScore=72;  // slightly lower
+        else if(ratingGap>=-5) clubQualityScore=55;  // noticeably lower
+        else if(ratingGap>=-8) clubQualityScore=38;  // clearly weaker club
+        else clubQualityScore=22;                     // much weaker — very unlikely move
+      }
     }
 
     let playingTimeScore;
