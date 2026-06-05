@@ -5006,7 +5006,7 @@ const LEAGUE_VALUE_MULT={
   'Czech Republic 1':0.40,'Austria 1':0.35,'Turkey 1':1.0,'Switzerland 1':0.55,
   'Greece 1':0.25,'Croatia 1':0.25,'Serbia 1':0.20,
   'Norway 1':0.50,'Sweden 1':0.30,'Denmark 1':0.90,'Poland 1':0.22,
-  'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Saudi Arabia 1':0.35,'Brazil 1':1.5,'Argentina 1':0.80,
+  'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Saudi Arabia 1':0.35,'Brazil 1':1.5,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.35,'Ecuador 1':0.30,'Chile 1':0.30,'Uruguay 1':0.35,
   'Bulgaria 1':0.18,'Ukraine 1':0.50,'Croatia 1':0.25,'UAE 1':0.35,
 };
 const LEAGUE_TRANSFER_BUDGET={
@@ -5035,7 +5035,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const base=Math.pow(Math.max(0,dr-62),2.8);
   // Youth direct value: young players with potential carry market value regardless of current league
   // Bypasses LVM entirely — their value is international/future, not current-league-based
-  const _youthAgeFactor={18:1.5,19:1.4,20:1.2,21:1.0,22:0.80}[age]||0;
+  const _youthAgeFactor={16:2.0,17:1.8,18:1.5,19:1.4,20:1.2,21:1.0,22:0.80}[age]||0;
   const youthDirectVal=(_youthAgeFactor>0&&dp>=62)?Math.pow(Math.max(0,dp-60),1.6)*_youthAgeFactor*0.0108:0;
   const lv=LEAGUE_VALUE_MULT[league]||0.1;
   const pm=POS_TRANSFER_MULT[pos]||1.0;
@@ -5093,6 +5093,18 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       'Dinamo Zagreb':1.8,'Hajduk Split':1.5,
       // Ukraine 1 (not yet in DB)
       'Shakhtar Donetsk':1.8,'Dynamo Kyiv':1.8,
+      // Brazil 1
+      'Flamengo':1.8,'São Paulo':1.8,'Corinthians':1.8,'Atlético Mineiro':1.8,
+      'Palmeiras':1.8,'Fluminense':1.8,'Internacional':1.5,'Grêmio':1.5,
+      'Vasco da Gama':1.5,'Santos':1.5,'Botafogo':1.5,'Cruzeiro':1.5,
+      // Argentina 1
+      'River Plate':1.8,'Boca Juniors':1.8,'Racing Club':1.5,'Independiente':1.5,
+      'San Lorenzo':1.5,'Estudiantes':1.5,'Vélez Sársfield':1.5,
+      // Colombia 1 / Ecuador 1 / Chile 1 / Uruguay 1
+      'Atlético Nacional':1.8,'Millonarios':1.5,'Junior':1.5,
+      'Liga de Quito':1.8,'Barcelona SC':1.5,
+      'Colo-Colo':1.8,'Universidad de Chile':1.5,
+      'Peñarol':1.8,'Nacional':1.8,
       // Turkey 1
       'Galatasaray':1.8,'Fenerbahçe':1.8,'Fenerbahce':1.8,'Beşiktaş':1.8,'Besiktas':1.8,
       'Trabzonspor':1.25,'Istanbul Basaksehir':1.25,'İstanbul Başakşehir':1.25,
@@ -5160,7 +5172,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     'Turkey 1':0.08,'Croatia 1':0.04,'Serbia 1':0.02,'Bulgaria 1':0.02,
     'Ukraine 1':0.05,'Romania 1':0.02,'Slovakia 1':0.02,'Hungary 1':0.02,
     'Saudi Arabia 1':0.10,'UAE 1':0.10,'USA 1':0.04,'MLS':0.04,'Australia 1':0.02,
-    'Brazil 1':0.08,'Argentina 1':0.04,
+    'Brazil 1':0.08,'Brazil 2':0.02,'Argentina 1':0.04,'Colombia 1':0.02,'Ecuador 1':0.02,'Chile 1':0.02,'Uruguay 1':0.02,
   };
   const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*((p.minutes||0)>=300?1:0.5);
   // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top club
@@ -5174,6 +5186,10 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const ELITE_YOUTH_BIG5=new Set(['England 1','Germany 1','Spain 1','Italy 1','France 1']);
   const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1']);
   const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1','Norway 1','USA 1','MLS']);
+  // South American pipeline — separate tiers
+  const ELITE_YOUTH_BRAZIL=new Set(['Brazil 1','Brazil 2']);
+  const ELITE_YOUTH_ARGENTINA=new Set(['Argentina 1']);
+  const ELITE_YOUTH_SA_OTHER=new Set(['Colombia 1','Ecuador 1','Chile 1','Uruguay 1']);
   let eliteYouthMult=1.0;
   if(age<=22&&(p.minutes||0)>=600&&(p.leaguePct??0)>=25){
     let baseMult=0;
@@ -5183,6 +5199,12 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       baseMult=prestigeMult>=1.8?6.0:prestigeMult>=1.5?4.0:0;
     } else if(ELITE_YOUTH_P3.has(league)){
       baseMult=prestigeMult>=1.8?2.0:prestigeMult>=1.5?1.5:0;
+    } else if(ELITE_YOUTH_BRAZIL.has(league)){
+      baseMult=prestigeMult>=1.8?3.0:prestigeMult>=1.5?2.0:0;
+    } else if(ELITE_YOUTH_ARGENTINA.has(league)){
+      baseMult=prestigeMult>=1.8?2.0:prestigeMult>=1.5?1.3:0;
+    } else if(ELITE_YOUTH_SA_OTHER.has(league)){
+      baseMult=prestigeMult>=1.8?1.5:prestigeMult>=1.5?1.0:0;
     }
     if(baseMult>0){
       const pctAdj=1.0+(leaguePct/100)*0.6;
@@ -5418,6 +5440,11 @@ function buildFORecommendedClubs(p){
       'Bulgaria 1':{country:'Bulgaria',lang:['Bulgarian'],region:'Eastern Europe'},
       'Ukraine 1':{country:'Ukraine',lang:['Ukrainian'],region:'Eastern Europe'},
       'Croatia 1':{country:'Croatia',lang:['Croatian'],region:'Eastern Europe'},
+      'Brazil 2':{country:'Brazil',lang:['Portuguese'],region:'South America'},
+      'Colombia 1':{country:'Colombia',lang:['Spanish'],region:'South America'},
+      'Ecuador 1':{country:'Ecuador',lang:['Spanish'],region:'South America'},
+      'Chile 1':{country:'Chile',lang:['Spanish'],region:'South America'},
+      'Uruguay 1':{country:'Uruguay',lang:['Spanish'],region:'South America'},
       'MLS':{country:'USA',lang:['English','Spanish'],region:'North America'},
       'USA 1':{country:'USA',lang:['English','Spanish'],region:'North America'},
       'Brazil 1':{country:'Brazil',lang:['Portuguese'],region:'South America'},
@@ -5782,6 +5809,11 @@ const LEAGUE_QUALITY={
   'Ukraine 1':    {tier:2,name:'Ukrainian Premier League',good:63,top:70,elite:75},
   'Croatia 1':    {tier:3,name:'HNL',                  good:60,top:66,elite:71},
   'UAE 1':        {tier:3,name:'UAE Pro League',        good:59,top:65,elite:71},
+  'Brazil 2':     {tier:3,name:'Série B',               good:60,top:65,elite:70},
+  'Colombia 1':   {tier:3,name:'Categoría Primera A',   good:59,top:64,elite:69},
+  'Ecuador 1':    {tier:3,name:'Liga Pro',              good:58,top:63,elite:68},
+  'Chile 1':      {tier:3,name:'Primera División',      good:58,top:63,elite:68},
+  'Uruguay 1':    {tier:3,name:'Primera División',      good:59,top:64,elite:69},
 };
 
 function ratingContext(dr,dp,leagueTag,age){
