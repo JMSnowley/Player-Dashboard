@@ -5088,11 +5088,21 @@ function buildFORecommendedClubs(p){
     }
     // Shared language
     const langMatch=clubMeta.lang.some(l=>playerLangs.includes(l));
-    // Language bonus scales with potential — elite players more likely to move for language fit
-    // Low pot (<65): +8, mid pot (70): +15, high pot (80): +20, elite (85+): +25
+    // Near-English proficiency: Scandinavian, Dutch, Belgian players/clubs have
+    // very high English fluency — treat as a partial language match for English-speaking clubs
+    const NEAR_ENGLISH_COUNTRIES=new Set(['Norway','Sweden','Denmark','Finland','Iceland','Netherlands','Belgium','Luxembourg']);
+    const playerNearEng=playerNatCountries.some(c=>NEAR_ENGLISH_COUNTRIES.has(c))||NEAR_ENGLISH_COUNTRIES.has(playerCurrentMeta.country);
+    const clubNearEng=NEAR_ENGLISH_COUNTRIES.has(clubMeta.country);
+    const englishClub=clubMeta.lang&&clubMeta.lang.includes('English');
+    const englishPlayer=playerLangs.includes('English');
+    const nearEngBonus=(playerNearEng&&englishClub&&!langMatch)||(clubNearEng&&englishPlayer&&!langMatch);
     if(langMatch){
       const langBonus=Math.round(Math.max(8,Math.min(25,8+(dp-65)*0.68)));
       culturalScore+=langBonus;
+    } else if(nearEngBonus){
+      // Partial credit — near-English fluency, scaled with potential (more relevant at higher levels)
+      const nearBonus=Math.round(Math.max(5,Math.min(15,5+(dp-65)*0.5)));
+      culturalScore+=nearBonus;
     }
     // Same region
     if(clubMeta.region&&clubMeta.region===playerCurrentMeta.region) culturalScore+=10;
@@ -5168,11 +5178,12 @@ function buildFORecommendedClubs(p){
       const floorGap=leaguePct>=70?22:leaguePct>=40?14:10;
       if(qualityDrop>=floorGap+8) qualityCap=Math.min(qualityCap,35); // way too far down
       else if(qualityDrop>=floorGap) qualityCap=Math.min(qualityCap,55); // borderline
-      // Upward stretch: high performers can target higher than their raw rating suggests
-      // Relax the undershoot cap for top performers
-      if(leaguePct>=75&&undershoot>0&&undershoot<=12){
-        qualityCap=Math.min(100,qualityCap+Math.round(leaguePct*0.15)); // up to +15 for 100%ile
-      }
+      // Cross-league context cap: if player's current league elite < target league's good,
+      // they're jumping from a contextually weaker league — cap regardless of raw rating
+      const contextGap=clubLQ.good-playerLQ.elite; // positive = big contextual jump
+      if(contextGap>5) qualityCap=Math.min(qualityCap,65);
+      else if(contextGap>0) qualityCap=Math.min(qualityCap,82);
+      else if(contextGap>-5) qualityCap=Math.min(qualityCap,92);
     }
     // ── Dynamic weights based on potential ───────────────────────
     // Cultural fit matters more at lower levels; elite players move for opportunity
