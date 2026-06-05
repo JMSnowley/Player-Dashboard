@@ -4806,19 +4806,19 @@ function buildFullOverview(p){
           const vals=[dr,dp,dt,p.leaguePct];const v=vals[i];
           return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
         }).join('')}
-      </div>
-      <div style="margin-top:14px;padding:12px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px">
-        <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Estimated Transfer Value</div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap">
-          ${[['6 months',0.5],['1 year',1.0],['2 years',2.0],['3 years',3.0],['4+ years',4.0]].map(([lbl,yr])=>{
-            const v=calcPlayerValue(p,yr);
-            const col=yr<=0.75?'#ff4d6a':yr<=1.0?'#ff8c42':yr<=2.0?'#f5c842':'#00e599';
-            return`<div style="text-align:center">
-              <div style="font-family:'Archivo Black',sans-serif;font-size:16px;color:${col}">${formatValue(v)}</div>
-              <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px">${lbl}</div>
-            </div>`;
-          }).join('')}
-        </div>
+        ${(()=>{
+          const v3=calcPlayerValue(p,3.0);
+          const v4=calcPlayerValue(p,4.0);
+          const v2=calcPlayerValue(p,2.0);
+          const v1=calcPlayerValue(p,1.0);
+          const v6m=calcPlayerValue(p,0.5);
+          const tooltip=`4+ yrs: ${formatValue(v4)} | 2 yrs: ${formatValue(v2)} | 1 yr: ${formatValue(v1)} | 6 mo: ${formatValue(v6m)}`;
+          return`<div class="fo-score-card" title="${tooltip}" style="cursor:default;flex:1.2">
+            <div class="fo-score-val" style="color:#00d4ff;font-size:22px">${formatValue(v3)}</div>
+            <div class="fo-score-lbl">Transfer Value</div>
+            <div style="font-size:8px;color:var(--muted);margin-top:2px">(3yr contract · hover)</div>
+          </div>`;
+        })()}
       </div>
     </div>
     <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
@@ -4871,30 +4871,45 @@ const LEAGUE_TRANSFER_BUDGET={
   'Greece 1':0.8,'Norway 1':0.8,'Sweden 1':0.8,'Denmark 1':1.2,
   'Australia 1':0.3,'USA 1':1,'MLS':1,'Brazil 1':2,'Argentina 1':1,
 };
-const POS_TRANSFER_MULT={'GK':0.7,'CB':0.8,'FB':0.9,'DM':0.95,'CM':1.0,'AM':1.1,'WF':1.2,'CF':1.15};
+const POS_TRANSFER_MULT={'GK':0.7,'CB':0.8,'FB':0.9,'DM':0.95,'CM':1.0,'AM':1.1,'WF':1.2,'CF':1.30};
 
 function calcPlayerValue(p, yearsRemaining=2.5){
   const dr=displayRating(p)??0;
   const dp=displayPotential(p)??dr;
   const age=p.age||25; const pos=p.pos||'CM';
-  const league=p.leagueTag||'';
-  const mins=p.minutes||1000;
+  const league=p.leagueTag||''; const mins=p.minutes||1000;
+  const leaguePct=p.leaguePct??50;
 
   const ageMult=age<=19?0.65:age<=21?0.80:age<=23?0.92:age<=26?1.0:age<=28?0.90:age<=30?0.72:age<=32?0.48:age<=34?0.28:0.12;
-  const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.25;
+  // Steeper drop-off at 6 months
+  const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.20;
   const base=Math.pow(Math.max(0,dr-58),2.3);
   const lv=LEAGUE_VALUE_MULT[league]||3.0;
   const pm=POS_TRANSFER_MULT[pos]||1.0;
-  // Potential premium for young players
   let potPremium=1.0;
-  if(age<=27&&dp>dr){
-    const gap=dp-dr;
-    potPremium=1+(gap*0.020*Math.max(0,(28-age))/8);
-  }
+  if(age<=27&&dp>dr){ const gap=dp-dr; potPremium=1+(gap*0.020*Math.max(0,(28-age))/8); }
   const minsFactor=Math.min(1.0,Math.max(0.4,mins/2000));
-  const value=base*lv*ageMult*pm*potPremium*minsFactor*contractMult*0.000625;
-  return Math.max(0.05,Math.round(value*10)/10);
+
+  // Club prestige: top clubs demand significantly higher fees (Rangers vs Hearts real-world data)
+  // Exponential curve: top 10% of league clubs (Celtic/Rangers) get 2.2x premium
+  // Middle clubs get modest premium, bottom clubs slight discount
+  const leaguePlayers=ST.players.filter(x=>x.leagueTag===league&&x.season===p.season&&x.rating);
+  const teamAvgs={};
+  leaguePlayers.forEach(x=>{if(!teamAvgs[x.team])teamAvgs[x.team]={s:0,n:0};teamAvgs[x.team].s+=x.rating;teamAvgs[x.team].n++;});
+  const sorted=Object.entries(teamAvgs).map(([t,v])=>({t,avg:v.s/v.n})).sort((a,b)=>b.avg-a.avg);
+  const clubRank=sorted.findIndex(x=>x.t===p.team)+1||Math.ceil(sorted.length/2);
+  const nTeams=Math.max(sorted.length,4);
+  const clubPct=(nTeams-clubRank)/(nTeams-1);
+  const prestigeMult=clubPct>=0.90?2.2:clubPct>=0.75?1.7:clubPct>=0.50?1.3:clubPct>=0.25?1.0:0.80;
+
+  // League percentile premium — high performers and physical standouts rewarded
+  const pctMult=0.90+0.25*(leaguePct/100);
+
+  const raw=base*lv*ageMult*pm*potPremium*minsFactor*contractMult*prestigeMult*pctMult*0.00065;
+  const maxVal=180*contractMult; // cap scales with contract length
+  return Math.round(Math.min(maxVal,Math.max(0.05,raw))*10)/10;
 }
+
 
 function formatValue(v){
   if(v>=100) return '£'+Math.round(v)+'M';
