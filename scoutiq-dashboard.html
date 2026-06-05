@@ -5074,9 +5074,22 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     'Brazil 1':0.08,'USA 1':0.04,'MLS':0.04,
   };
   const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*(p.minutes||0)>=300?1:0.5;
+  // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top-10%
+  // club in a major league is an exceptional signal. Bypasses normal age discount.
+  // Only applies to major leagues (LVM >= 4.5) to exclude lower-league loan players.
+  const ELITE_LEAGUE_THRESHOLD=4.5;
+  let eliteYouthMult=1.0;
+  if(age<=22&&(p.minutes||0)>=600&&lv>=ELITE_LEAGUE_THRESHOLD&&(p.leaguePct??0)>=25){
+    let baseMult=prestigeMult>=1.8?8.0:prestigeMult>=1.5?3.5:prestigeMult>=1.25?1.8:1.0;
+    if(baseMult>1.0){
+      const pctAdj=1.0+(leaguePct/100)*0.6;
+      const minsAdj=Math.min(1.4,1.0+((p.minutes||0)-600)/3000);
+      eliteYouthMult=baseMult*pctAdj*minsAdj;
+    }
+  }
   const raw=base*lv*ageMult*pm*potPremium*prestigeMult*pctMult*0.00080;
   // Youth direct value is applied as a floor — prestige and pct still apply
-  const youthVal=youthDirectVal*prestigeMult*pctMult*contractMult;
+  const youthVal=youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
   const modelVal=Math.max(youthVal,Math.max(0.05,raw*contractMult));
   return Math.round(Math.min(posCap,Math.max(leagueMin,modelVal))*10)/10;
