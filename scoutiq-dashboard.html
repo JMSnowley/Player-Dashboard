@@ -5151,6 +5151,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const _boost=(minsBoost||{})[p.id]||{r:0,ptp:0};
   const effectiveDr=Math.min(99,dr+(_boost.r||0));
   const effectiveDp=Math.min(99,dp+(_boost.r||0));
+  const age=p.age||25; const pos=p.pos||'CM';
   const league=p.leagueTag||''; const leaguePct=p.leaguePct??50;
   const ageCurve={16:0.45,17:0.52,18:0.60,19:0.68,20:0.77,21:0.85,22:0.92,23:1.0,24:1.0,25:1.0,26:1.0,
     27:0.92,28:0.82,29:0.70,30:0.58,31:0.45,32:0.32,33:0.20,34:0.11,35:0.06};
