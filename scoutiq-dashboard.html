@@ -4127,37 +4127,99 @@ function searchVariants(team){
   const OVERRIDES={
     'PSG':'Paris Saint-Germain','Man City':'Manchester City','Man Utd':'Manchester United',
     'Spurs':'Tottenham Hotspur','Wolves':'Wolverhampton Wanderers',
-    'Nottm Forest':'Nottingham Forest',
+    'Nottm Forest':'Nottingham Forest','Nott\'m Forest':'Nottingham Forest',
     'West Brom':'West Bromwich Albion','Sheff Utd':'Sheffield United',
+    'Sheff Wed':'Sheffield Wednesday','QPR':'Queens Park Rangers',
     // German
-    'Borussia Mgladbach':'Borussia Monchengladbach',
-    'RB Leipzig':'RasenBallsport Leipzig','Bayern München':'FC Bayern Munchen',
-    'Köln':'1. FC Koln','Mainz 05':'1. FSV Mainz 05',
+    'Borussia Mgladbach':'Borussia Monchengladbach','Mgladbach':'Borussia Monchengladbach',
+    'RB Leipzig':'RasenBallsport Leipzig','Bayern München':'FC Bayern Munich',
+    'Bayern Munchen':'FC Bayern Munich','Bayern Munich':'FC Bayern Munich',
+    'Köln':'FC Koln','1. FC Köln':'FC Koln','Mainz 05':'FSV Mainz 05',
     '1. FC Union Berlin':'Union Berlin','Union Berlin':'Union Berlin',
-    'Eintracht Frankfurt':'Eintracht Frankfurt',
+    'Eintracht Frankfurt':'Eintracht Frankfurt','Augsburg':'FC Augsburg',
+    'Freiburg':'SC Freiburg','Hoffenheim':'TSG Hoffenheim',
+    'Bayer Leverkusen':'Bayer 04 Leverkusen','Hertha BSC':'Hertha Berlin',
     // French
-    'PSG':'Paris Saint-Germain Football Club',
+    'Olympique Lyonnais':'Olympique Lyon','Olympique Marseille':'Olympique de Marseille',
+    'AS Monaco':'Monaco','Stade Rennais':'Stade Rennes',
     // Italian
     'Inter':'FC Internazionale','Inter Milan':'FC Internazionale','Internazionale':'FC Internazionale',
+    'AC Milan':'AC Milan','Milan':'AC Milan','Napoli':'SSC Napoli',
+    'Fiorentina':'ACF Fiorentina','Roma':'AS Roma','Lazio':'SS Lazio',
+    'Atalanta':'Atalanta BC','Bologna':'Bologna FC','Udinese':'Udinese Calcio',
+    'Torino':'Torino FC','Genoa':'Genoa CFC','Cagliari':'Cagliari Calcio',
+    // Spanish
+    'Atlético Madrid':'Atletico Madrid','Atlético de Madrid':'Atletico Madrid',
+    'Athletic Club':'Athletic Bilbao','Real Sociedad':'Real Sociedad',
+    'Celta de Vigo':'Celta Vigo','Real Betis':'Real Betis Balompie',
+    'Osasuna':'CA Osasuna','Girona':'Girona FC',
     // Scottish
     'St Mirren':'St. Mirren','St Johnstone':'St. Johnstone',
-    'Greenock Morton':'Morton FC','Queen of the South':'Queen of the South FC',
-    // Belgian
-    'Anderlecht':'RSC Anderlecht','Mechelen':'KV Mechelen',
-    'Charleroi':'Sporting Charleroi','Zulte-Waregem':'Zulte Waregem',
-    'Sint-Truiden':'Sint-Truiden VV','Union Saint-Gilloise':'Royale Union Saint-Gilloise',
-    'La Louvière':'La Louviere Centre',
-    // English lower leagues
+    'St. Mirren':'Saint Mirren','Greenock Morton':'Morton FC',
+    'Queen of the South':'Queen of the South FC','Peterhead':'Peterhead FC',
+    'Raith Rovers':'Raith Rovers FC','Arbroath':'Arbroath FC',
+    'Dunfermline Athletic':'Dunfermline Athletic FC','Ayr United':'Ayr United FC',
+    'Alloa Athletic':'Alloa Athletic FC','Clyde FC':'Clyde FC',
+    'Airdrie United':'Airdrie United FC','Queen\'s Park':'Queens Park FC',
+    // English
+    'Norwich City':'Norwich City FC','Portsmouth':'Portsmouth FC',
+    'Sunderland':'Sunderland AFC','Blackburn Rovers':'Blackburn Rovers FC',
+    'Stoke City':'Stoke City FC','Oxford United':'Oxford United FC',
+    'Crawley Town':'Crawley Town FC','Forest Green Rovers':'Forest Green Rovers FC',
+    'Harrogate Town':'Harrogate Town AFC','Aldershot Town':'Aldershot Town FC',
     'Gateshead':'Gateshead FC','Boston United':'Boston United FC',
-    'Sutton United':'Sutton United FC','Wealdstone':'Wealdstone FC',
-    'Halifax Town':'FC Halifax Town','Woking':'Woking FC',
-    'Scunthorpe United':'Scunthorpe United FC',
+    'Sutton United':'Sutton United FC','Halifax Town':'FC Halifax Town',
+    'Bradford City':'Bradford City AFC','Wrexham':'Wrexham AFC',
+    'Exeter City':'Exeter City FC','Peterborough United':'Peterborough United FC',
+    'Rotherham United':'Rotherham United FC','Huddersfield Town':'Huddersfield Town AFC',
+    // Portuguese
+    'Benfica':'Sport Lisboa e Benfica','Sport Lisboa e Benfica':'SL Benfica',
+    'Sporting CP':'Sporting CP','Porto':'FC Porto',
+    'Sporting Braga':'SC Braga','Vitória Guimarães':'Vitoria Guimaraes',
+    // Dutch
+    'PSV':'PSV Eindhoven','AZ':'AZ Alkmaar',
+    'FC Utrecht':'FC Utrecht','FC Twente':'FC Twente',
+    'Sparta Rotterdam':'Sparta Rotterdam','NEC':'NEC Nijmegen',
+    // Belgian
+    'Anderlecht':'RSC Anderlecht','KRC Genk':'Genk','KAA Gent':'Gent',
+    'Club Brugge':'Club Brugge KV','Standard Liège':'Standard Liege',
+    'Royal Antwerp':'Royal Antwerp FC','Mechelen':'KV Mechelen',
+    'Union Saint-Gilloise':'Royale Union Saint-Gilloise',
     // Czech
-    'Viktoria Plzeň':'Viktoria Plzen',
+    'Viktoria Plzeň':'Viktoria Plzen','Slavia Praha':'SK Slavia Prague',
+    'Sparta Praha':'AC Sparta Prague','Sigma Olomouc':'SK Sigma Olomouc',
+    'Dukla Praha':'FK Dukla Prague','Baník Ostrava':'FC Banik Ostrava',
+    // Danish
+    'København':'FC Copenhagen','Brøndby':'Brondby IF',
+    'Nordsjælland':'FC Nordsjaelland','Midtjylland':'FC Midtjylland',
+    // Swedish
+    'Djurgården':'Djurgardens IF','Malmö FF':'Malmo FF',
+    'Hammarby IF':'Hammarby IF','Häcken':'BK Hacken',
+    'IFK Göteborg':'IFK Goteborg',
+    // Norwegian
+    'Bodø / Glimt':'Bodo Glimt','Rosenborg BK':'Rosenborg BK',
+    'Molde FK':'Molde FK','SK Brann':'SK Brann',
+    'Tromsø IL':'Tromso IL','Sarpsborg 08':'Sarpsborg 08 FF',
+    // Swiss
+    'FC Basel':'FC Basel 1893','Young Boys':'BSC Young Boys',
+    // Turkish
+    'Galatasaray':'Galatasaray SK','Fenerbahçe':'Fenerbahce SK',
+    'Beşiktaş':'Besiktas JK','Trabzonspor':'Trabzonspor',
+    'İstanbul Başakşehir':'Istanbul Basaksehir',
+    // Greek
+    'Olympiakos':'Olympiakos Piraeus','Panathinaikos':'Panathinaikos FC',
+    'AEK Athens':'AEK Athens FC',
     // Saudi
-    'Al Ittihad':'Al-Ittihad Club','Al Kholood':'Al-Kholood',
-    // American
-    'New England':'New England Revolution',
+    'Al Ittihad':'Al-Ittihad Club','Al Nassr':'Al-Nassr FC',
+    'Al Hilal':'Al-Hilal Saudi FC','Al Ahli':'Al-Ahli Saudi FC',
+    // Brazilian
+    'Flamengo':'CR Flamengo','Palmeiras':'SE Palmeiras',
+    'Fluminense':'Fluminense FC','Corinthians':'Sport Club Corinthians Paulista',
+    'São Paulo':'Sao Paulo FC','Santos':'Santos FC','Grêmio':'Gremio FBPA',
+    'Internacional':'Sport Club Internacional','Atlético Mineiro':'Atletico Mineiro',
+    'Vasco da Gama':'CR Vasco da Gama','Botafogo':'Botafogo FR',
+    // Romanian
+    'FCSB':'FCSB','Steaua Bucharest':'FCSB','CFR Cluj':'CFR 1907 Cluj',
   };
   const variants=[];
   if(OVERRIDES[team]) variants.push(OVERRIDES[team]);
@@ -4166,6 +4228,9 @@ function searchVariants(team){
   if(stripped!==team) variants.push(stripped);
   const noAccent=team.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   if(noAccent!==team) variants.push(noAccent);
+  // Also try without common prefixes (1. FC, FC, etc.)
+  const noPrefix=team.replace(/^(1\.\s*)?(FC|SC|SK|AC|AS|SV|VfB|VfL|TSG|FSV|RB|BK|IF|IFK|BFC)\s+/i,'').trim();
+  if(noPrefix!==team&&noPrefix.length>3) variants.push(noPrefix);
   return [...new Set(variants)];
 }
 
@@ -5005,19 +5070,22 @@ const LEAGUE_VALUE_MULT={
   'Belgium 1':1.8,'Portugal 1':5.5,'Portugal 2':0.40,
   'Czech Republic 1':0.40,'Austria 1':1.5,'Turkey 1':1.0,'Switzerland 1':0.55,
   'Greece 1':0.35,'Croatia 1':0.25,'Serbia 1':0.20,
-  'Norway 1':0.50,'Sweden 1':0.50,'Denmark 1':0.75,'Poland 1':0.22,
+  'Norway 1':0.50,'Sweden 1':0.50,'Denmark 1':0.90,'Poland 1':0.22,
   'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Saudi Arabia 1':0.35,'Brazil 1':3.0,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.35,'Ecuador 1':0.30,'Chile 1':0.30,'Uruguay 1':0.35,
   'Bulgaria 1':0.18,'Ukraine 1':0.50,'Croatia 1':0.25,'UAE 1':0.35,'Romania 1':0.22,
 };
 const LEAGUE_TRANSFER_BUDGET={
-  'England 1':30,'England 2':3,'England 3':0.5,'England 4':0.3,
-  'Scotland 1':0.6,'Scotland 2':0.1,'Scotland 3':0.03,'Scotland 4':0.01,
-  'Germany 1':15,'Germany 2':3,'Spain 1':18,'Spain 2':3,
-  'Italy 1':12,'Italy 2':2,'France 1':9,'France 2':2,
-  'Netherlands 1':4,'Belgium 1':2,'Portugal 1':4,'Portugal 2':1,
-  'Czech Republic 1':0.5,'Austria 1':0.7,'Turkey 1':3,'Switzerland 1':1.5,
-  'Greece 1':0.8,'Norway 1':0.8,'Sweden 1':0.8,'Denmark 1':1.2,
-  'Australia 1':0.3,'USA 1':1,'MLS':1,'Brazil 1':2,'Argentina 1':1,
+  'England 1':50,'England 2':5,'England 3':0.8,'England 4':0.3,
+  'Scotland 1':1.5,'Scotland 2':0.2,'Scotland 3':0.05,'Scotland 4':0.02,
+  'Germany 1':20,'Germany 2':4,'Spain 1':22,'Spain 2':4,
+  'Italy 1':18,'Italy 2':3,'France 1':12,'France 2':3,
+  'Netherlands 1':8,'Belgium 1':4,'Portugal 1':10,'Portugal 2':1.5,
+  'Czech Republic 1':1.0,'Austria 1':3,'Turkey 1':5,'Switzerland 1':3,
+  'Greece 1':1.5,'Norway 1':1.0,'Sweden 1':0.8,'Denmark 1':2,
+  'Romania 1':0.5,'Bulgaria 1':0.3,'Croatia 1':0.5,
+  'Australia 1':0.5,'USA 1':2,'MLS':2,
+  'Saudi Arabia 1':20,'UAE 1':8,
+  'Brazil 1':4,'Argentina 1':2,'Colombia 1':0.5,'Ecuador 1':0.4,'Chile 1':0.4,'Uruguay 1':0.4,
 };
 // Position transfer multipliers — calibrated from top 20 record sales across 10 major leagues
 // Key insight from data: AM and DM dramatically undervalued in old model (Bellingham/Wirtz/Rice/Caicedo era)
