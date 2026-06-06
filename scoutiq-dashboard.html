@@ -5395,7 +5395,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:58,boost:18.0},'UAE 1':{good:58,boost:18.0},'Turkey 1':{good:64,boost:10.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
   const _mq=MARQUEE_LEAGUES[league];
   const effectiveLV=_mq?Math.max(lv,lv+(_mq.boost-lv)*Math.min(1.0,Math.max(0,(dr-(_mq.good+4))/8.0))):lv;
-  const raw=base*effectiveLV*ageMult*pm*potPremium*prestigeMult*pctMult*0.00110;
+  const raw=base*effectiveLV*ageMult*pm*potPremium*prestigeMult*pctMult*0.00091;
   // Youth direct value is applied as a floor — prestige and pct still apply
   const youthVal=youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
