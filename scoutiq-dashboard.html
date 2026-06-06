@@ -4254,7 +4254,6 @@ async function fetchBadge(team,retryNone=false){
       if(bestScore>=50) break;
     }
     if(bestTeam&&bestScore>=20){
-      // strBadge may or may not have /preview — normalise to always use /preview
       let badgeUrl=bestTeam.strBadge||'';
       if(badgeUrl&&!badgeUrl.endsWith('/preview')) badgeUrl+='/preview';
       BADGE_MAP[team]=badgeUrl||'none';
@@ -5323,7 +5322,59 @@ function formatValue(v){
 }
 
 
-// Transfer corridor data derived from historical Transfermarkt top sales
+// Club wage budgets (£/week) from FM26 data — proxy for financial strength
+// Used to assess whether a club can realistically afford a player's xTV
+// A club can typically spend ~15x weekly wage budget on a single transfer
+const CLUB_WAGE_BUDGET={
+  // England 1
+  'Arsenal':4496230,'Aston Villa':3149500,'Bournemouth':1626470,'Brentford':1584120,
+  'Brighton':1580180,'Brighton & Hove Albion':1580180,'Burnley':1366210,'Chelsea':4458100,
+  'Crystal Palace':1385380,'Everton':1948350,'Fulham':2037520,'Leeds United':1505660,
+  'Liverpool':5061070,'Manchester City':5186300,'Manchester United':3863390,
+  'Newcastle United':2867440,'Nottingham Forest':2491960,'Sunderland':1725470,
+  'Tottenham Hotspur':3606970,'West Ham United':2128130,'Wolverhampton Wanderers':1603990,
+  // England 2
+  'Birmingham':683010,'Birmingham City':683010,'Blackburn Rovers':297250,'Bristol City':334110,
+  'Charlton Athletic':275650,'Coventry City':328360,'Derby County':372860,'Hull City':343360,
+  'Ipswich Town':871510,'Leicester City':1118400,'Middlesbrough':592950,'Millwall':407220,
+  'Norwich City':512800,'Oxford United':266080,'Portsmouth':277430,'QPR':395260,
+  'Sheffield United':589130,'Sheffield Wednesday':194660,'Southampton':800040,
+  'Stoke City':380370,'Watford':444510,'West Bromwich Albion':444510,'Wrexham':509900,
+  // England 3
+  'Bolton Wanderers':200340,'Bradford City':104450,'Cardiff City':301040,
+  'Exeter City':66450,'Huddersfield Town':242680,'Luton Town':286830,
+  'Peterborough United':122990,'Peterborough':122990,'Stockport County':146260,
+  // Italy 1
+  'Atalanta':1267280,'Bologna':945180,'Fiorentina':1356600,'Internazionale':2746890,
+  'Inter':2746890,'Juventus':2624260,'Lazio':1508260,'Milan':2015240,'AC Milan':2015240,
+  'Napoli':2144760,'Roma':2162910,'AS Roma':2162910,'Torino':1009100,'Udinese':519310,
+  // Spain 1
+  'Athletic Club':1536660,'Atlético Madrid':2572720,'FC Barcelona':4384310,'Barcelona':4384310,
+  'Girona':795260,'Real Betis':1200110,'Real Madrid':5376170,'Real Sociedad':1064350,
+  'Sevilla':1012820,'Villarreal':1419570,'Celta Vigo':839190,'Valencia':1004080,
+  // France 1
+  'Paris Saint-Germain':3465290,'PSG':3465290,'Olympique Marseille':1222070,
+  'AS Monaco':1230320,'Monaco':1230320,'Lille':639100,'Stade Rennais':766310,
+  'Olympique Lyonnais':761350,'Lyon':761350,'Strasbourg':864030,'OGC Nice':655750,'RC Lens':384830,
+  // Germany 1
+  'Bayern München':5161390,'Bayer 04 Leverkusen':2141970,'Bayer Leverkusen':2141970,
+  'Borussia Dortmund':2604720,'RB Leipzig':2127860,'Eintracht Frankfurt':1112700,
+  'VfB Stuttgart':1255990,'VfL Wolfsburg':1012760,'Borussia Mönchengladbach':949200,
+  'Werder Bremen':706350,'TSG Hoffenheim':1093470,'SC Freiburg':860470,'1. FC Köln':640810,
+  // Austria 1
+  'Salzburg':290950,'FC RB Salzburg':290950,'LASK':146310,'SK Rapid':175420,'Rapid Wien':175420,
+  'SK Sturm Graz':132190,'Sturm Graz':132190,
+  // Belgium 1
+  'Club Brugge':473640,'KRC Genk':267740,'Genk':267740,'RSC Anderlecht':301000,'Anderlecht':301000,
+  'Union Saint-Gilloise':174770,'AA Gent':210400,'Gent':210400,'Standard Liège':179760,
+  'Royal Antwerp':235180,'Antwerp':235180,
+  // Bulgaria 1
+  'Ludogorets':202380,'CSKA Sofia':111260,'Levski Sofia':49720,
+  // Scotland 1 (estimated — not in FM26 data)
+  'Celtic':180000,'Rangers':160000,'Hearts':55000,'Hibernian':45000,
+  'Aberdeen':38000,'Motherwell':22000,'Kilmarnock':20000,'St. Mirren':18000,
+  'Dundee United':18000,'Dundee':15000,'Falkirk':14000,'Livingston':12000,
+};
 // Maps source_league → {target_league: strength} where strength 0-1
 // Used to bonus Recommended Clubs that match real-world transfer pipelines
 const TRANSFER_CORRIDORS={
@@ -5824,6 +5875,21 @@ function buildFORecommendedClubs(p){
       else if(contextGap>-5) qualityCap=Math.min(qualityCap,92);
     }
 
+    // ── Financial affordability check ────────────────────────────
+    // Use wage budget as proxy for whether club can realistically afford this player
+    // A club can typically spend ~15x weekly wage budget on a single transfer
+    const playerXTV=calcPlayerValue(p)||0.5;
+    const clubWage=CLUB_WAGE_BUDGET[club.team]||0;
+    const clubMaxSpend=clubWage>0?(clubWage*15/1e6):null; // £M
+    let affordabilityScore=50; // neutral if no wage data
+    if(clubMaxSpend!==null){
+      if(playerXTV<=clubMaxSpend*0.3)      affordabilityScore=100; // very affordable
+      else if(playerXTV<=clubMaxSpend*0.6) affordabilityScore=80;  // affordable
+      else if(playerXTV<=clubMaxSpend)     affordabilityScore=60;  // stretching
+      else if(playerXTV<=clubMaxSpend*1.5) affordabilityScore=35;  // a real stretch
+      else                                 affordabilityScore=10;  // unrealistic
+    }
+
     // ── Corridor bonus ────────────────────────────────────────────
     // Historical transfer data tells us which leagues actually buy from which
     // A known corridor makes the move more realistic — boost cultural score
@@ -5842,12 +5908,14 @@ function buildFORecommendedClubs(p){
     // Stepping up: slightly lower (being top of a better squad is expected)
     const playW=steppingUp?Math.max(0.40,Math.min(0.45,0.40+(pot-65)*0.0025)):Math.max(0.55,Math.min(0.65,0.55+(pot-65)*0.005));
     const ageW=0.08;
-    const wSum=cultW+compW+playW+ageW;
+    const affordW=clubWage>0?0.12:0; // only include if we have wage data
+    const wSum=cultW+compW+playW+ageW+affordW;
     const totalScore=Math.min(qualityCap,Math.round(
       playingTimeScore*(playW/wSum)+
       complementScore*(compW/wSum)+
       culturalScore*(cultW/wSum)+
-      ageFitScore*(ageW/wSum)
+      ageFitScore*(ageW/wSum)+
+      (clubWage>0?affordabilityScore*(affordW/wSum):0)
     ));
     scored.push({
       team:club.team,league:club.league,season:club.season,
@@ -5857,6 +5925,8 @@ function buildFORecommendedClubs(p){
       complementScore:Math.round(complementScore),
       culturalScore:Math.round(culturalScore),
       ageFitScore:Math.round(ageFitScore),
+      affordabilityScore:clubWage>0?Math.round(affordabilityScore):null,
+      clubMaxSpend:clubMaxSpend?Math.round(clubMaxSpend*10)/10:null,
       topGap:clubWeakSkills.slice(0,2)
     });
   });
