@@ -1046,6 +1046,7 @@ function loadState(){
       const p=JSON.parse(s);
       ST.players=p.players||[];
       window._xtvPrestige={}; // clear xTV prestige cache on data reload
+      refreshMinsMaps();      // rebuild minutes penalty maps
       if(p.cfg){
         ST.cfg={...ST.cfg,...p.cfg,tabs:{...ST.cfg.tabs,...(p.cfg.tabs||{})},dbTab:p.cfg.dbTab||ST.cfg.dbTab};
       }
@@ -1326,6 +1327,7 @@ async function loadFromGitHub(skipCacheBuild=false){
         buildPhysPercentileCache();
         computeMetricBonuses();
         computeAllLeaguePct();
+        refreshMinsMaps(); // rebuild minutes penalty maps after fresh data load
       }
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
@@ -5398,12 +5400,22 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const youthVal=youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
   // Elite club floor: Celtic/Rangers players with 600+ mins have minimum value
-  // regardless of performance — the club's prestige means even squad players are sellable
   const ELITE_CLUB_FLOOR={'Celtic':1.0,'Rangers':1.0};
   const eliteClubFloor=(ELITE_CLUB_FLOOR[p.team]&&(p.minutes||0)>=600&&(p.age||25)<=32)?
     ELITE_CLUB_FLOOR[p.team]*contractMult:0;
   const modelVal=Math.max(youthVal,Math.max(0.01,raw*contractMult));
-  return Math.round(Math.min(posCap,Math.max(eliteClubFloor,Math.max(leagueMin,modelVal)))*10)/10;
+  // ── Contextual minutes penalty ─────────────────────────────────
+  // Compare player's effective minutes to the max in their league+season
+  // For mid-season transfers: sum minutes across entries in the SAME league+season
+  // The penalty applies only to the model value — the floor is never penalised
+  const {maxMins,effMins}=getMinsMaps();
+  const leagueSeasonKey=`${league}|${p.season||''}`;
+  const leagueMaxMins=maxMins[leagueSeasonKey]||1800;
+  const playerEffMins=effMins[p.id]||(p.minutes||0);
+  const minsPct=Math.min(1.0,playerEffMins/leagueMaxMins);
+  const minsMult=0.75+0.25*minsPct; // 0.75 at 0 mins → 1.0 at league max
+  const penalisedModel=Math.max(leagueMin,modelVal*minsMult);
+  return Math.round(Math.min(posCap,Math.max(eliteClubFloor,penalisedModel))*10)/10;
 }
 
 function formatValue(v){
@@ -5604,7 +5616,41 @@ const CLUB_WAGE_BUDGET={
   'Universidad de Chile':45000,'Peñarol':55000,'Nacional':50000,
   'Atlético Nacional':55000,'Millonarios':40000,
 };
-// Transfer corridor data
+// Build league-season minutes maps at startup:
+// LEAGUE_SEASON_MAX_MINS: {leagueTag|season → max minutes by any player}
+// PLAYER_EFFECTIVE_MINS:  {playerId → combined minutes across same-league entries in same season}
+// Both are used by calcPlayerValue to apply a contextual minutes penalty.
+function buildMinuteMaps(players){
+  const maxMins={};
+  // Pass 1: find max minutes per league+season
+  for(const p of players){
+    const key=`${p.leagueTag||''}|${p.season||''}`;
+    const m=p.minutes||0;
+    if(m>(maxMins[key]||0)) maxMins[key]=m;
+  }
+  // Pass 2: combine minutes for same-league transfers
+  // Group by name+season+league — add up minutes across multiple entries
+  const nameSeasonLeague={};
+  for(const p of players){
+    const k=`${p.name}|${p.season||''}|${p.leagueTag||''}`;
+    if(!nameSeasonLeague[k]) nameSeasonLeague[k]={ids:[],totalMins:0};
+    nameSeasonLeague[k].ids.push(p.id);
+    nameSeasonLeague[k].totalMins+=(p.minutes||0);
+  }
+  const effMins={};
+  for(const {ids,totalMins} of Object.values(nameSeasonLeague)){
+    for(const id of ids) effMins[id]=totalMins;
+  }
+  return {maxMins,effMins};
+}
+window._minsMaps=null;
+function getMinsMaps(){
+  if(!window._minsMaps&&window.ST&&ST.players)
+    window._minsMaps=buildMinuteMaps(ST.players);
+  return window._minsMaps||{maxMins:{},effMins:{}};
+}
+// Called after DB load to warm the cache
+function refreshMinsMaps(){window._minsMaps=buildMinuteMaps(ST.players||[]);}
 const TRANSFER_CORRIDORS={
   'Italy 1':{'England 1':0.7,'Germany 1':0.5,'Spain 1':0.4,'France 1':0.5,'Saudi Arabia 1':0.2},
   'Austria 1':{'Germany 1':0.9,'England 1':0.4,'Italy 1':0.3,'France 1':0.2},
