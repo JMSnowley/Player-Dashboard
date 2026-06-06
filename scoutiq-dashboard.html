@@ -3624,11 +3624,13 @@ function openXI(mode,keepFormation=false){
       {row:'FWD',slots:[{p:lw,label:'LW'},{p:cf,label:'CF'},{p:rw,label:'RW'}]},
     ];
   }
-  document.getElementById('xiPitch').innerHTML=renderXIPitch(xi,scoreOf);
+  document.getElementById('xiPitch').innerHTML=renderXIPitch(xi,scoreOf,mode);
   document.getElementById('xiModal').classList.add('open');
 }
 function closeXI(){document.getElementById('xiModal').classList.remove('open');}
-function renderXIPitch(xi,scoreOf){
+function renderXIPitch(xi,scoreOf,mode='best'){
+  const isXTV=mode==='xtv';
+  const isRatingMode=!isXTV;
   const isLight=document.body.classList.contains('light-mode');
   const pitchBg=isLight?'#263545':'var(--surface2)';
   const la=isLight?'0.5':'0.2',lf=isLight?'0.35':'0.18';
@@ -3647,17 +3649,13 @@ function renderXIPitch(xi,scoreOf){
       const y=n===1?H/2:topMargin+si*spacing;
       const isEmpty=!p;
       const rawScore=p&&scoreOf(p)!=null?parseFloat(scoreOf(p)):null;
-      const isXTV=typeof scoreOf._mode==='undefined'?false:scoreOf._mode==='xtv';
-      // Detect xTV mode by checking if the value is a typical xTV range (non-integer or very large)
-      const looksLikeXTV=rawScore!=null&&(rawScore<200&&rawScore===Math.round(rawScore*10)/10&&rawScore<100||(rawScore%1!==0));
-      const score=rawScore!=null?(rawScore>=1?'£'+rawScore.toFixed(0)+'M':rawScore>=0.1?'£'+(rawScore*1000).toFixed(0)+'k':'—'):'—';
-      // Re-detect: if scoreOf returns values that look like ratings (0-100 integers) vs xTV (floats or with £)
-      const isRatingMode=rawScore!=null&&Number.isInteger(rawScore*10)&&rawScore>=0&&rawScore<=100&&rawScore>1;
-      const displayScore=isRatingMode?rawScore?.toFixed(0):score;
       const sc=rawScore||0;
-      // Colour: green for high rating/high xTV, scale appropriately
-      const scColor=isRatingMode?(sc>=80?'#00e599':sc>=65?'#7fd97f':sc>=50?'#f5c842':sc>=35?'#ff8c42':'#ff4d6a')
-                                :(sc>=50?'#00e599':sc>=20?'#7fd97f':sc>=8?'#f5c842':sc>=3?'#ff8c42':'#ff4d6a');
+      const displayScore=rawScore==null?'—':isXTV
+        ?(sc>=1?'£'+sc.toFixed(0)+'M':sc>=0.1?'£'+(sc*1000).toFixed(0)+'k':'—')
+        :sc.toFixed(0);
+      const scColor=isRatingMode
+        ?(sc>=80?'#00e599':sc>=65?'#7fd97f':sc>=50?'#f5c842':sc>=35?'#ff8c42':'#ff4d6a')
+        :(sc>=50?'#00e599':sc>=20?'#7fd97f':sc>=8?'#f5c842':sc>=3?'#ff8c42':'#ff4d6a');
       const fullName=p?p.name:'—';
       const age=p&&p.age?String(p.age):'';
       const team=p&&p.team?(p.team.length>13?p.team.slice(0,12)+'…':p.team):'';
@@ -5162,8 +5160,11 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // Youth direct value: young players with potential carry market value regardless of current league
   // Bypasses LVM entirely — their value is international/future, not current-league-based
   const _youthAgeFactor={16:2.0,17:1.8,18:1.5,19:1.4,20:1.2,21:1.0,22:0.80}[age]||0;
-  const youthDirectVal=(_youthAgeFactor>0&&dp>=62)?Math.pow(Math.max(0,dp-60),1.6)*_youthAgeFactor*0.0148:0;
   const lv=LEAGUE_VALUE_MULT[league]||0.1;
+  // youthDirectVal is dampened for low-LVM leagues (Australia, Ireland etc.)
+  // to prevent potential-based values wildly exceeding the league's actual market ceiling
+  const _youthLvDamp=lv<1.0?lv:1.0; // LVM<1 → dampen; LVM>=1 → no change
+  const youthDirectVal=(_youthAgeFactor>0&&dp>=62)?Math.pow(Math.max(0,dp-60),1.6)*_youthAgeFactor*0.0148*_youthLvDamp:0;
   const pm=POS_TRANSFER_MULT[pos]||1.0;
   let potPremium=1.0;
   if(age<=26&&effectiveDp>effectiveDr){
@@ -5280,12 +5281,25 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       // Germany 1
       'Bayern München':1.8,'Borussia Dortmund':1.8,
       'RB Leipzig':1.8,'Bayer Leverkusen':1.60,'Eintracht Frankfurt':1.50,
+      'VfB Stuttgart':1.40,'Stuttgart':1.40,'VfL Wolfsburg':1.10,'Wolfsburg':1.10,
+      'Werder Bremen':1.10,"Borussia M'gladbach":1.10,'Borussia Mönchengladbach':1.10,
+      '1. FC Union Berlin':1.00,'Union Berlin':1.00,'TSG 1899 Hoffenheim':1.00,'TSG Hoffenheim':1.00,
+      'SC Freiburg':1.00,'Freiburg':1.00,'1. FC Köln':0.90,'Köln':0.90,
+      '1. FSV Mainz 05':0.90,'Mainz 05':0.90,'1. FC Heidenheim':0.85,'Heidenheim':0.85,
+      'FC St. Pauli':0.85,'St. Pauli':0.85,'FC Augsburg':0.85,'Augsburg':0.85,'FC St Pauli':0.85,
       // Spain 1
       'Real Madrid':1.8,'Barcelona':1.8,'Atlético Madrid':1.8,
       'Athletic Club':1.50,'Real Sociedad':1.60,'Villarreal':1.40,'Sevilla':1.40,
+      'Real Betis':1.30,'Osasuna':0.90,'CA Osasuna':0.90,'Girona':1.10,'Girona FC':1.10,
+      'Celta Vigo':1.00,'Celta de Vigo':1.00,'Valencia':1.00,'Getafe':0.90,
+      'Mallorca':0.85,'RCD Mallorca':0.85,'Alavés':0.80,'Deportivo Alavés':0.80,
+      'Real Oviedo':0.80,'Espanyol':0.90,'RCD Espanyol':0.90,'Levante':0.80,
       // Italy 1 — Napoli(5), Juve(4), Inter(3) top sellers; Atalanta rising
       'Internazionale':1.8,'Juventus':1.8,'Milan':1.8,'Napoli':1.8,'AC Milan':1.8,
-      'Atalanta':1.70,'Roma':1.5,'Lazio':1.5,'Fiorentina':1.5,
+      'Atalanta':1.70,'Roma':1.5,'AS Roma':1.5,'Lazio':1.5,'Fiorentina':1.5,
+      'Bologna':1.10,'Torino':1.00,'Cagliari':0.85,'Parma':0.90,
+      'Hellas Verona':0.85,'Lecce':0.80,'Genoa':0.85,'Udinese':0.90,
+      'Pisa':0.75,'Cremonese':0.80,'Como':0.90,'Sassuolo':0.95,
       // France 2 — league-specific so prestige doesn't carry on promotion
       'Stade Reims|France 2':1.8,'Troyes|France 2':1.3,'Le Havre|France 2':1.3,
       'Paris FC|France 2':1.3,'Angers SCO|France 2':1.3,
@@ -5297,10 +5311,14 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       'Monaco':1.8,'AS Monaco':1.8,
       'Lille':1.70,'Stade Rennais':1.50,'Stade Rennes':1.50,
       'Olympique Lyonnais':1.50,'Olympique de Marseille':1.50,'Olympique Marseille':1.50,
-      'Lens':1.25,'RC Lens':1.25,
+      'Lens':1.25,'RC Lens':1.25,'Nice':1.25,'OGC Nice':1.25,'Brest':1.10,'Stade Brestois 29':1.10,
+      'Toulouse':1.00,'Toulouse FC':1.00,'Nantes':0.90,'Angers':0.90,'Angers SCO':0.90,
       // Netherlands 1
       'Ajax':1.8,'PSV':1.8,'Feyenoord':1.8,
-      'AZ':1.5,'Twente':1.5,'Utrecht':1.5,
+      'AZ':1.5,'AZ Alkmaar':1.5,'Twente':1.5,'FC Twente':1.5,'Utrecht':1.3,'FC Utrecht':1.3,'NEC':1.0,'NEC Nijmegen':1.0,
+      'Go Ahead Eagles':0.95,'Sparta Rotterdam':1.0,'Heerenveen':0.90,'NAC Breda':0.85,
+      'Groningen':0.85,'Volendam':0.80,'Excelsior':0.80,'PEC Zwolle':0.80,
+      'Fortuna Sittard':0.80,'Heracles':0.80,'Heracles Almelo':0.80,
       // Belgium 1
       'Club Brugge':1.8,
       'KRC Genk':1.40,'KAA Gent':1.25,'Genk':1.40,
@@ -5327,13 +5345,14 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       } else if(PRESTIGE_OVERRIDE[c.t]!==undefined){
         pr=PRESTIGE_OVERRIDE[c.t];
       } else if(lv>=4.5){
-        pr=cp>=0.90?1.8:cp>=0.75?1.5:cp>=0.50?1.25:cp>=0.25?1.0:0.80;
+        // Cap at 1.2 for unvalidated clubs — only PRESTIGE_OVERRIDE clubs get higher
+        pr=cp>=0.90?1.2:cp>=0.75?1.1:cp>=0.50?1.0:cp>=0.25?0.90:0.80;
       } else if(lv>=3.5){
-        pr=cp>=0.90?1.8:cp>=0.75?1.3:cp>=0.50?1.0:cp>=0.25?0.90:0.75;
+        pr=cp>=0.90?1.2:cp>=0.75?1.1:cp>=0.50?1.0:cp>=0.25?0.90:0.75;
       } else if(lv>=1.5){
-        pr=cp>=0.90?1.4:cp>=0.75?1.1:cp>=0.50?1.0:0.80;
+        pr=cp>=0.90?1.1:cp>=0.75?1.0:cp>=0.50?0.95:0.85;
       } else {
-        pr=cp>=0.90?1.2:0.90;
+        pr=cp>=0.90?1.1:0.90;
       }
       window._xtvPrestige[`${c.t}|${league}|${p.season||''}`]=pr;
     });
@@ -5553,6 +5572,63 @@ const CLUB_WAGE_BUDGET={
   'AVS SAD':72000,'AVS':72000,'Estoril Praia':45000,'Estoril':45000,
   'Estrela da Amadora SAD':51940,'Estrela Amadora':51940,'CD Tondela':61020,'Tondela':61020,
   // ── Scotland 1 ─────────────────────────────────────────────────
+  // ── MLS ────────────────────────────────────────────────────────
+  'Atlanta United':229980,'Austin FC':148580,'CF Montréal':109400,'Charlotte FC':184630,
+  'Chicago Fire':193030,'Colorado Rapids':134010,'Columbus Crew':140970,'D.C. United':128980,
+  'FC Dallas':142310,'Houston Dynamo':145250,'Inter Miami':263510,'LAFC':221500,
+  'LA Galaxy':183020,'Minnesota United':138760,'Nashville SC':148330,
+  'New York Red Bulls':163290,'New York City FC':198130,
+  'Orlando City SC':134010,'Orlando City':134010,'Philadelphia Union':155520,
+  'Portland Timbers':142020,'Real Salt Lake':119870,'Salt Lake':119870,
+  'San Jose Earthquakes':129440,'Seattle Sounders FC':163000,'Seattle Sounders':163000,
+  'Sporting Kansas City':126500,'Toronto FC':154770,'Vancouver Whitecaps':148240,
+  // ── Saudi Arabia 1 ─────────────────────────────────────────────
+  'Al Ahli':480000,'Al Akhdoud':120000,'Al Ettifaq':180000,'Al Fateh':130000,'Al Feiha':110000,
+  'Al Hazem':105000,'Al Khaleej':100000,'Al Kholood':95000,'Al Riyadh':90000,'Al Shabab':140000,
+  'Al Taawoun':115000,'Al Wahda':200000,'Al-Wahda':200000,'Al Qadsiah':130000,'Al-Qadsiah':130000,
+  // ── France 2 ───────────────────────────────────────────────────
+  'Amiens SC':112510,'Annecy':82380,'Bastia':73470,'Clermont':102140,
+  'Dunkerque':58930,'Grenoble':73470,'Guingamp':91470,'Laval':66020,
+  'Rodez':64950,'Saint-Étienne':194230,'Valenciennes':73470,
+  // ── Poland 1 ───────────────────────────────────────────────────
+  'Arka Gdynia':52410,'Cracovia Kraków':77710,'Cracovia':77710,
+  'Górnik Zabrze':89480,'Górnik':89480,'Jagiellonia Białystok':73500,'Jagiellonia':73500,
+  'Katowice':45000,'Korona Kielce':51890,'Korona':51890,'Motor Lublin':48790,
+  'Ruch Chorzów':49100,'Stal Mielec':54720,'Zagłębie Lubin':64190,'Zagłębie':64190,
+  'Wisła Kraków':64840,'Wisła':64840,
+  // ── Australia 1 ────────────────────────────────────────────────
+  'Adelaide United':42180,'Auckland FC':35000,'Brisbane Roar':38610,
+  'Central Coast Mariners':29470,'Macarthur':39080,'Newcastle Jets':33240,
+  'Perth Glory':35460,'Wellington Phoenix':31190,'Western United':36780,
+  'Western Sydney Wanderers':52000,
+  // ── Switzerland 1 ──────────────────────────────────────────────
+  'Grasshopper':65000,'Grasshopper Club Zürich':65000,'Lausanne Sport':71210,
+  'Lugano':70000,'Luzern':50000,'St. Gallen':48000,'FC St. Gallen':48000,'Winterthur':42180,
+  // ── Ireland 1 ──────────────────────────────────────────────────
+  'Shamrock Rovers':45000,'Derry City':28000,'Drogheda United':18000,'Dundalk':22000,
+  'Galway United':17000,'St. Patrick\'s Athletic':22000,'Waterford FC':16000,
+  'Bohemian FC':20000,'Shelbourne':19000,'Sligo Rovers':16000,
+  // ── Sweden 1 additional ────────────────────────────────────────
+  'Brommapojkarna':35000,'Degerfors':28000,'Elfsborg':52000,'IF Elfsborg':52000,
+  'GAIS':25000,'Halmstad':35000,'IFK Norrköping':55000,'Norrköping':55000,
+  'Kalmar FF':42000,'IK Sirius':40000,'Sirius':40000,
+  // ── Norway 1 additional ────────────────────────────────────────
+  'Aalesund':22000,'FK Aalesund':22000,'KFUM':15000,'KFUM Oslo':15000,
+  'Lillestrøm':38000,'Lillestrøm SK':38000,'IK Start':18000,'Start':18000,
+  // ── England 2 additional ───────────────────────────────────────
+  'Preston North End':384810,'Queens Park Rangers':395260,'Swansea City':401600,
+  // ── Brazil 1 additional ────────────────────────────────────────
+  'Chapecoense':120000,'Coritiba':140000,'Mirassol':95000,'Remo':80000,'Vitória':110000,
+  'Athletico Paranaense':200000,'Athletic Club Paranaense':200000,
+  'Red Bull Bragantino':180000,'Bragantino':180000,
+  // ── Hungary 1 additional ───────────────────────────────────────
+  'Diósgyőr':55000,'Győri ETO':62000,'Kazincbarcika':33000,'MTK':118370,
+  'Nyíregyháza Spartacus':45000,'Paks':55000,
+  // ── England 5 estimates ────────────────────────────────────────
+  'Aldershot Town':25000,'Altrincham':22000,'Boreham Wood':20000,'FC Halifax Town':28000,
+  'Gateshead':35000,'Hartlepool United':25000,'Solihull Moors':22000,'Woking':20000,
+  'York City':25000,
+  // ── Scotland 1 ─────────────────────────────────────────────────
   'Celtic':180000,'Rangers':160000,'Hearts':55000,'Heart of Midlothian':55000,
   'Hibernian':45000,'Aberdeen':38000,'Motherwell':22000,'Kilmarnock':20000,
   'St. Mirren':18000,'St Mirren':18000,'Dundee United':18000,
@@ -5667,6 +5743,14 @@ function buildMinuteMaps(players){
   for(const entries of Object.values(nameSeasonAllClubs)){
     const clubs=new Set(entries.map(e=>e.team));
     if(clubs.size<2) continue; // only multi-club within same season
+    // Verify these are the same player — check ages are consistent (within 1yr for data variance)
+    const ages=entries.map(e=>e.age||0).filter(a=>a>0);
+    const minAge=Math.min(...ages), maxAge=Math.max(...ages);
+    if(maxAge-minAge>1) continue; // age gap > 1yr → different players with same name, skip
+    // Only apply boost for transfers within the SAME league
+    // Cross-league transfers (e.g. Sano: Mainz→NEC) should not trigger the boost
+    const leagues=new Set(entries.map(e=>e.leagueTag||''));
+    if(leagues.size>1) continue; // cross-league transfer — no boost
     // Sort by capturedAt to find the most recent (current) club
     const sorted=[...entries].sort((a,b)=>new Date(b.capturedAt||0)-new Date(a.capturedAt||0));
     const current=sorted[0];
