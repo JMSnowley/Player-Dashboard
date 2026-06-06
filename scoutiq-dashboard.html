@@ -4321,6 +4321,18 @@ async function prefetchAllBadges(){
 // PLAYER PANEL
 // ═══════════════════════════════════
 function openPanel(id){ST.panelId=id;ST.panelTab='overview';ST.metricView='normal';document.querySelectorAll('.pp-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderPanel();document.getElementById('playerPanel').classList.add('open');}
+async function deleteSinglePlayer(id){
+  if(!confirm('Delete this player? This cannot be undone.')) return;
+  const idx=ST.players.findIndex(p=>p.id===id);
+  if(idx===-1){showToast('Player not found','error');return;}
+  ST.players.splice(idx,1);
+  document.getElementById('playerPanel').classList.remove('open');
+  ST.panelId=null;
+  renderTable();
+  showToast('Player deleted','success');
+  saveState();
+  queueGitHubSave(saveData);
+}
 function closePanel(){document.getElementById('playerPanel').classList.remove('open');ST.panelId=null;}
 function setPPTab(tab,el){ST.panelTab=tab;document.querySelectorAll('.pp-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderPanel();}
 function setMV(v){ST.metricView=v;renderPanel();}
@@ -5091,7 +5103,7 @@ const LEAGUE_VALUE_MULT={
   'Greece 1':0.35,'Croatia 1':0.25,'Serbia 1':0.20,
   'Norway 1':0.50,'Sweden 1':0.50,'Denmark 1':0.90,'Poland 1':0.22,
   'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Saudi Arabia 1':0.35,'Brazil 1':3.0,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.35,'Ecuador 1':0.30,'Chile 1':0.30,'Uruguay 1':0.35,
-  'Bulgaria 1':0.18,'Ukraine 1':0.50,'Croatia 1':0.25,'UAE 1':0.35,'Romania 1':0.22,
+  'Bulgaria 1':0.18,'Ukraine 1':0.50,'Croatia 1':0.25,'UAE 1':0.35,'Romania 1':0.55,
 };
 const LEAGUE_TRANSFER_BUDGET={
   'England 1':50,'England 2':5,'England 3':0.8,'England 4':0.3,
@@ -5120,8 +5132,8 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const dp=displayPotential(p)??dr;
   const age=p.age||25; const pos=p.pos||'CM';
   const league=p.leagueTag||''; const leaguePct=p.leaguePct??50;
-  const ageCurve={18:0.55,19:0.65,20:0.75,21:0.82,22:0.90,23:1.0,24:1.0,25:1.0,26:1.0,
-    27:0.88,28:0.75,29:0.62,30:0.48,31:0.28,32:0.18,33:0.10,34:0.06};
+  const ageCurve={16:0.45,17:0.52,18:0.60,19:0.68,20:0.77,21:0.85,22:0.92,23:1.0,24:1.0,25:1.0,26:1.0,
+    27:0.92,28:0.82,29:0.70,30:0.58,31:0.45,32:0.32,33:0.20,34:0.11,35:0.06};
   const ageMult=ageCurve[age]||(age>34?0.05:0.55);
   const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.20;
   // Steeper exponential with higher floor — creates separation at top, collapses lower end
@@ -5261,23 +5273,22 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   }
   const prestigeMult=window._xtvPrestige[presKey]||1.0;
   const pctMult=0.90+0.25*(leaguePct/100);
-  // League minimum floor — any player with meaningful presence in that league
-  // commands a minimum fee regardless of age/rating
-  const LEAGUE_MIN_VALUE={
-    'England 1':0.5,'England 2':0.10,'England 3':0.03,'England 4':0.015,'England 5':0.005,
-    'Scotland 1':0.05,'Scotland 2':0.03,'Scotland 3':0.004,'Scotland 4':0.002,
-    'Germany 1':0.40,'Germany 2':0.08,'Spain 1':0.40,'Spain 2':0.08,
-    'Italy 1':0.30,'Italy 2':0.06,'France 1':0.20,'France 2':0.05,
-    'Netherlands 1':0.20,'Netherlands 2':0.05,
-    'Belgium 1':0.10,'Portugal 1':0.20,'Portugal 2':0.03,
-    'Austria 1':0.15,'Switzerland 1':0.15,'Denmark 1':0.20,'Sweden 1':0.15,
-    'Norway 1':0.05,'Poland 1':0.05,'Czech Republic 1':0.05,'Greece 1':0.04,
-    'Turkey 1':0.08,'Croatia 1':0.04,'Serbia 1':0.02,'Bulgaria 1':0.02,
-    'Ukraine 1':0.05,'Romania 1':0.02,'Slovakia 1':0.02,'Hungary 1':0.02,
-    'Saudi Arabia 1':0.10,'UAE 1':0.10,'USA 1':0.04,'MLS':0.04,'Australia 1':0.02,
-    'Brazil 1':0.08,'Brazil 2':0.02,'Argentina 1':0.04,'Colombia 1':0.02,'Ecuador 1':0.02,'Chile 1':0.02,'Uruguay 1':0.02,
-  };
-  const leagueMin=(LEAGUE_MIN_VALUE[league]||0.005)*((p.minutes||0)>=300?1:0.5);
+  // Dynamic market floor: scales with minutes and age — a regular in a top league
+  // always commands something, but old/fringe players trail off naturally
+  const _mktBase={'England 1':2.0,'England 2':0.6,'England 3':0.18,'England 4':0.06,'England 5':0.02,
+    'Germany 1':1.6,'Germany 2':0.4,'Spain 1':1.6,'Spain 2':0.35,
+    'Italy 1':1.5,'Italy 2':0.35,'France 1':1.2,'France 2':0.25,
+    'Netherlands 1':0.8,'Netherlands 2':0.12,'Belgium 1':0.5,'Portugal 1':0.8,'Portugal 2':0.12,
+    'Scotland 1':0.25,'Scotland 2':0.06,'Scotland 3':0.015,'Scotland 4':0.008,
+    'Austria 1':0.20,'Switzerland 1':0.25,'Denmark 1':0.25,'Sweden 1':0.12,
+    'Norway 1':0.12,'Czech Republic 1':0.18,'Turkey 1':0.35,'Greece 1':0.20,
+    'Romania 1':0.15,'Bulgaria 1':0.08,'Croatia 1':0.12,'Poland 1':0.12,
+    'Brazil 1':0.25,'Brazil 2':0.05,'Argentina 1':0.15,
+    'Colombia 1':0.06,'Ecuador 1':0.05,'Chile 1':0.05,'Uruguay 1':0.06,
+    'Saudi Arabia 1':0.30,'UAE 1':0.20,'MLS':0.15,'USA 1':0.15,'Australia 1':0.05};
+  const _minsF=Math.min(1.0,(p.minutes||0)/1800);
+  const _ageF=Math.max(0.10,1.0-Math.max(0,(p.age||25)-30)*0.15);
+  const leagueMin=(_mktBase[league]||0.03)*_minsF*_ageF;
   // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top club
   // in a recognised youth pipeline league signals a major market premium.
   // Only applies to leagues with strong international youth sale history.
@@ -5285,10 +5296,12 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // Big 5: England, Germany, Spain, Italy, France
   // Pipeline 2: Portugal, Netherlands (Benfica/Ajax level — regular big-fee sales)
   // Pipeline 3: Denmark, Austria, Switzerland, Sweden (Nordsjælland/Salzburg/Basel level)
+  // Pipeline 4: Eastern Europe elite clubs — FCSB, Ludogorets, Slavia etc.
   // Saudi/Turkey intentionally excluded
   const ELITE_YOUTH_BIG5=new Set(['England 1','Germany 1','Spain 1','Italy 1','France 1']);
   const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1']);
   const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1','Norway 1','USA 1','MLS']);
+  const ELITE_YOUTH_P4=new Set(['Romania 1','Bulgaria 1','Czech Republic 1','Croatia 1','Greece 1','Poland 1']);
   // South American pipeline — separate tiers
   const ELITE_YOUTH_BRAZIL=new Set(['Brazil 1','Brazil 2']);
   const ELITE_YOUTH_ARGENTINA=new Set(['Argentina 1']);
@@ -5302,6 +5315,8 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       baseMult=prestigeMult>=1.8?6.0:prestigeMult>=1.5?4.0:0;
     } else if(ELITE_YOUTH_P3.has(league)){
       baseMult=prestigeMult>=1.8?2.0:prestigeMult>=1.5?1.5:0;
+    } else if(ELITE_YOUTH_P4.has(league)){
+      baseMult=prestigeMult>=1.8?2.0:prestigeMult>=1.5?1.3:0;
     } else if(ELITE_YOUTH_BRAZIL.has(league)){
       baseMult=prestigeMult>=1.8?3.0:prestigeMult>=1.5?2.0:0;
     } else if(ELITE_YOUTH_ARGENTINA.has(league)){
@@ -6996,7 +7011,12 @@ function calcSimilarity(p,x){
   const xSkills=computePlayerSkillScores(x);
   const skillKeys=Object.keys(pSkills).filter(k=>xSkills[k]!=null);
   const skillSim=skillKeys.length?skillKeys.reduce((s,k)=>s+(100-Math.abs(pSkills[k]-xSkills[k])),0)/skillKeys.length:50;
-  return Math.round(roleSim*0.25+techSim*0.20+skillSim*0.25+physSim*0.12+ageSim*0.10+wySim*0.08);
+    // xTV proximity: players with similar market value are similar calibre
+  const pXTV=calcPlayerValue(p)||0;
+  const xXTV=calcPlayerValue(x)||0;
+  const xtvMax=Math.max(pXTV,xXTV,0.1);
+  const xtvSim=Math.max(0,100-Math.abs(pXTV-xXTV)/xtvMax*100);
+  return Math.round(roleSim*0.23+techSim*0.19+skillSim*0.23+physSim*0.11+ageSim*0.09+wySim*0.07+xtvSim*0.08);
 }
 
 function buildFOSimilar(p,seasons){
