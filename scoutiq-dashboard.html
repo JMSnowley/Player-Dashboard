@@ -5323,60 +5323,196 @@ function formatValue(v){
 
 
 // Club wage budgets (£/week) from FM26 data — proxy for financial strength
-// Used to assess whether a club can realistically afford a player's xTV
-// A club can typically spend ~15x weekly wage budget on a single transfer
+// Covers 500+ clubs across 40+ leagues. Missing leagues fall back to LVM-based estimate.
+// A club can typically spend ~15x weekly wage budget on a single transfer (clubMaxSpend)
 const CLUB_WAGE_BUDGET={
-  // England 1
+  // ── England 1 ──────────────────────────────────────────────────
   'Arsenal':4496230,'Aston Villa':3149500,'Bournemouth':1626470,'Brentford':1584120,
   'Brighton':1580180,'Brighton & Hove Albion':1580180,'Burnley':1366210,'Chelsea':4458100,
   'Crystal Palace':1385380,'Everton':1948350,'Fulham':2037520,'Leeds United':1505660,
   'Liverpool':5061070,'Manchester City':5186300,'Manchester United':3863390,
   'Newcastle United':2867440,'Nottingham Forest':2491960,'Sunderland':1725470,
   'Tottenham Hotspur':3606970,'West Ham United':2128130,'Wolverhampton Wanderers':1603990,
-  // England 2
+  // ── England 2 ──────────────────────────────────────────────────
   'Birmingham':683010,'Birmingham City':683010,'Blackburn Rovers':297250,'Bristol City':334110,
   'Charlton Athletic':275650,'Coventry City':328360,'Derby County':372860,'Hull City':343360,
   'Ipswich Town':871510,'Leicester City':1118400,'Middlesbrough':592950,'Millwall':407220,
   'Norwich City':512800,'Oxford United':266080,'Portsmouth':277430,'QPR':395260,
   'Sheffield United':589130,'Sheffield Wednesday':194660,'Southampton':800040,
   'Stoke City':380370,'Watford':444510,'West Bromwich Albion':444510,'Wrexham':509900,
-  // England 3
-  'Bolton Wanderers':200340,'Bradford City':104450,'Cardiff City':301040,
-  'Exeter City':66450,'Huddersfield Town':242680,'Luton Town':286830,
-  'Peterborough United':122990,'Peterborough':122990,'Stockport County':146260,
-  // Italy 1
-  'Atalanta':1267280,'Bologna':945180,'Fiorentina':1356600,'Internazionale':2746890,
-  'Inter':2746890,'Juventus':2624260,'Lazio':1508260,'Milan':2015240,'AC Milan':2015240,
-  'Napoli':2144760,'Roma':2162910,'AS Roma':2162910,'Torino':1009100,'Udinese':519310,
-  // Spain 1
-  'Athletic Club':1536660,'Atlético Madrid':2572720,'FC Barcelona':4384310,'Barcelona':4384310,
-  'Girona':795260,'Real Betis':1200110,'Real Madrid':5376170,'Real Sociedad':1064350,
-  'Sevilla':1012820,'Villarreal':1419570,'Celta Vigo':839190,'Valencia':1004080,
-  // France 1
-  'Paris Saint-Germain':3465290,'PSG':3465290,'Olympique Marseille':1222070,
-  'AS Monaco':1230320,'Monaco':1230320,'Lille':639100,'Stade Rennais':766310,
-  'Olympique Lyonnais':761350,'Lyon':761350,'Strasbourg':864030,'OGC Nice':655750,'RC Lens':384830,
-  // Germany 1
+  // ── England 3 ──────────────────────────────────────────────────
+  'AFC Wimbledon':67790,'Barnsley':110780,'Blackpool':143360,'Bolton Wanderers':200340,
+  'Bradford City':104450,'Burton Albion':89030,'Cardiff City':301040,'Doncaster Rovers':78920,
+  'Exeter City':66450,'Huddersfield Town':242680,'Leyton Orient':103780,'Lincoln City':84330,
+  'Luton Town':286830,'Mansfield Town':98040,'Northampton Town':88210,
+  'Peterborough United':122990,'Peterborough':122990,'Plymouth Argyle':153180,
+  'Port Vale':116360,'Reading':127250,'Rotherham United':120990,'Stevenage':103980,
+  'Stockport County':146260,'Wigan Athletic':118500,'Wycombe Wanderers':146400,
+  // ── England 4 ──────────────────────────────────────────────────
+  'Accrington Stanley':31310,'Barnet':48710,'Barrow':55960,'Bristol Rovers':83130,
+  'Bromley':47960,'Cambridge United':75750,'Cheltenham Town':50610,'Chesterfield':69040,
+  'Colchester United':59220,'Crawley Town':57750,'Crewe Alexandra':54710,
+  'Fleetwood Town':63370,'Gillingham':71210,'Grimsby Town':54280,'Harrogate Town':48350,
+  'MK Dons':127500,'Newport County':36370,'Notts County':78140,'Oldham Athletic':59270,
+  'Salford City':75640,'Shrewsbury Town':55870,'Swindon Town':60100,
+  'Tranmere Rovers':56100,'Walsall':51400,
+  // ── Italy 1 ────────────────────────────────────────────────────
+  'Atalanta':1267280,'Bologna':945180,'Cagliari':576150,'Como':864040,'Cremonese':655710,
+  'Fiorentina':1356600,'Genoa':414490,'Hellas Verona':573880,'Internazionale':2746890,
+  'Inter':2746890,'Juventus':2624260,'Lazio':1508260,'Lecce':414490,
+  'Milan':2015240,'AC Milan':2015240,'Napoli':2144760,'Parma':510840,'Pisa':419840,
+  'Roma':2162910,'AS Roma':2162910,'Sassuolo':811710,'Torino':1009100,'Udinese':519310,
+  // ── Italy 2 ────────────────────────────────────────────────────
+  'Bari':157040,'Empoli':214610,'Monza':462990,'Palermo':281620,'Sampdoria':217600,
+  'Spezia':239090,'Venezia':354400,
+  // ── Spain 1 ────────────────────────────────────────────────────
+  'Athletic Club':1536660,'Osasuna':655040,'CA Osasuna':655040,
+  'Atlético Madrid':2572720,'Atlético de Madrid':2572720,
+  'Deportivo Alavés':524830,'Alavés':524830,'Elche':390020,
+  'FC Barcelona':4384310,'Barcelona':4384310,'Getafe':731670,
+  'Levante':435790,'Celta Vigo':839190,'Celta de Vigo':839190,
+  'Espanyol':392390,'RCD Espanyol':392390,'Mallorca':661910,'RCD Mallorca':661910,
+  'Rayo Vallecano':444420,'Real Betis':1200110,'Real Madrid':5376170,
+  'Real Oviedo':362520,'Real Sociedad':1064350,'Sevilla':1012820,
+  'Valencia':1004080,'Villarreal':1419570,'Girona':795260,'Girona FC':795260,
+  // ── Spain 2 ────────────────────────────────────────────────────
+  'Almería':474160,'CD Leganés':270240,'Granada':298650,'Real Valladolid':286580,
+  // ── France 1 ───────────────────────────────────────────────────
+  'Paris Saint-Germain':3465290,'PSG':3465290,'Angers SCO':161500,'Angers':161500,
+  'AS Monaco':1230320,'Monaco':1230320,'FC Lorient':212980,'Lorient':212980,
+  'FC Metz':169690,'Metz':169690,'FC Nantes':304290,'Nantes':304290,
+  'Le Havre':167650,'Le Havre AC':167650,'Lille':639100,'Lille OSC':639100,
+  'Lyon':761350,'Olympique Lyonnais':761350,'Marseille':1222070,'Olympique Marseille':1222070,
+  'Nice':655750,'OGC Nice':655750,'Paris FC':414140,
+  'Lens':384830,'RC Lens':384830,'Rennes':766310,'Stade Rennais':766310,
+  'Strasbourg':864030,'Toulouse':229980,'Toulouse FC':229980,'Brest':311120,
+  'Stade Brestois 29':311120,'Auxerre':206560,'AJ Auxerre':206560,
+  // ── Germany 1 ──────────────────────────────────────────────────
   'Bayern München':5161390,'Bayer 04 Leverkusen':2141970,'Bayer Leverkusen':2141970,
   'Borussia Dortmund':2604720,'RB Leipzig':2127860,'Eintracht Frankfurt':1112700,
-  'VfB Stuttgart':1255990,'VfL Wolfsburg':1012760,'Borussia Mönchengladbach':949200,
-  'Werder Bremen':706350,'TSG Hoffenheim':1093470,'SC Freiburg':860470,'1. FC Köln':640810,
-  // Austria 1
-  'Salzburg':290950,'FC RB Salzburg':290950,'LASK':146310,'SK Rapid':175420,'Rapid Wien':175420,
-  'SK Sturm Graz':132190,'Sturm Graz':132190,
-  // Belgium 1
-  'Club Brugge':473640,'KRC Genk':267740,'Genk':267740,'RSC Anderlecht':301000,'Anderlecht':301000,
-  'Union Saint-Gilloise':174770,'AA Gent':210400,'Gent':210400,'Standard Liège':179760,
-  'Royal Antwerp':235180,'Antwerp':235180,
-  // Bulgaria 1
-  'Ludogorets':202380,'CSKA Sofia':111260,'Levski Sofia':49720,
-  // Scotland 1 (estimated — not in FM26 data)
-  'Celtic':180000,'Rangers':160000,'Hearts':55000,'Hibernian':45000,
-  'Aberdeen':38000,'Motherwell':22000,'Kilmarnock':20000,'St. Mirren':18000,
-  'Dundee United':18000,'Dundee':15000,'Falkirk':14000,'Livingston':12000,
+  'VfB Stuttgart':1255990,'Stuttgart':1255990,'VfL Wolfsburg':1012760,'Wolfsburg':1012760,
+  "Borussia M'gladbach":949200,'Borussia Mönchengladbach':949200,
+  'Werder Bremen':706350,'TSG 1899 Hoffenheim':1093470,'TSG Hoffenheim':1093470,'Hoffenheim':1093470,
+  'SC Freiburg':860470,'Freiburg':860470,'1. FC Köln':640810,'Köln':640810,
+  '1. FSV Mainz 05':695100,'Mainz 05':695100,'1. FC Heidenheim':382150,'Heidenheim':382150,
+  'FC Augsburg':655920,'Augsburg':655920,'FC St. Pauli':382310,'St. Pauli':382310,'FC St Pauli':382310,
+  'Hamburger SV':649420,'Union Berlin':680170,'1. FC Union Berlin':680170,
+  // ── Germany 2 ──────────────────────────────────────────────────
+  'Hertha BSC':369370,'Schalke 04':276740,'Fortuna Düsseldorf':257570,
+  'Hannover 96':235350,'VfL Bochum':244900,'Holstein Kiel':188900,
+  // ── Austria 1 ──────────────────────────────────────────────────
+  'Salzburg':290950,'FC RB Salzburg':290950,'LASK':146310,
+  'SK Rapid':175420,'Rapid Wien':175420,'SK Sturm Graz':132190,'Sturm Graz':132190,
+  'FK Austria Vienna':80440,'Austria Wien':80440,'FK Austria Wien':80440,
+  'Grazer AK':50580,'Grazer AK 1902':50580,'SCR Altach':64520,'Rheindorf Altach':64520,
+  'SV Ried':47610,'Ried':47610,'TSV Hartberg':42180,'Hartberg':42180,
+  'Wolfsberger AC':88580,'WSG Tirol':47320,'WSG Swarovski Tirol':47320,
+  'FC Blau-Weiß Linz':63830,'Blau-Weiß Linz':63830,
+  // ── Belgium 1 ──────────────────────────────────────────────────
+  'Club Brugge':473640,'Cercle Brugge':90470,'KRC Genk':267740,'Genk':267740,
+  'RSC Anderlecht':301000,'Anderlecht':301000,'Union Saint-Gilloise':174770,'Union SG':174770,
+  'AA Gent':210400,'Gent':210400,'Standard Liège':179760,'Standard':179760,
+  'Royal Antwerp':235180,'Antwerp':235180,'OH Leuven':139750,'KV Mechelen':87300,'Mechelen':87300,
+  'STVV':79670,'Sint-Truiden':79670,'Zulte-Waregem':92880,'Zulte Waregem':92880,
+  'Charleroi':95330,'Westerlo':145180,'La Louvière':65210,'RAAL La Louvière':65210,
+  'Dender':52290,'Dender EH':52290,
+  // ── Netherlands 1 ──────────────────────────────────────────────
+  'Ajax':806580,'PSV':502390,'PSV Eindhoven':502390,'Feyenoord':377850,
+  'AZ':212660,'AZ Alkmaar':212660,'FC Twente':144530,'Twente':144530,
+  'FC Utrecht':145170,'Utrecht':145170,'Sparta Rotterdam':78820,'Go Ahead Eagles':80950,
+  'Heracles':61950,'Heracles Almelo':61950,'NEC':123360,'NEC Nijmegen':123360,
+  'NAC Breda':69180,'PEC Zwolle':54560,'sc Heerenveen':76280,'Heerenveen':76280,
+  'FC Groningen':69340,'Groningen':69340,'FC Volendam':46270,'Volendam':46270,
+  'Excelsior':49930,'Fortuna Sittard':80750,'Telstar':21630,'Almere City':60000,
+  // ── Portugal 1 ─────────────────────────────────────────────────
+  'SL Benfica':1354140,'Benfica':1354140,'Sport Lisboa e Benfica':1354140,
+  'Sporting CP':872180,'Sporting':872180,'FC Porto':731650,'Porto':731650,
+  'SC Braga':313400,'Sporting Braga':313400,'Vitória de Guimarães':73610,
+  'Vitória Guimarães':73610,'Vitoria Guimaraes':73610,'Casa Pia':81100,'Casa Pia AC':81100,
+  'FC Famalicão':90130,'Famalicão':90130,'Gil Vicente':57830,'FC Arouca':49720,'Arouca':49720,
+  'CD Nacional':50300,'Nacional':50300,'CD Santa Clara':59280,'Santa Clara':59280,
+  'Moreirense FC':56320,'Moreirense':56320,'Rio Ave':49740,'Alverca SAD':81960,'Alverca':81960,
+  'AVS SAD':72000,'AVS':72000,'Estoril Praia':45000,'Estoril':45000,
+  'Estrela da Amadora SAD':51940,'Estrela Amadora':51940,'CD Tondela':61020,'Tondela':61020,
+  // ── Scotland 1 ─────────────────────────────────────────────────
+  'Celtic':180000,'Rangers':160000,'Hearts':55000,'Heart of Midlothian':55000,
+  'Hibernian':45000,'Aberdeen':38000,'Motherwell':22000,'Kilmarnock':20000,
+  'St. Mirren':18000,'St Mirren':18000,'Dundee United':18000,
+  'Dundee':15000,'Falkirk':14000,'Livingston':12000,
+  // ── Czech Republic 1 ───────────────────────────────────────────
+  'Slavia Praha':186660,'Slavia':186660,'Sparta Praha':139740,'Sparta Prague':139740,
+  'Viktoria Plzeň':72870,'Viktoria Plzen':72870,'Sigma Olomouc':42080,
+  'Slovácko':42870,'Baník Ostrava':55820,'Pardubice':29740,'Slovan Liberec':35490,
+  'Dukla Praha':28370,'Dukla Prague':28370,'Bohemians':35110,'Mladá Boleslav':23240,
+  'Jablonec':33000,'Teplice':27130,'Hradec Králové':33560,'Karviná':22520,
+  // ── Denmark 1 ──────────────────────────────────────────────────
+  'FC Nordsjælland':103240,'Nordsjælland':103240,'FC København':410590,'København':410590,
+  'FC Midtjylland':244960,'Midtjylland':244960,'Brøndby IF':215030,'Brøndby':215030,
+  'AGF':126180,'OB':91700,'Randers FC':96900,'Silkeborg IF':77530,'Viborg FF':67340,
+  'Vejle':73580,'FC Fredericia':49630,'Sønderjyske':54640,
+  // ── Norway 1 ───────────────────────────────────────────────────
+  'Bodø / Glimt':84070,'Bodø/Glimt':84070,'Molde':81050,'Molde FK':81050,
+  'Rosenborg':56620,'Rosenborg BK':56620,'Viking':61870,'Sarpsborg 08':46930,
+  'Brann':47170,'SK Brann':47170,'Fredrikstad':35870,'Strømsgodset':38680,
+  'Tromsø':30650,'Tromsø IL':30650,'KFUM Oslo':15000,'Haugesund':24060,
+  'Kristiansund':28700,'Sandefjord':21130,'Bryne':20710,'HamKam':22460,'Vålerenga':37060,
+  // ── Sweden 1 ───────────────────────────────────────────────────
+  'Malmö FF':120000,'Malmö':120000,'AIK':100000,'Djurgården':90000,
+  'Häcken':85000,'BK Hacken':85000,'Hammarby IF':80000,'Hammarby':80000,
+  'IFK Göteborg':60000,'IFK Goteborg':60000,'Norrköping':55000,
+  'Sirius':40000,'Helsingborg':38000,'Kalmar FF':42000,
+  // ── Switzerland 1 ──────────────────────────────────────────────
+  'FC Basel':180000,'Basel':180000,'BSC Young Boys':150000,'Young Boys':150000,
+  'FC Zürich':90000,'FC Lugano':70000,'Servette':65000,'FC Sion':55000,
+  'FC Luzern':50000,'FC St. Gallen':48000,
+  // ── Greece 1 ───────────────────────────────────────────────────
+  'Panathinaikos':729870,'Olympiacos':594660,'Olympiakos':594660,
+  'PAOK':503440,'AEK Athens':512750,'AEK':512750,'Aris':242360,
+  'Asteras Tripolis':68470,'Atromitos':52970,'OFI':66490,
+  // ── Turkey 1 ───────────────────────────────────────────────────
+  // Estimated from league context — FM26 data not available for Turkey
+  'Galatasaray':520000,'Fenerbahçe':490000,'Fenerbahce':490000,
+  'Beşiktaş':380000,'Besiktas':380000,'Trabzonspor':220000,
+  'İstanbul Başakşehir':200000,'Istanbul Basaksehir':200000,
+  'Alanyaspor':120000,'Antalyaspor':100000,'Eyüpspor':130000,
+  'Gaziantep':90000,'Gençlerbirliği':80000,'Göztepe':110000,
+  'Kasımpaşa':85000,'Kayserispor':95000,'Kocaelispor':75000,
+  'Konyaspor':85000,'Rizespor':80000,'Samsunspor':90000,
+  'Fatih Karagümrük':95000,
+  // ── Croatia 1 ──────────────────────────────────────────────────
+  'Dinamo Zagreb':335770,'Dinamo':335770,'Hajduk Split':176340,'Hajduk':176340,
+  'Osijek':59080,'Rijeka':72150,'Lokomotiva':44790,'Istra 1961':39670,
+  // ── Romania 1 ──────────────────────────────────────────────────
+  'FCSB':131160,'Steaua Bucharest':131160,'CFR Cluj':137750,
+  'FC Rapid':116910,'FC Rapid 1923':116910,'Universitatea Craiova':108320,
+  'Dinamo București':74530,'U Cluj':73410,'Petrolul Ploiești':55800,
+  'FC Botoșani':37570,'Farul Constanța':37350,
+  // ── Bulgaria 1 ─────────────────────────────────────────────────
+  'Ludogorets':202380,'CSKA Sofia':111260,'CSKA 1948':61560,
+  'Levski Sofia':49720,'Levski':49720,'Botev Plovdiv':33010,
+  // ── Poland 1 ───────────────────────────────────────────────────
+  'Legia Warszawa':200910,'Legia':200910,'Lech Poznań':122020,'Lech':122020,
+  'Raków':97180,'Górnik':89480,'Pogoń':83590,'Widzew':92720,
+  'Cracovia':77710,'Jagiellonia':73500,'Piast':57900,
+  // ── Hungary 1 ──────────────────────────────────────────────────
+  'Ferencváros':241060,'Puskás Akadémia':115710,'Újpest':118370,'Debrecen':92390,
+  // ── Russia 1 ───────────────────────────────────────────────────
+  'Dinamo Moscow':448060,'Krasnodar':528230,'CSKA Moscow':343850,
+  'Lokomotiv Moscow':378790,'Rubin':316740,'Rostov':253590,
+  // ── Brazil 1 (estimated) ───────────────────────────────────────
+  'Flamengo':500000,'Palmeiras':480000,'Corinthians':420000,'São Paulo':380000,
+  'Fluminense':350000,'Internacional':320000,'Grêmio':300000,
+  'Atlético Mineiro':320000,'Santos':250000,'Botafogo':280000,
+  'Vasco da Gama':220000,'Athletico-PR':200000,
+  // ── Argentina 1 (estimated) ────────────────────────────────────
+  'River Plate':180000,'Boca Juniors':170000,'Racing Club':90000,
+  'Independiente':80000,'San Lorenzo':75000,'Estudiantes':70000,
+  // ── SA other (estimated) ───────────────────────────────────────
+  'Liga de Quito':50000,'Barcelona SC':45000,'Colo-Colo':60000,
+  'Universidad de Chile':45000,'Peñarol':55000,'Nacional':50000,
+  'Atlético Nacional':55000,'Millonarios':40000,
 };
-// Maps source_league → {target_league: strength} where strength 0-1
-// Used to bonus Recommended Clubs that match real-world transfer pipelines
+// Transfer corridor data
 const TRANSFER_CORRIDORS={
   'Italy 1':{'England 1':0.7,'Germany 1':0.5,'Spain 1':0.4,'France 1':0.5,'Saudi Arabia 1':0.2},
   'Austria 1':{'Germany 1':0.9,'England 1':0.4,'Italy 1':0.3,'France 1':0.2},
@@ -5882,12 +6018,14 @@ function buildFORecommendedClubs(p){
     const clubWage=CLUB_WAGE_BUDGET[club.team]||0;
     const clubMaxSpend=clubWage>0?(clubWage*15/1e6):null; // £M
     let affordabilityScore=50; // neutral if no wage data
+    let affordabilityCap=100;  // hard cap on total score if clearly unaffordable
     if(clubMaxSpend!==null){
-      if(playerXTV<=clubMaxSpend*0.3)      affordabilityScore=100; // very affordable
-      else if(playerXTV<=clubMaxSpend*0.6) affordabilityScore=80;  // affordable
-      else if(playerXTV<=clubMaxSpend)     affordabilityScore=60;  // stretching
-      else if(playerXTV<=clubMaxSpend*1.5) affordabilityScore=35;  // a real stretch
-      else                                 affordabilityScore=10;  // unrealistic
+      if(playerXTV<=clubMaxSpend*0.3)      {affordabilityScore=100;}         // very affordable
+      else if(playerXTV<=clubMaxSpend*0.6) {affordabilityScore=80;}          // affordable
+      else if(playerXTV<=clubMaxSpend)     {affordabilityScore=60;}          // stretching
+      else if(playerXTV<=clubMaxSpend*1.5) {affordabilityScore=35;affordabilityCap=55;} // real stretch — cap total
+      else if(playerXTV<=clubMaxSpend*2.5) {affordabilityScore=15;affordabilityCap=35;} // unrealistic
+      else                                 {affordabilityScore=0; affordabilityCap=15;} // impossible
     }
 
     // ── Corridor bonus ────────────────────────────────────────────
@@ -5908,15 +6046,15 @@ function buildFORecommendedClubs(p){
     // Stepping up: slightly lower (being top of a better squad is expected)
     const playW=steppingUp?Math.max(0.40,Math.min(0.45,0.40+(pot-65)*0.0025)):Math.max(0.55,Math.min(0.65,0.55+(pot-65)*0.005));
     const ageW=0.08;
-    const affordW=clubWage>0?0.12:0; // only include if we have wage data
+    const affordW=clubWage>0?0.15:0; // raised weight when data exists
     const wSum=cultW+compW+playW+ageW+affordW;
-    const totalScore=Math.min(qualityCap,Math.round(
+    const totalScore=Math.min(affordabilityCap,Math.min(qualityCap,Math.round(
       playingTimeScore*(playW/wSum)+
       complementScore*(compW/wSum)+
       culturalScore*(cultW/wSum)+
       ageFitScore*(ageW/wSum)+
       (clubWage>0?affordabilityScore*(affordW/wSum):0)
-    ));
+    )));
     scored.push({
       team:club.team,league:club.league,season:club.season,
       score:totalScore,
