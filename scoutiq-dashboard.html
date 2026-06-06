@@ -591,6 +591,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <div class="pp-tab active" onclick="setPPTab('overview',this)">Overview</div>
     <div class="pp-tab" onclick="setPPTab('roles',this)">Roles & Skills</div>
     <div class="pp-tab" onclick="setPPTab('metrics',this)">Metrics</div>
+    <div class="pp-tab" onclick="setPPTab('clubs',this)">Clubs & Players</div>
     <div class="pp-tab" onclick="setPPTab('history',this)">History</div>
   </div>
   <div class="pp-body" id="ppBody"></div>
@@ -4342,9 +4343,9 @@ function renderPanel(){
         <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(displayPotential(p))}</div></div>
         <div class="sg-item"><div class="sg-l">PT Priority</div><div class="sg-v" style="color:var(--gold)">${fmt(p.ptPriority)}</div></div>
         <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
-        <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
+        <div class="sg-item"><div class="sg-l">xTV</div><div class="sg-v" style="color:var(--green);font-size:13px">${(()=>{const v=calcPlayerValue(p);return v!=null?'£'+(v>=1?v.toFixed(1)+'M':(v*1000).toFixed(0)+'k'):'—';})()}</div></div>
         <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
-        ${(p.nationalities&&p.nationalities.length)?`<div class="sg-item"><div class="sg-l">Nationality</div><div class="sg-v" style="font-size:12px">${p.nationalities.map(n=>natFlag(n)).join(' ')}</div></div>`:''}
+        <div class="sg-item"><div class="sg-l">Age</div><div class="sg-v">${p.age||'—'}</div></div>
       </div>
       ${ST._isEditor!==false?`<button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px;font-size:11px" onclick="deleteSinglePlayer('${p.id}')">✕ Delete this player</button>`:''}
       ${p.wyscoutPositions?`<div class="pst" style="margin-top:12px">Positions</div>${buildPitchSVG(p.wyscoutPositions)}`:''}
@@ -4547,6 +4548,25 @@ function renderPanel(){
       ${chartHTML}
       ${buildPhysicalSection(p)}`;
 
+
+  } else if(ST.panelTab==='clubs'){
+    const activeSeasonsArr=ST.filterSeason&&ST.filterSeason.length?ST.filterSeason:SEASONS;
+    const seasonPicker=`<select style="font-size:9px;padding:2px 6px;background:var(--surface3);color:var(--muted);border:1px solid var(--border2);border-radius:4px;font-family:'JetBrains Mono',monospace" onchange="ST.filterSeason=[this.value].filter(Boolean);renderPanel()">
+      <option value="">All seasons</option>
+      ${SEASONS.map(s=>`<option value="${s}"${activeSeasonsArr.includes(s)?' selected':''}>${s}</option>`).join('')}
+    </select>`;
+    body.innerHTML=`
+      <div style="padding:12px 0">
+        <div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border2);padding-bottom:8px;margin-bottom:12px">Recommended Clubs</div>
+        ${buildFORecommendedClubs(p)}
+      </div>
+      <div style="padding:0 0 12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border2);padding-bottom:8px;margin-bottom:12px">
+          <div style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Similar Players</div>
+          ${seasonPicker}
+        </div>
+        ${buildFOSimilar(p,activeSeasonsArr)}
+      </div>`;
 
   } else if(ST.panelTab==='history'){
     const hist=[...(p.history||[])].sort((a,b)=>new Date(a.capturedAt)-new Date(b.capturedAt));
@@ -6126,7 +6146,7 @@ function buildFORecommendedClubs(p){
   }).join('');
 
   return`<div style="margin-top:4px">
-    <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px">Club level · skill fit · cultural fit (weight varies by potential)</div>
+    
     ${rows}
   </div>`;
 }
