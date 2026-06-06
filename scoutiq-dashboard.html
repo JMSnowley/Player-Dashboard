@@ -5095,15 +5095,15 @@ const LEAGUE_VALUE_MULT={
   'England 1':7,'England 2':3.3,'England 3':1.1,'England 4':0.45,
   'England 5':0.18,
   'Scotland 1':4.0,'Scotland 2':0.50,'Scotland 3':0.12,'Scotland 4':0.05,
-  'Germany 1':6.5,'Germany 2':0.95,'Spain 1':7.0,'Spain 2':0.95,
+  'Germany 1':6.5,'Germany 2':1.20,'Spain 1':7.0,'Spain 2':0.95,
   'Italy 1':6.5,'Italy 2':0.70,'France 1':5.0,'France 2':0.60,
   'Netherlands 1':5.5,'Netherlands 2':0.80,
   'Belgium 1':1.8,'Portugal 1':5.5,'Portugal 2':0.40,
   'Czech Republic 1':0.40,'Austria 1':1.5,'Turkey 1':1.0,'Switzerland 1':0.55,
-  'Greece 1':0.35,'Croatia 1':0.25,'Serbia 1':0.20,
-  'Norway 1':0.50,'Sweden 1':0.50,'Denmark 1':0.90,'Poland 1':0.22,
-  'Australia 1':0.15,'USA 1':0.35,'MLS':0.35,'Saudi Arabia 1':0.35,'Brazil 1':3.0,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.35,'Ecuador 1':0.30,'Chile 1':0.30,'Uruguay 1':0.35,
-  'Bulgaria 1':0.18,'Ukraine 1':0.50,'Croatia 1':0.25,'UAE 1':0.35,'Romania 1':0.55,
+  'Greece 1':0.35,'Croatia 1':0.80,'Serbia 1':0.60,
+  'Norway 1':0.50,'Sweden 1':0.50,'Denmark 1':0.90,'Poland 1':0.45,
+  'Australia 1':0.12,'USA 1':0.65,'MLS':0.65,'Saudi Arabia 1':0.35,'Brazil 1':3.0,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.10,'Ecuador 1':0.15,'Chile 1':0.15,'Uruguay 1':0.35,
+  'Hungary 1':0.35,'Bulgaria 1':0.18,'Ukraine 1':1.80,'Croatia 1':0.80,'UAE 1':0.35,'Romania 1':0.55,
 };
 const LEAGUE_TRANSFER_BUDGET={
   'England 1':50,'England 2':5,'England 3':0.8,'England 4':0.3,
@@ -5122,7 +5122,9 @@ const LEAGUE_TRANSFER_BUDGET={
 // Key insight from data: AM and DM dramatically undervalued in old model (Bellingham/Wirtz/Rice/Caicedo era)
 // CB undervalued, FB slightly overvalued, WF slightly overvalued vs reality
 // Position multipliers calibrated from top 20 record sales across 20 leagues (200 transfers)
-const POS_TRANSFER_MULT={'GK':0.65,'CB':0.85,'FB':0.80,'DM':1.10,'CM':1.0,'AM':1.30,'WF':1.05,'CF':1.15};
+// Position multipliers calibrated from ~700 transfers across 35 leagues
+// AM 1.30→1.20 (overvalued), WF 1.05→1.00 (high supply), DM 1.10→1.05, GK 0.65→0.70, CB 0.85→0.82
+const POS_TRANSFER_MULT={'GK':0.70,'CB':0.82,'FB':0.80,'DM':1.05,'CM':1.0,'AM':1.20,'WF':1.00,'CF':1.15};
 // Positional market ceilings — from data: AM can reach €222M (Neymar), DM €116-117M (Caicedo/Rice)
 // FB ceiling lower than previously thought (~€80M max, usually much less)
 const POS_TRANSFER_CAP={'GK':60,'CB':95,'FB':65,'DM':120,'CM':130,'AM':160,'WF':140,'CF':150};
@@ -5199,6 +5201,40 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       'Dinamo Zagreb':1.8,'Hajduk Split':1.5,
       // Ukraine 1 (not yet in DB)
       'Shakhtar Donetsk':1.8,'Dynamo Kyiv':1.8,
+      // Croatia 1 — Dinamo Zagreb(17/20!) complete monopoly
+      'Dinamo Zagreb':1.8,'GNK Dinamo':1.8,'NK Dinamo Zagreb':1.8,'Hajduk Split':1.5,'NK Hajduk':1.5,'NK Rijeka':1.3,
+      // Serbia 1 — Red Star(13) + Partizan(6) duopoly
+      'Red Star Belgrade':1.8,'Crvena zvezda':1.8,'FK Red Star Belgrade':1.8,
+      'Partizan':1.8,'FK Partizan':1.8,'FK Partizan Beograd':1.8,'FK TSC':1.3,
+      // Ukraine 1 — Shakhtar dominant
+      'Shakhtar Donetsk':1.8,'Shakhtar D.':1.8,'FC Shakhtar':1.8,
+      'Dynamo Kyiv':1.8,'Dynamo Kyyiv':1.8,'FC Dynamo':1.8,
+      // Poland 1 — Legia and Lech dominant
+      'Legia Warszawa':1.8,'Legia':1.8,'Lech Poznań':1.8,'Lech Poznan':1.8,
+      'Jagiellonia':1.5,'Jagiellonia Białystok':1.5,'Raków':1.5,'Raków Częstochowa':1.5,
+      'Pogoń Szczecin':1.3,'Pogon Szczecin':1.3,
+      // Hungary 1 — Ferencváros complete monopoly
+      'Ferencváros':1.8,'Ferencvaros':1.8,'MTK Budapest':1.3,'Debrecen':1.3,
+      'Puskás Akadémia':1.3,'Puskas Akademia':1.3,'Fehérvár':1.2,'Fehervar':1.2,
+      // MLS — Atlanta United and other key clubs
+      'Atlanta United':1.8,'Chicago Fire':1.5,'New York City FC':1.5,'NYCFC':1.5,
+      'Inter Miami':1.5,'LA Galaxy':1.5,'Portland Timbers':1.3,'Seattle Sounders':1.3,
+      'Columbus Crew':1.3,'Orlando City':1.3,'New England Revolution':1.3,
+      'Dallas FC':1.3,'FC Dallas':1.3,'Vancouver Whitecaps':1.3,'Philadelphia Union':1.3,
+      // Ecuador 1 — Independiente del Valle elite pipeline
+      'Independiente del Valle':1.8,'LDU Quito':1.8,'Liga de Quito':1.8,'Barcelona SC':1.5,
+      'CS Emelec':1.3,'Deportivo Quito':1.2,
+      // Chile 1 — Colo-Colo and Universidad de Chile
+      'Colo-Colo':1.8,'Universidad de Chile':1.8,'U. de Chile':1.8,
+      'Universidad Católica':1.5,'U. Católica':1.5,'Huachipato':1.3,
+      // Colombia 1 — Atlético Nacional dominant
+      'Atlético Nacional':1.8,'Atletico Nacional':1.8,'Junior FC':1.5,'Junior':1.5,
+      'Independiente Medellín':1.5,'Deportivo Cali':1.3,'Millonarios':1.5,
+      // Australia 1
+      'Melbourne City':1.8,'Melbourne Victory':1.5,'Sydney FC':1.5,
+      'Western Sydney Wanderers':1.5,'Adelaide United':1.5,
+      // Ireland 1
+      'Shamrock Rovers':1.8,'Cork City':1.5,'Derry City':1.5,'Dundalk':1.3,
       // Romania 1 — FCSB/Steaua(7), CFR Cluj(2), Craiova(2)
       'FCSB':1.8,'Steaua Bucharest':1.8,'FC Steaua Bucharest':1.8,
       'CFR Cluj':1.5,'Universitatea Craiova':1.5,'FC Rapid 1923':1.3,
@@ -5311,10 +5347,15 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // Pipeline 3: Denmark, Austria, Switzerland, Sweden (Nordsjælland/Salzburg/Basel level)
   // Pipeline 4: Eastern Europe elite clubs — FCSB, Ludogorets, Slavia etc.
   // Saudi/Turkey intentionally excluded
-  const ELITE_YOUTH_BIG5=new Set(['England 1','Germany 1','Spain 1','Italy 1','France 1']);
-  const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1']);
-  const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1','Norway 1','USA 1','MLS']);
-  const ELITE_YOUTH_P4=new Set(['Romania 1','Bulgaria 1','Czech Republic 1','Croatia 1','Greece 1','Poland 1']);
+  // Pipeline tiers calibrated from Transfermarkt top-20 data across 30+ leagues
+  // Big5 includes 2nd divisions — they feed directly into top leagues
+  const ELITE_YOUTH_BIG5=new Set(['England 1','England 2','Germany 1','Germany 2','Spain 1','Spain 2','Italy 1','France 1','France 2']);
+  // P2: Portugal, Netherlands, Ukraine (Shakhtar/Dynamo match PL fees)
+  const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1','Ukraine 1']);
+  // P3: Danish/Austrian/Swiss/Swedish/Croatian/MLS model — elite club premiums
+  const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1','Norway 1','Croatia 1','USA 1','MLS']);
+  // P4: Eastern Europe + SA Others — lower multiplier, calibrated to €10-15M ceilings
+  const ELITE_YOUTH_P4=new Set(['Romania 1','Bulgaria 1','Czech Republic 1','Serbia 1','Greece 1','Poland 1','Hungary 1']);
   // South American pipeline — separate tiers
   const ELITE_YOUTH_BRAZIL=new Set(['Brazil 1','Brazil 2']);
   const ELITE_YOUTH_ARGENTINA=new Set(['Argentina 1']);
@@ -5329,11 +5370,11 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     } else if(ELITE_YOUTH_P3.has(league)){
       baseMult=prestigeMult>=1.8?1.5:prestigeMult>=1.5?1.2:0;
     } else if(ELITE_YOUTH_P4.has(league)){
-      baseMult=prestigeMult>=1.8?2.0:prestigeMult>=1.5?1.3:0;
+      baseMult=prestigeMult>=1.8?0.8:prestigeMult>=1.5?0.5:0;
     } else if(ELITE_YOUTH_BRAZIL.has(league)){
       baseMult=prestigeMult>=1.8?3.0:prestigeMult>=1.5?2.0:0;
     } else if(ELITE_YOUTH_ARGENTINA.has(league)){
-      baseMult=prestigeMult>=1.8?2.0:prestigeMult>=1.5?1.3:0;
+      baseMult=prestigeMult>=1.8?1.5:prestigeMult>=1.5?1.0:0;
     } else if(ELITE_YOUTH_SA_OTHER.has(league)){
       baseMult=prestigeMult>=1.8?1.5:prestigeMult>=1.5?1.0:0;
     }
@@ -5574,6 +5615,18 @@ const TRANSFER_CORRIDORS={
   'Romania 1':{'Italy 1':0.4,'England 1':0.3,'Portugal 1':0.3,'MLS':0.2,'Turkey 1':0.2},
   'Bulgaria 1':{'Italy 1':0.4,'France 1':0.3,'Germany 1':0.3,'England 1':0.2},
   'Brazil 1':{'Spain 1':0.6,'England 1':0.5,'France 1':0.3,'Italy 1':0.3},
+  'Argentina 1':{'Spain 1':0.7,'Italy 1':0.5,'England 1':0.3,'Germany 1':0.2},
+  'Colombia 1':{'Brazil 1':0.5,'MLS':0.3,'Mexico 1':0.3,'Belgium 1':0.2},
+  'Ecuador 1':{'MLS':0.4,'Spain 1':0.3,'Belgium 1':0.3,'Germany 1':0.2},
+  'Chile 1':{'Argentina 1':0.4,'Brazil 1':0.4,'Italy 1':0.3,'Portugal 1':0.2},
+  'Croatia 1':{'Germany 1':0.7,'Italy 1':0.5,'England 1':0.4,'France 1':0.3},
+  'Serbia 1':{'England 1':0.6,'Germany 1':0.4,'Italy 1':0.3,'France 1':0.2},
+  'Ukraine 1':{'England 1':0.5,'Germany 1':0.4,'Italy 1':0.3,'France 1':0.2},
+  'Poland 1':{'England 1':0.5,'Germany 1':0.5,'France 1':0.2,'Portugal 1':0.2},
+  'Hungary 1':{'England 1':0.4,'Germany 1':0.4,'Belgium 1':0.2,'Greece 1':0.2},
+  'MLS':{'England 1':0.4,'Brazil 1':0.3,'Germany 1':0.2,'Spain 1':0.2},
+  'Australia 1':{'England 1':0.4,'MLS':0.3,'Scotland 1':0.2},
+  'Germany 2':{'Germany 1':0.9,'England 1':0.3,'Italy 1':0.2},
   'Scotland 1':{'England 1':0.9,'Germany 1':0.3,'Ligue 1':0.4,'Serie A':0.3,'Netherlands 1':0.2},
   'England 1':{'Spain 1':0.7,'Germany 1':0.5,'England 1':0.8,'Ligue 1':0.3},
   'England 2':{'England 1':1.0,'Germany 1':0.2},
