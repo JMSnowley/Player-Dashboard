@@ -5127,7 +5127,10 @@ const LEAGUE_TRANSFER_BUDGET={
 const POS_TRANSFER_MULT={'GK':0.70,'CB':0.82,'FB':0.80,'DM':1.05,'CM':1.0,'AM':1.20,'WF':1.00,'CF':1.15};
 // Positional market ceilings — from data: AM can reach €222M (Neymar), DM €116-117M (Caicedo/Rice)
 // FB ceiling lower than previously thought (~€80M max, usually much less)
-const POS_TRANSFER_CAP={'GK':60,'CB':95,'FB':65,'DM':120,'CM':130,'AM':160,'WF':140,'CF':150};
+// Position transfer caps — calibrated to real-world maximum fees for K=0.00110
+// GK: Alisson €72.5M. CB: Gvardiol/van Dijk ~£110M. FB: Trent/Hakimi ~£90M.
+// WF/CF: Mbappé €180M, Haaland £175M. AM: Neymar-era. DM/CM: Bellingham-type.
+const POS_TRANSFER_CAP={'GK':80,'CB':110,'FB':90,'DM':140,'CM':150,'AM':180,'WF':175,'CF':175};
 
 function calcPlayerValue(p, yearsRemaining=3.0){
   const dr=displayRating(p)??0;
