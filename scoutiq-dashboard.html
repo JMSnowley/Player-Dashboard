@@ -5251,7 +5251,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       'Atlético Nacional':1.8,'Atletico Nacional':1.8,'Junior FC':1.5,'Junior':1.5,
       'Independiente Medellín':1.5,'Deportivo Cali':1.3,'Millonarios':1.5,
       // Australia 1
-      'Melbourne City':74000,'Melbourne Victory':1.5,'Sydney FC':1.5,
+      'Melbourne City':1.8,'Melbourne Victory':1.5,'Sydney FC':1.5,
       'Western Sydney Wanderers':1.5,'Adelaide United':1.5,
       // Ireland 1
       'Shamrock Rovers':1.8,'Cork City':1.5,'Derry City':1.5,'Dundalk':1.3,
@@ -5434,9 +5434,10 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const youthVal=eliteYouthMult>1.0?youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult:0;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
   // Elite club floor: Celtic/Rangers players with 600+ mins have minimum value
-  const ELITE_CLUB_FLOOR={'Celtic':1.0,'Rangers':1.0};
-  const eliteClubFloor=(ELITE_CLUB_FLOOR[p.team]&&(p.minutes||0)>=600&&(p.age||25)<=32)?
-    ELITE_CLUB_FLOOR[p.team]*contractMult:0;
+  const ELITE_CLUB_FLOOR={'Celtic':1.5,'Rangers':1.5,'Ajax':2.0,'AFC Ajax':2.0,'PSV':1.8,'PSV Eindhoven':1.8,'Benfica':2.0,'SL Benfica':2.0,'Sporting CP':1.8,'FC Porto':1.5,'Ferencváros':0.8,'Legia Warszawa':0.8,'Legia':0.8,'Shakhtar Donetsk':0.8,'Shakhtar':0.8,'Dinamo Zagreb':0.8,'Dinamo':0.8,'Crvena zvezda':0.8,'Red Star Belgrade':0.8};
+  const _eliteBase=ELITE_CLUB_FLOOR[p.team]||0;
+  const eliteClubFloor=_eliteBase>0&&(p.minutes||0)>=500&&(p.age||25)<=33
+    ?_eliteBase*contractMult:0;
   const modelVal=Math.max(youthVal,Math.max(0.01,raw*contractMult));
   // ── Contextual minutes penalty ─────────────────────────────────
   // Compare player's effective minutes to the max in their league+season
