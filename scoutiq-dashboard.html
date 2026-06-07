@@ -295,7 +295,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 /* TEAM OVERVIEW */
 .to-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:350;display:none;align-items:center;justify-content:center}
 .to-modal.open{display:flex}
-.to-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:0;max-width:900px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.to-panel{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:0;max-width:min(1400px,96vw);width:96vw;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
 .to-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .to-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
 .to-body{overflow-y:auto;flex:1}
@@ -475,7 +475,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="sb-content" id="ratingFilters">
         <div class="range-group" id="ratingSlider"></div>
         <div class="range-group" id="potentialSlider"></div>
-        <div class="range-group" id="ptPrioritySlider"></div>
+        
         <div class="range-group" id="leaguePctSlider"></div>
       </div>
     </div>
@@ -538,7 +538,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="ss-block"><div class="ss-label">Leagues</div><div class="ss-val" id="ss-l">0</div></div>
       <div class="ss-block"><div class="ss-label">Avg Rating</div><div class="ss-val" id="ss-r">—</div></div>
       <div class="ss-block"><div class="ss-label">Avg Potential</div><div class="ss-val" id="ss-pot">—</div></div>
-      <div class="ss-block"><div class="ss-label">Avg PT Pri.</div><div class="ss-val" id="ss-ptp">—</div></div>
+      
       <div class="ss-block"><div class="ss-label">Last Capture</div><div class="ss-val" id="ss-d" style="font-size:12px;font-family:'Archivo',sans-serif;font-weight:600">—</div><div class="ss-sub" id="ss-ds"></div></div>
     </div>
     <div class="tw">
@@ -561,7 +561,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="minutes" class="r" onclick="setSort('minutes')">Mins</th>
           <th data-sort="rating" onclick="setSort('rating')">Rating</th>
           <th data-sort="potential" onclick="setSort('potential')">Potential</th>
-          <th data-sort="ptPriority" onclick="setSort('ptPriority')">PT Pri.</th>
+          
           <th data-sort="leaguePct" onclick="setSort('leaguePct')">League %ile</th>
           <th data-sort="xtv" onclick="setSort('xtv')" class="r">xTV</th>
           <th>Top Skills</th>
@@ -1529,7 +1529,6 @@ function initSliders(){
   // Rating sliders
   renderRangeSlider('ratingSlider','Rating','rating',0,100);
   renderRangeSlider('potentialSlider','Potential','potential',0,100);
-  renderRangeSlider('ptPrioritySlider','PT Priority','ptPriority',0,100);
   renderRangeSlider('leaguePctSlider','League %ile','leaguePct',0,100);
   renderRangeSlider('ageSlider','Age','age',15,45);
 
@@ -2163,7 +2162,7 @@ function getFiltered(){
   const [alo,ahi]=SLIDER_STATE.age||[15,45];
   if(rlo>0||rhi<100)list=list.filter(p=>{ const dr=displayRating(p)??0; return dr>=rlo&&dr<=rhi; });
   if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
-  if(tlo>0||thi<100)list=list.filter(p=>{const dt=displayPTP(p)??0;return dt>=tlo&&dt<=thi;});
+  if(tlo>0||thi<100)list=list.filter(p=>{return dt>=tlo&&dt<=thi;});
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
   if(alo>15||ahi<45)list=list.filter(p=>p.age!=null&&p.age>=alo&&p.age<=ahi);
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
@@ -2735,9 +2734,10 @@ function openTeamOverview(){
     const avgRating=poolAvg(ratingPool,p=>displayRating(p));
     const avgPotential=poolAvg(potPool,p=>displayPotential(p));
     const avgAge=wtAvg(players,p=>p.age);
+    const avgXTV=wtAvg(players,p=>calcPlayerValue(p));
     const rated=players.filter(p=>displayRating(p)!=null).sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
     const potSorted=players.filter(p=>displayPotential(p)!=null).sort((a,b)=>(displayPotential(b)??0)-(displayPotential(a)??0));
-    return{team,count:players.length,avgRating,avgPotential,avgAge,top:rated[0]||null,topPot:potSorted[0]||null};
+    return{team,count:players.length,avgRating,avgPotential,avgAge,avgXTV,top:rated[0]||null,topPot:potSorted[0]||null};
   });
   if(!_toRows.length){showToast('No team data in current filter','error');return;}
   _toSort={key:'avgRating',dir:1};
@@ -2767,7 +2767,8 @@ function renderToTable(){
     return`<td style="text-align:center;padding:5px 8px"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="${R}" fill="var(--surface3)" stroke="var(--border2)" stroke-width="1.5"/><circle cx="20" cy="20" r="${R}" fill="none" stroke="${col}" stroke-width="2.5" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ*0.25).toFixed(1)}" transform="rotate(-90 20 20)" opacity="0.85"/><text x="20" y="24" text-anchor="middle" fill="${col}" font-size="10" font-family="JetBrains Mono" font-weight="700">${Math.round(val)}</text></svg></td>`;
   };
   const fmt1=v=>v!=null?v.toFixed(1):'—';
-  const fmtP=p=>p?`<div style="font-weight:600;font-size:11px">${p.name}</div>`:'—';
+  const fmtXTV=v=>{if(v==null)return'—';if(v>=1)return'£'+v.toFixed(0)+'M';if(v>=0.1)return'£'+(v*1000).toFixed(0)+'k';return'<£100k';};
+  const fmtP=p=>p?`<div style="font-weight:600;font-size:11px;line-height:1.3">${p.name}</div><div style="font-size:10px;color:var(--teal);margin-top:1px">${fmtXTV(calcPlayerValue(p))}</div>`:'—';
   const arr=k=>_toSort.key===k?(_toSort.dir<0?' ▼':' ▲'):'';
   document.getElementById('toBody').innerHTML=`<table class="to-table"><thead><tr>
     <th onclick="sortToTable('rank')">#${arr('rank')}</th>
@@ -2776,6 +2777,7 @@ function renderToTable(){
     <th style="text-align:right" onclick="sortToTable('avgRating')">Avg Rating${arr('avgRating')}</th>
     <th style="text-align:right" onclick="sortToTable('avgPotential')">Avg Potential${arr('avgPotential')}</th>
     <th style="text-align:right" onclick="sortToTable('avgAge')">Avg Age${arr('avgAge')}</th>
+    <th style="text-align:right" onclick="sortToTable('avgXTV')">Avg xTV${arr('avgXTV')}</th>
     <th colspan="2" onclick="sortToTable('top')">Top Player${arr('top')}</th>
     <th colspan="2" onclick="sortToTable('topPot')">Top Potential${arr('topPot')}</th>
   </tr></thead><tbody>${rows.map((r,i)=>{
@@ -2788,6 +2790,7 @@ function renderToTable(){
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgRc}">${fmt1(r.avgRating)}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgPc}">${fmt1(r.avgPotential)}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted2)">${r.avgAge!=null?r.avgAge.toFixed(1):'—'}</td>
+      <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--teal);font-weight:600">${fmtXTV(r.avgXTV)}</td>
       <td>${fmtP(r.top)}</td>${rc(displayRating(r.top),allR)}
       <td>${fmtP(r.topPot)}</td>${rc(displayPotential(r.topPot),allP)}
     </tr>`;
@@ -4375,7 +4378,6 @@ function renderPanel(){
       <div class="big-r"><div class="big-num" style="color:${rc}">${r!=null?fmt(r):'—'}</div><div class="big-lbl">Rating · ${fmtDate(p.capturedAt)}</div></div>
       <div class="sg">
         <div class="sg-item"><div class="sg-l">Potential</div><div class="sg-v" style="color:var(--green)">${fmt(displayPotential(p))}</div></div>
-        <div class="sg-item"><div class="sg-l">PT Priority</div><div class="sg-v" style="color:var(--gold)">${fmt(p.ptPriority)}</div></div>
         <div class="sg-item"><div class="sg-l">League %ile</div><div class="sg-v" style="color:var(--accent)">${fmt(p.leaguePct)}</div></div>
         <div class="sg-item"><div class="sg-l">xTV</div><div class="sg-v" style="color:var(--green);font-size:13px">${(()=>{const v=calcPlayerValue(p);return v!=null?'£'+(v>=1?v.toFixed(1)+'M':(v*1000).toFixed(0)+'k'):'—';})()}</div></div>
         <div class="sg-item"><div class="sg-l">Minutes</div><div class="sg-v" style="font-size:13px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</div></div>
@@ -4674,7 +4676,7 @@ function renderPanel(){
           <div class="hist-body" id="hb_${i}">
             <div class="hist-grid">
               <div class="hist-stat"><div class="hist-stat-l">Potential</div><div class="hist-stat-v" style="color:var(--green)">${fmt(h.potential)}</div></div>
-              <div class="hist-stat"><div class="hist-stat-l">PT Priority</div><div class="hist-stat-v" style="color:var(--gold)">${fmt(h.ptPriority)}</div></div>
+              
               ${!isPhys?`<div class="hist-stat"><div class="hist-stat-l">Age</div><div class="hist-stat-v">${h.age||'—'}</div></div>
               <div class="hist-stat"><div class="hist-stat-l">Minutes</div><div class="hist-stat-v">${h.minutes?Math.round(h.minutes).toLocaleString():'—'}</div></div>`:''}
               ${isPhys?`<div class="hist-stat"><div class="hist-stat-l">Phys Score</div><div class="hist-stat-v" style="color:var(--accent)">${h.physicalScore!=null?h.physicalScore.toFixed(1):'—'}</div></div>
@@ -5027,7 +5029,6 @@ function renderFullOverview(){
 function buildFullOverview(p){
   const dr=displayRating(p)??0;
   const dp=displayPotential(p)??0;
-  const dt=displayPTP(p)??0;
   const rc=v=>v>=80?'#00e599':v>=70?'#7fd97f':v>=60?'#f5c842':v>=50?'#ff8c42':'#ff4d6a';
   const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
   const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
@@ -5065,7 +5066,7 @@ function buildFullOverview(p){
         </div>
       </div>
       <div style="display:flex;gap:10px">
-        ${['Rating','Potential','PT Pri.','League %'].map((lbl,i)=>{
+        ${['Rating','Potential','League %'].map((lbl,i)=>{
           const vals=[dr,dp,dt,p.leaguePct];const v=vals[i];
           return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
         }).join('')}
@@ -5181,8 +5182,9 @@ function getClubRating(team, league){
 }
 
 function calcPlayerValue(p, yearsRemaining=3.0){
-  const dr=displayRating(p)??0;
-  const dp=displayPotential(p)??dr;
+  // Use raw FM ratings for xTV — club weight only affects display, not market value
+  const dr=p.rating??0;
+  const dp=p.potential??dr;
   // Mid-season transfer boost: apply extra credit for combined minutes across clubs
   const {minsBoost}=getMinsMaps();
   const _boost=(minsBoost||{})[p.id]||{r:0,ptp:0};
@@ -7754,7 +7756,7 @@ function exportCSV(){
   const {list}=getFiltered();if(!list.length){showToast('No data','error');return;}
   const posConf=ST.filterPos!=='all'?POS_CONFIG[ST.filterPos]:null;
   const roleH=posConf?posConf.roles:[];
-  const headers=['Name','Team','Nationality','Pos','League','Age','Minutes','Rating','Potential','PT Priority','League %ile','Captured',...roleH];
+  const headers=['Name','Team','Nationality','Pos','League','Age','Minutes','Rating','Potential','League %ile','Captured',...roleH];
   const rows=list.map(p=>[p.name,p.team,(p.nationalities||[]).join('/')||'',p.pos,p.leagueTag,p.age,p.minutes,fmt(p.rating),fmt(p.potential),fmt(p.ptPriority),fmt(p.leaguePct),fmtDate(p.capturedAt),...roleH.map(r=>fmt(p.roles[r]||null))]);
   const csv=[headers,...rows].map(r=>r.join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`scoutiq-${new Date().toISOString().slice(0,10)}.csv`;a.click();
