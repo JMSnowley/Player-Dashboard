@@ -5446,7 +5446,14 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const leagueMaxMins=maxMins[leagueSeasonKey]||1800;
   const playerEffMins=effMins[p.id]||(p.minutes||0);
   const minsPct=Math.min(1.0,playerEffMins/leagueMaxMins);
-  const minsMult=0.60+0.40*minsPct; // 0.60 at 0 mins → 1.0 at league max
+  // Age-scaled minutes penalty: young players barely affected, full penalty from age 24+
+  // Under 20: virtually no penalty (breaking through is the achievement)
+  // 20-21: small penalty
+  // 22-23: moderate penalty
+  // 24+: full penalty (0.60 + 0.40 * pct)
+  const _minsFloor=age<20?0.92:age<=21?0.82:age<=23?0.72:0.60;
+  const _minsRange=1.0-_minsFloor;
+  const minsMult=_minsFloor+_minsRange*minsPct;
   const penalisedModel=Math.max(leagueMin,modelVal*minsMult);
   return Math.round(Math.min(posCap,Math.max(eliteClubFloor,penalisedModel))*10)/10;
 }
@@ -5712,63 +5719,47 @@ const CLUB_WAGE_BUDGET={
 // Both are used by calcPlayerValue to apply a contextual minutes penalty.
 function buildMinuteMaps(players){
   const maxMins={};
-  // Pass 1: find max minutes per league+season
+  // Pass 1: find max minutes per league+season across all players
   for(const p of players){
     const key=`${p.leagueTag||''}|${p.season||''}`;
     const m=p.minutes||0;
     if(m>(maxMins[key]||0)) maxMins[key]=m;
+    // Also count history entries that are more recent captures of the same club
+    for(const h of p.history||[]){
+      const hKey=`${h.leagueTag||p.leagueTag||''}|${h.season||''}`;
+      const hm=h.minutes||0;
+      if(hm>(maxMins[hKey]||0)) maxMins[hKey]=hm;
+    }
   }
-  // Pass 2: combine minutes for same-league transfers
-  const nameSeasonLeague={};
-  for(const p of players){
-    const k=`${p.name}|${p.season||''}|${p.leagueTag||''}`;
-    if(!nameSeasonLeague[k]) nameSeasonLeague[k]={ids:[],totalMins:0};
-    nameSeasonLeague[k].ids.push(p.id);
-    nameSeasonLeague[k].totalMins+=(p.minutes||0);
-  }
+  // Pass 2: effective minutes — for same-league mid-season transfers, add history mins
+  // Uses the player's own history (same id, same season, different team, same league)
   const effMins={};
-  for(const {ids,totalMins} of Object.values(nameSeasonLeague)){
-    for(const id of ids) effMins[id]=totalMins;
-  }
-  // Pass 3: cross-club transfer boost
-  // Find players with multiple clubs in same season — sum minutes across ALL clubs
-  // then boost their current-club rating/pot/ptp based on combined mins vs league max
-  const nameSeasonAllClubs={};
-  for(const p of players){
-    const k=`${p.name}|${p.season||''}`;
-    if(!nameSeasonAllClubs[k]) nameSeasonAllClubs[k]=[];
-    nameSeasonAllClubs[k].push(p);
-  }
   const minsBoost={};
-  for(const entries of Object.values(nameSeasonAllClubs)){
-    const clubs=new Set(entries.map(e=>e.team));
-    if(clubs.size<2) continue; // only multi-club within same season
-    // Verify these are the same player — check ages are consistent (within 1yr for data variance)
-    const ages=entries.map(e=>e.age||0).filter(a=>a>0);
-    const minAge=Math.min(...ages), maxAge=Math.max(...ages);
-    if(maxAge-minAge>1) continue; // age gap > 1yr → different players with same name, skip
-    // Only apply boost for transfers within the SAME league
-    // Cross-league transfers (e.g. Sano: Mainz→NEC) should not trigger the boost
-    const leagues=new Set(entries.map(e=>e.leagueTag||''));
-    if(leagues.size>1) continue; // cross-league transfer — no boost
-    // Sort by capturedAt to find the most recent (current) club
-    const sorted=[...entries].sort((a,b)=>new Date(b.capturedAt||0)-new Date(a.capturedAt||0));
-    const current=sorted[0];
-    const currentLeague=current.leagueTag||'';
-    const currentSeason=current.season||'';
-    const leagueMaxKey=`${currentLeague}|${currentSeason}`;
-    const leagueMax=maxMins[leagueMaxKey]||1800;
-    // Sum ALL minutes across all clubs this season
-    const totalAllClubs=entries.reduce((s,e)=>s+(e.minutes||0),0);
-    // Scale: 0 boost at 500 mins, full boost at leagueMax
-    const MIN_BOOST_MINS=500;
-    const pct=Math.max(0,Math.min(1,(totalAllClubs-MIN_BOOST_MINS)/(leagueMax-MIN_BOOST_MINS)));
-    if(pct<=0) continue;
-    // +5r/+5pot/+10ptp at 100%, linear down to 0 at 500 mins
-    const rBoost=Math.round(pct*5*10)/10;    // e.g. 2.0 at 60%
-    const ptpBoost=Math.round(pct*10*10)/10; // e.g. 4.0 at 60%
-    // Apply only to the CURRENT club entry (most recent)
-    minsBoost[current.id]={r:rBoost,ptp:ptpBoost};
+  for(const p of players){
+    const currLeague=p.leagueTag||'';
+    const currSeason=p.season||'';
+    const currMins=p.minutes||0;
+    let prevMinsInLeague=0;
+    for(const h of p.history||[]){
+      // Same season, different club, same league, has minutes stored
+      if(h.season===currSeason && h.team!==p.team && (h.leagueTag||'')===(currLeague) && (h.minutes||0)>0){
+        prevMinsInLeague+=h.minutes;
+      }
+    }
+    const totalMins=currMins+prevMinsInLeague;
+    effMins[p.id]=totalMins;
+    // Boost calculation: only if player genuinely transferred within the league this season
+    if(prevMinsInLeague>0){
+      const leagueMaxKey=`${currLeague}|${currSeason}`;
+      const leagueMax=maxMins[leagueMaxKey]||1800;
+      const MIN_BOOST_MINS=500;
+      const pct=Math.max(0,Math.min(1,(totalMins-MIN_BOOST_MINS)/(leagueMax-MIN_BOOST_MINS)));
+      if(pct>0){
+        const rBoost=Math.round(pct*5*10)/10;
+        const ptpBoost=Math.round(pct*10*10)/10;
+        minsBoost[p.id]={r:rBoost,ptp:ptpBoost};
+      }
+    }
   }
   return {maxMins,effMins,minsBoost};
 }
