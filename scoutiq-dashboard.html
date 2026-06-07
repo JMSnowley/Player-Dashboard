@@ -2305,13 +2305,11 @@ function renderStatsStrip(){
   const ptped=allFiltered.filter(p=>p.ptPriority!=null);
   const avg=rated.length?(rated.reduce((s,p)=>s+(displayRating(p)||0),0)/rated.length).toFixed(1):'—';
   const avgPot=potted.length?(potted.reduce((s,p)=>s+p.potential,0)/potted.length).toFixed(1):'—';
-  const avgPtp=ptped.length?(ptped.reduce((s,p)=>s+p.ptPriority,0)/ptped.length).toFixed(1):'—';
   const lastCap=ST.players.length?[...ST.players].sort((a,b)=>new Date(b.capturedAt)-new Date(a.capturedAt))[0]:null;
   document.getElementById('ss-p').textContent=allFiltered.length;
   document.getElementById('ss-l').textContent=new Set(allFiltered.map(p=>p.leagueTag)).size;
   document.getElementById('ss-r').textContent=avg;
   document.getElementById('ss-pot').textContent=avgPot;
-  document.getElementById('ss-ptp').textContent=avgPtp;
   document.getElementById('ss-d').textContent=lastCap?fmtDate(lastCap.capturedAt):'—';
   document.getElementById('ss-ds').textContent=lastCap?lastCap.leagueTag+' · '+(lastCap.pos||''):'';
 }
@@ -5067,7 +5065,7 @@ function buildFullOverview(p){
       </div>
       <div style="display:flex;gap:10px">
         ${['Rating','Potential','League %'].map((lbl,i)=>{
-          const vals=[dr,dp,dt,p.leaguePct];const v=vals[i];
+          const vals=[dr,dp,p.leaguePct];const v=vals[i];
           return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
         }).join('')}
         ${(()=>{
