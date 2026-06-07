@@ -2689,9 +2689,22 @@ function computeMetricBonuses(){
 }
 
 // Display helpers — always use these when showing ratings in the UI
-function displayRating(p){ return p.rating!=null?Math.min(100,Math.round(((p.rating)+(p._metricBonus?.r||0))*10)/10):null; }
-function displayPotential(p){ return p.potential!=null?Math.min(100,Math.round(((p.potential)+(p._metricBonus?.r||0))*10)/10):null; }
-function displayPTP(p){ return p.ptPriority!=null?Math.min(100,Math.max(0,Math.round(((p.ptPriority)+(p._metricBonus?.pt||0))*10)/10)):null; }
+function displayRating(p){
+  if(p.rating==null) return null;
+  const cr=getClubRating(p.team||'',p.leagueTag||'');
+  return Math.round(Math.min(100,0.8*p.rating+0.2*cr)*10)/10;
+}
+function displayPotential(p){
+  if(p.potential==null) return null;
+  const cr=getClubRating(p.team||'',p.leagueTag||'');
+  return Math.round(Math.min(100,0.8*p.potential+0.2*cr)*10)/10;
+}
+function displayPTP(p){
+  if(p.ptPriority==null) return null;
+  const cr=getClubRating(p.team||'',p.leagueTag||'');
+  const base=Math.min(100,Math.max(0,(p.ptPriority)+(p._metricBonus?.pt||0)));
+  return Math.round(Math.min(100,0.8*base+0.2*cr)*10)/10;
+}
 
 // ═══════════════════════════════════
 let _htSelectedTeam={};
@@ -5141,6 +5154,20 @@ const POS_TRANSFER_MULT={'GK':0.70,'CB':0.82,'FB':0.80,'DM':1.05,'CM':1.0,'AM':1
 // WF/CF: Mbappé €180M, Haaland £175M. AM: Neymar-era. DM/CM: Bellingham-type.
 const POS_TRANSFER_CAP={'GK':80,'CB':110,'FB':90,'DM':140,'CM':150,'AM':180,'WF':175,'CF':175};
 
+function getClubRating(team, league){
+  const CLUB_WAGE_BUDGET_REF=CLUB_WAGE_BUDGET;
+  const LEAGUE_WAGE_FALLBACK={'England 1':3000000,'England 2':450000,'England 3':120000,'England 4':55000,'England 5':25000,'Germany 1':1200000,'Germany 2':220000,'Spain 1':1100000,'Spain 2':250000,'Italy 1':1000000,'France 1':600000,'France 2':100000,'Scotland 1':120000,'Scotland 2':20000,'Scotland 3':8000,'Scotland 4':4000,'Netherlands 1':180000,'Portugal 1':250000,'Belgium 1':160000,'Austria 1':100000,'Denmark 1':150000,'Sweden 1':60000,'Norway 1':45000,'Switzerland 1':200000,'Czech Republic 1':55000,'Hungary 1':85000,'Romania 1':65000,'Bulgaria 1':35000,'Poland 1':70000,'Croatia 1':60000,'Serbia 1':30000,'Ukraine 1':55000,'Greece 1':150000,'Turkey 1':500000,'Brazil 1':300000,'Argentina 1':150000,'Colombia 1':120000,'Ecuador 1':30000,'Chile 1':45000,'Uruguay 1':25000,'MLS':280000,'USA 1':280000,'Australia 1':45000,'Ireland 1':25000,'Saudi Arabia 1':250000};
+  let w=CLUB_WAGE_BUDGET_REF[team];
+  if(!w) w=LEAGUE_WAGE_FALLBACK[league]||20000;
+  // Tiered mapping: wage budget → club rating 35-90
+  if(w>=2000000) return 82+Math.min(1,(w-2000000)/3300000)*8;
+  if(w>=500000)  return 70+Math.min(1,(w-500000)/1500000)*12;
+  if(w>=150000)  return 63+Math.min(1,(w-150000)/350000)*7;
+  if(w>=50000)   return 53+Math.min(1,(w-50000)/100000)*10;
+  if(w>=15000)   return 40+Math.min(1,(w-15000)/35000)*13;
+  return 35+Math.min(1,w/15000)*5;
+}
+
 function calcPlayerValue(p, yearsRemaining=3.0){
   const dr=displayRating(p)??0;
   const dp=displayPotential(p)??dr;
@@ -5474,7 +5501,11 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const _compressed=_rawCapped<=_capThreshold
     ? _rawCapped
     : _capThreshold + Math.pow((_rawCapped-_capThreshold)/(posCap-_capThreshold),1.3)*(posCap-_capThreshold);
-  return Math.round(Math.min(posCap,_compressed)*10)/10;
+  // Club quality xTV multiplier — small direct effect (±8% range) independent of LVM
+  // Neutral at CR=65 (mid-professional); Man City +7.9%, Annan Athletic -9.6%
+  const _clubCR=getClubRating(p.team||'',league);
+  const _clubXTVMult=1.0+0.08*(_clubCR-65.0)/25.0;
+  return Math.round(Math.min(posCap,_compressed)*_clubXTVMult*10)/10;
 }
 
 function formatValue(v){
