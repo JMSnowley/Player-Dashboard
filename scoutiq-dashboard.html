@@ -5109,9 +5109,9 @@ function buildFullOverview(p){
 
 // ── Player Valuation Model ────────────────────────────────────────────
 const LEAGUE_VALUE_MULT={
-  'England 1':5.5,'England 2':3.8,'England 3':1.4,'England 4':0.90,
-  'England 5':0.50,'Ireland 1':0.45,
-  'Scotland 1':4.0,'Scotland 2':0.80,'Scotland 3':0.30,'Scotland 4':0.05,
+  'England 1':5.5,'England 2':3.8,'England 3':1.4,'England 4':1.20,
+  'England 5':0.65,'Ireland 1':0.65,
+  'Scotland 1':4.0,'Scotland 2':1.20,'Scotland 3':0.55,'Scotland 4':0.35,
   'Germany 3':0.35,'Spain 3':0.20,'France 3':0.25,'Italy 2':0.70,'Portugal 2':0.40,
   'Russia 1':0.80,'Slovakia 1':0.35,'Slovenia 1':0.25,'Israel 1':0.35,
   'Mexico 1':0.50,'Japan 1':0.35,'Korea 1':0.20,'Morocco 1':0.12,'Tunisia 1':0.08,
@@ -5119,14 +5119,14 @@ const LEAGUE_VALUE_MULT={
   'Paraguay 1':0.08,'Wales 1':0.05,'Northern Ireland 1':0.05,'South Africa 1':0.15,
   'Ireland 2':0.04,
   'Germany 1':5.2,'Germany 2':1.20,'Germany 3':0.35,'Spain 3':0.20,'France 3':0.25,'Italy 2':0.70,'Spain 1':5.5,'Spain 2':0.95,
-  'Italy 1':5.2,'Italy 2':0.70,'France 1':4.0,'France 2':1.40,'Spain 2':0.90,
-  'Netherlands 1':5.5,'Netherlands 2':2.0,'Netherlands 2':0.80,
+  'Italy 1':5.2,'Italy 2':0.70,'France 1':4.0,'France 2':1.60,'Spain 2':0.90,
+  'Netherlands 1':5.5,'Netherlands 2':2.5,'Netherlands 2':0.80,
   'Belgium 1':1.8,'Portugal 1':5.5,'Portugal 2':0.40,
-  'Czech Republic 1':2.00,'Austria 1':1.5,'Turkey 1':1.0,'Switzerland 1':2.00,
+  'Czech Republic 1':2.40,'Austria 1':1.80,'Turkey 1':1.0,'Switzerland 1':2.40,
   'Greece 1':0.35,'Croatia 1':0.80,'Serbia 1':0.60,'Slovakia 1':0.35,'Slovenia 1':0.25,
-  'Norway 1':1.20,'Sweden 1':1.50,'Denmark 1':0.90,'Poland 1':2.20,
-  'Australia 1':0.80,'USA 1':0.85,'MLS':0.85,'Saudi Arabia 1':0.35,'Brazil 1':3.0,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.10,'Ecuador 1':0.15,'Chile 1':0.15,'Uruguay 1':0.35,
-  'Hungary 1':1.50,'Bulgaria 1':1.80,'Ukraine 1':1.80,'Croatia 1':0.80,'UAE 1':0.35,'Romania 1':3.20,
+  'Norway 1':1.20,'Sweden 1':1.80,'Denmark 1':0.90,'Poland 1':2.20,
+  'Australia 1':1.20,'USA 1':1.10,'MLS':1.10,'Saudi Arabia 1':0.35,'Brazil 1':3.0,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.10,'Ecuador 1':0.15,'Chile 1':0.15,'Uruguay 1':0.35,
+  'Hungary 1':1.80,'Bulgaria 1':2.20,'Ukraine 1':1.80,'Croatia 1':0.80,'UAE 1':0.35,'Romania 1':3.80,
 };
 const LEAGUE_TRANSFER_BUDGET={
   'England 1':50,'England 2':5,'England 3':0.8,'England 4':0.3,
@@ -5191,10 +5191,11 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const ageMult=ageCurve[age]||(age>34?0.05:0.55);
   const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.20;
   // Steeper exponential with higher floor — creates separation at top, collapses lower end
-  const base=Math.pow(Math.max(0,effectiveDr-62),2.8);
+  const base=Math.pow(Math.max(0,effectiveDr-62),2.5);
   // Youth direct value: young players with potential carry market value regardless of current league
   // Bypasses LVM entirely — their value is international/future, not current-league-based
-  const _youthAgeFactor={16:2.0,17:1.8,18:1.5,19:1.4,20:1.2,21:1.0,22:0.80}[age]||0;
+  // Youth age factor: smooth taper extending to age 25 rather than hard zero at 23
+  const _youthAgeFactor={16:2.0,17:1.8,18:1.5,19:1.4,20:1.2,21:1.0,22:0.80,23:0.50,24:0.25,25:0.10}[age]||0;
   const lv=LEAGUE_VALUE_MULT[league]||0.1;
   // youthDirectVal is dampened for low-LVM leagues (Australia, Ireland etc.)
   // to prevent potential-based values wildly exceeding the league's actual market ceiling
@@ -5396,7 +5397,8 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       'Go Ahead Eagles':0.95,'Sparta Rotterdam':1.0,'Heerenveen':0.90,'NAC Breda':0.85,
       'Groningen':0.85,'Volendam':0.80,'Excelsior':0.80,'PEC Zwolle':0.80,
       'Fortuna Sittard':0.80,'Heracles':0.80,'Heracles Almelo':0.80,
-      'Vitória de Guimarães':1.2,'Vitória Guimarães':1.2,'FC Famalicão':1.1,'Famalicão':1.1,'Casa Pia':1.0,'Rio Ave':1.0,'CD Nacional':1.0,'Gil Vicente':1.0,'FC Arouca':0.95,'Moreirense FC':0.95,'CD Santa Clara':0.95,'Estrela da Amadora SAD':0.95,
+      'Vitória de Guimarães':1.2,'Vitória Guimarães':1.2,'FC Famalicão':1.1,'Famalicão':1.1,'Casa Pia':1.0,'Rio Ave':1.0,'CD Nacional':1.0,'Nacional':1.0,'Gil Vicente':1.0,'FC Arouca':0.95,'Moreirense FC':0.95,'CD Santa Clara':0.95,'Estrela da Amadora SAD':0.95,
+      'De Graafschap':0.90,'ADO Den Haag':0.90,'ADO':0.90,
       // Belgium 1
       'Club Brugge':1.8,
       'KRC Genk':1.40,'KAA Gent':1.25,'Genk':1.40,
@@ -5440,17 +5442,17 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const pctMult=0.90+0.25*(leaguePct/100);
   // Dynamic market floor: scales with minutes and age — a regular in a top league
   // always commands something, but old/fringe players trail off naturally
-  const _mktBase={'England 1':5.0,'England 2':1.5,'England 3':0.40,'England 4':0.12,'England 5':0.04,
+  const _mktBase={'England 1':5.0,'England 2':1.5,'England 3':0.40,'England 4':0.18,'England 5':0.06,
     'Germany 1':3.0,'Germany 2':0.8,'Spain 1':3.0,'Spain 2':0.7,
     'Italy 1':3.0,'Italy 2':0.7,'France 1':2.5,'France 2':1.00,
     'Netherlands 1':1.5,'Netherlands 2':0.25,'Belgium 1':0.8,'Portugal 1':1.5,'Portugal 2':0.2,
-    'Scotland 1':0.50,'Scotland 2':0.20,'Scotland 3':0.040,'Scotland 4':0.025,
-    'Austria 1':0.35,'Switzerland 1':0.45,'Denmark 1':0.40,'Sweden 1':0.25,
+    'Scotland 1':0.50,'Scotland 2':0.30,'Scotland 3':0.060,'Scotland 4':0.060,
+    'Austria 1':0.35,'Switzerland 1':0.45,'Denmark 1':0.40,'Sweden 1':0.30,
     'Norway 1':0.20,'Czech Republic 1':0.35,'Turkey 1':0.60,'Greece 1':0.30,
-    'Romania 1':0.30,'Bulgaria 1':0.18,'Croatia 1':0.20,'Poland 1':0.20,
+    'Romania 1':0.40,'Hungary 1':0.25,'Bulgaria 1':0.25,'Croatia 1':0.20,'Poland 1':0.20,
     'Brazil 1':0.40,'Brazil 2':0.08,'Argentina 1':0.25,
     'Colombia 1':0.10,'Ecuador 1':0.08,'Chile 1':0.08,'Uruguay 1':0.10,
-    'Saudi Arabia 1':0.50,'UAE 1':0.15,'Qatar 1':0.05,'UAE 1':0.30,'MLS':0.30,'USA 1':0.30,'Australia 1':0.15,'Ireland 1':0.12,
+    'Saudi Arabia 1':0.50,'UAE 1':0.15,'Qatar 1':0.05,'UAE 1':0.30,'MLS':0.30,'USA 1':0.30,'Australia 1':0.30,'Ireland 1':0.20,
   'Russia 1':0.20,'Israel 1':0.10,'Mexico 1':0.20,'Japan 1':0.10,'Korea 1':0.08,
   'Morocco 1':0.05,'Tunisia 1':0.03,'Cyprus 1':0.05,'Georgia 1':0.04,
   'Latvia 1':0.02,'Paraguay 1':0.04,'Wales 1':0.02,'Northern Ireland 1':0.02,
@@ -5481,7 +5483,10 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const ELITE_YOUTH_ARGENTINA=new Set(['Argentina 1']);
   const ELITE_YOUTH_SA_OTHER=new Set(['Colombia 1','Ecuador 1','Chile 1','Uruguay 1']);
   let eliteYouthMult=1.0;
-  if(age<=22&&(p.minutes||0)>=600&&(p.leaguePct??0)>=25){
+  // Pipeline age taper: full at ≤21, smoothly fades through 22-23, zero at 24+
+  const _pipelineAgeFactor=age<=21?1.0:age<=23?Math.max(0,1-(age-21)/3):0;
+  const _pipelinePctFactor=Math.min(1.0,Math.max(0,((p.leaguePct??0)-5)/20));
+  if(_pipelineAgeFactor>0&&_pipelinePctFactor>0&&(p.minutes||0)>=300){
     let baseMult=0;
     if(ELITE_YOUTH_BIG5.has(league)){
       baseMult=prestigeMult>=1.8?4.5:prestigeMult>=1.5?2.5:prestigeMult>=1.25?1.4:0;
@@ -5500,17 +5505,24 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     }
     if(baseMult>0){
       const pctAdj=1.0+(leaguePct/100)*0.6;
-      const minsAdj=Math.min(1.4,1.0+((p.minutes||0)-600)/3000);
-      eliteYouthMult=baseMult*pctAdj*minsAdj;
+      const minsAdj=Math.min(1.4,Math.max(0,((p.minutes||0)-300)/3000));
+      eliteYouthMult=baseMult*pctAdj*minsAdj*_pipelineAgeFactor*_pipelinePctFactor;
     }
   }
   // Marquee player boost: Saudi/Turkey/MLS have top imported players whose
   // value reflects European market, not the local league quality
   // Smooth blend based on how far above the league 'good' threshold the player is
-  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:58,boost:22.0},'UAE 1':{good:58,boost:22.0},'Turkey 1':{good:64,boost:14.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
+  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:62,boost:25.0},'UAE 1':{good:62,boost:25.0},'Qatar 1':{good:60,boost:22.0},'Turkey 1':{good:64,boost:14.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
   const _mq=MARQUEE_LEAGUES[league];
-  const effectiveLV=_mq?Math.max(lv,lv+(_mq.boost-lv)*Math.min(1.0,Math.max(0,(dr-(_mq.good+4))/8.0))):lv;
-  const raw=base*effectiveLV*ageMult*pm*potPremium*prestigeMult*pctMult*0.00110;
+  const _mqLV=_mq?Math.max(lv,lv+(_mq.boost-lv)*Math.min(1.0,Math.max(0,(dr-(_mq.good+4))/8.0))):lv;
+  // Elite pull: world-class players at top clubs are priced at global rates, not local league rates
+  // Applies when pr>=1.8 and player is both high-rated (r>76) AND high-percentile (pct>85)
+  // Pulls effectiveLV toward 7.0 (England 1 level) proportionally
+  // Elite pull tapers with prestige — full at pr=1.8, partial at pr=1.5, zero below 1.3
+  const _prFactor=Math.min(1.0,Math.max(0,(prestigeMult-1.3)/0.5));
+  const _elitePull=_prFactor*Math.min(1.0,Math.max(0,(dr-76)/10))*Math.min(1.0,Math.max(0,(leaguePct-85)/15));
+  const effectiveLV=_mqLV+(7.0-_mqLV)*_elitePull;
+  const raw=base*effectiveLV*ageMult*pm*potPremium*prestigeMult*pctMult*0.00305;
   // youthVal only fires when a pipeline multiplier has activated (eliteYouthMult>1.0)
   // Without a pipeline, the raw model handles everything — prevents non-pipeline leagues inflating values
   const youthVal=eliteYouthMult>1.0?youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult:0;
@@ -5520,8 +5532,9 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const _eliteBase=ELITE_CLUB_FLOOR[p.team]||0;
   // Smooth floor: scales with minutes (proportional), tapers post-peak age, and blends
   // with raw model so it's a soft minimum not a rigid value
-  const _eliteMinsScale=_eliteBase>0?(p.minutes||0)>=500?Math.min(1.0,(p.minutes||0)/2000):0:0;
-  const _eliteAgeTaper=Math.max(0.3,1.0-Math.max(0,(p.age||25)-30)*0.12);
+  // Smooth mins scale: ramps from 0 at 0 mins to 1.0 at 2000 mins, no hard threshold
+  const _eliteMinsScale=_eliteBase>0?Math.min(1.0,(p.minutes||0)/2000):0;
+  const _eliteAgeTaper=Math.max(0.15,1.0-Math.max(0,(p.age||25)-28)*0.055);
   const eliteClubFloor=_eliteBase*_eliteMinsScale*_eliteAgeTaper*contractMult;
   const modelVal=Math.max(youthVal,Math.max(0.01,raw*contractMult));
   // ── Contextual minutes penalty ─────────────────────────────────
@@ -5538,7 +5551,8 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // 20-21: small penalty
   // 22-23: moderate penalty
   // 24+: full penalty (0.60 + 0.40 * pct)
-  const _minsFloor=age<20?0.92:age<=21?0.82:age<=23?0.72:0.60;
+  // Smooth minutes floor: linear decay from 0.92 at age 16 to 0.60 at age 27+
+  const _minsFloor=Math.max(0.60,0.92-Math.max(0,age-16)*0.030);
   const _minsRange=1.0-_minsFloor;
   const minsMult=_minsFloor+_minsRange*minsPct;
   const penalisedModel=Math.max(leagueMin,modelVal*minsMult);
@@ -5546,9 +5560,10 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // get a boost independent of club prestige — Bundesliga/PL regular at 19 signals high value
   // regardless of whether their club clears the pipeline prestige threshold
   let _exposureMult=1.0;
-  if(age<=21&&(p.minutes||0)>=1000&&lv>=3.5){
-    const _expAge=Math.min(1.0,Math.max(0,(22-age)/4));
-    const _expMins=Math.min(1.0,Math.max(0,((p.minutes||0)-1000)/(3800-1000)));
+  const _expAgeFactor=age<=20?1.0:age<=23?Math.max(0,1-(age-20)/4):0;
+  if(_expAgeFactor>0&&(p.minutes||0)>=700&&lv>=3.0){
+    const _expAge=_expAgeFactor;
+    const _expMins=Math.min(1.0,Math.max(0,((p.minutes||0)-700)/(3800-700)));
     const _expLv=Math.min(1.0,Math.max(0,(lv-3.5)/3.5));
     _exposureMult=1.0+2.5*_expAge*_expMins*_expLv;
   }
