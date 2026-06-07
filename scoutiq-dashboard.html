@@ -2215,13 +2215,13 @@ function getFiltered(){
     });
   }
   const sk=ST.sortKey||'rating';
-  const NUMERIC_FIELDS=new Set(['rating','potential','ptPriority','leaguePct','age','minutes','rank']);
+  const NUMERIC_FIELDS=new Set(['rating','potential','leaguePct','age','minutes','rank']);
   list.sort((a,b)=>{
     if(sk==='capturedAt')return ST.sortDir*(new Date(b.capturedAt)-new Date(a.capturedAt));
     if(sk==='rank')return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
     if(sk==='rating')return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
     if(sk==='potential')return ST.sortDir*((displayPotential(b)??-Infinity)-(displayPotential(a)??-Infinity));
-    if(sk==='ptPriority')return ST.sortDir*((displayPTP(b)??-Infinity)-(displayPTP(a)??-Infinity));
+    
     if(sk==='leaguePct'){
       const diff=(b.leaguePct??-Infinity)-(a.leaguePct??-Infinity);
       if(diff!==0) return ST.sortDir*diff;
@@ -2302,7 +2302,6 @@ function renderStatsStrip(){
   const {allFiltered}=getFiltered();
   const rated=allFiltered.filter(p=>displayRating(p)!=null);
   const potted=allFiltered.filter(p=>p.potential!=null);
-  const ptped=allFiltered.filter(p=>p.ptPriority!=null);
   const avg=rated.length?(rated.reduce((s,p)=>s+(displayRating(p)||0),0)/rated.length).toFixed(1):'—';
   const avgPot=potted.length?(potted.reduce((s,p)=>s+p.potential,0)/potted.length).toFixed(1):'—';
   const lastCap=ST.players.length?[...ST.players].sort((a,b)=>new Date(b.capturedAt)-new Date(a.capturedAt))[0]:null;
@@ -2351,7 +2350,6 @@ function renderTable(){
   // Build colour lists from the FULL filtered dataset
   const ratedList=allFiltered.map(p=>displayRating(p)).filter(v=>v!=null);
   const potList=allFiltered.map(p=>displayPotential(p)).filter(v=>v!=null);
-  const ptList=allFiltered.map(p=>displayPTP(p)).filter(v=>v!=null);
   const lgPctList=allFiltered.filter(p=>p.leaguePct!=null);
 
   // Page offset for rank numbers
@@ -2385,7 +2383,6 @@ function renderTable(){
     const rankCell=`<td class="rank-cell">${rankOffset+i+1}</td>`;
     const hCount=p.history?.length||1;
     const potColor=gradientColor(displayPotential(p),potList);
-    const ptColor=gradientColor(displayPTP(p),ptList);
     const lgPctColor=gradientColor(p.leaguePct,lgPctList,'leaguePct');
     const ratingScaleColor=gradientColor(displayRating(p),ratedList);
     const natF=(p.nationalities&&p.nationalities.length)?p.nationalities.map(natFlag).join(' '):'—';
@@ -2421,7 +2418,6 @@ function renderTable(){
       <td class="r" style="color:var(--muted2)">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       <td>${ringCell(r,ratingScaleColor)}</td>
       <td>${ringCell(displayPotential(p),potColor)}</td>
-      <td>${ringCell(displayPTP(p),ptColor)}</td>
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
       <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00d4ff;white-space:nowrap">${formatValue(calcPlayerValue(p,3.0))}</td>
       <td style="min-width:110px">
@@ -7755,7 +7751,7 @@ function exportCSV(){
   const posConf=ST.filterPos!=='all'?POS_CONFIG[ST.filterPos]:null;
   const roleH=posConf?posConf.roles:[];
   const headers=['Name','Team','Nationality','Pos','League','Age','Minutes','Rating','Potential','League %ile','Captured',...roleH];
-  const rows=list.map(p=>[p.name,p.team,(p.nationalities||[]).join('/')||'',p.pos,p.leagueTag,p.age,p.minutes,fmt(p.rating),fmt(p.potential),fmt(p.ptPriority),fmt(p.leaguePct),fmtDate(p.capturedAt),...roleH.map(r=>fmt(p.roles[r]||null))]);
+  const rows=list.map(p=>[p.name,p.team,(p.nationalities||[]).join('/')||'',p.pos,p.leagueTag,p.age,p.minutes,fmt(p.rating),fmt(p.potential),fmt(p.leaguePct),fmtDate(p.capturedAt),...roleH.map(r=>fmt(p.roles[r]||null))]);
   const csv=[headers,...rows].map(r=>r.join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download=`scoutiq-${new Date().toISOString().slice(0,10)}.csv`;a.click();
   showToast('Exported','success');
