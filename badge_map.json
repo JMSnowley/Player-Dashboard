@@ -170,7 +170,7 @@
   "Brøndby": "none",
   "Sandefjord": "https://r2.thesportsdb.com/images/media/team/badge/3tzlt31691821291.png/preview",
   "Real Salt Lake": "none",
-  "Widzew Łódź": "none",
+  "Widzew Łódź": "https://r2.thesportsdb.com/images/media/team/badge/3rkfjd1692596430.png/preview",
   "Ipswich Town": "none",
   "Pogoń Szczecin": "none",
   "Salzburg": "none",
@@ -242,7 +242,7 @@
   "Reims": "none",
   "Viktoria Plzeň": "none",
   "Al Ittihad": "none",
-  "New England": "none",
+  "New England": "https://r2.thesportsdb.com/images/media/team/badge/k0fzk21744172928.png/preview",
   "Universitatea Cluj": "none",
   "Scunthorpe United": "https://r2.thesportsdb.com/images/media/team/badge/ljf0ce1685771026.png/preview",
   "Gateshead": "none",
@@ -579,7 +579,7 @@
   "Annecy": "none",
   "Grenoble": "none",
   "Nancy": "none",
-  "Montpellier": "none",
+  "Montpellier": "https://r2.thesportsdb.com/images/media/team/badge/8wn9x31750879448.png/preview",
   "Le Mans": "https://r2.thesportsdb.com/images/media/team/badge/wjhziv1700145026.png/preview",
   "Saint-Étienne": "none",
   "Rodez": "none",
@@ -680,5 +680,7 @@
   "Bourg-en-Bresse": "none",
   "Le Puy F.43 Auvergne": "none",
   "Dijon": "https://r2.thesportsdb.com/images/media/team/badge/viin5f1547898121.png/preview",
-  "Concarneau": "https://r2.thesportsdb.com/images/media/team/badge/qscxtc1580238253.png/preview"
+  "Concarneau": "https://r2.thesportsdb.com/images/media/team/badge/qscxtc1580238253.png/preview",
+  "Orléans": "https://r2.thesportsdb.com/images/media/team/badge/d6cu101766702274.png/preview",
+  "Fleury 91 FC": "https://r2.thesportsdb.com/images/media/team/badge/b6hmjd1752323430.png/preview"
 }
