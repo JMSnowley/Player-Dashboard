@@ -5109,9 +5109,9 @@ function buildFullOverview(p){
 
 // ── Player Valuation Model ────────────────────────────────────────────
 const LEAGUE_VALUE_MULT={
-  'England 1':5.5,'England 2':3.8,'England 3':1.4,'England 4':1.20,
-  'England 5':0.65,'Ireland 1':0.65,
-  'Scotland 1':4.0,'Scotland 2':1.20,'Scotland 3':0.55,'Scotland 4':0.35,
+  'England 1':5.5,'England 2':3.8,'England 3':1.1,'England 4':1.20,
+  'England 5':0.65,'Ireland 1':1.17,
+  'Scotland 1':2.8,'Scotland 2':1.20,'Scotland 3':0.55,'Scotland 4':0.35,
   'Germany 3':0.35,'Spain 3':0.20,'France 3':0.25,'Italy 2':0.70,'Portugal 2':0.40,
   'Russia 1':0.80,'Slovakia 1':0.35,'Slovenia 1':0.25,'Israel 1':0.35,
   'Mexico 1':0.50,'Japan 1':0.35,'Korea 1':0.20,'Morocco 1':0.12,'Tunisia 1':0.08,
@@ -5120,13 +5120,13 @@ const LEAGUE_VALUE_MULT={
   'Ireland 2':0.04,
   'Germany 1':5.2,'Germany 2':1.20,'Germany 3':0.35,'Spain 3':0.20,'France 3':0.25,'Italy 2':0.70,'Spain 1':5.5,'Spain 2':0.95,
   'Italy 1':5.2,'Italy 2':0.70,'France 1':4.0,'France 2':1.60,'Spain 2':0.90,
-  'Netherlands 1':5.5,'Netherlands 2':2.5,'Netherlands 2':0.80,
-  'Belgium 1':1.8,'Portugal 1':5.5,'Portugal 2':0.40,
-  'Czech Republic 1':2.40,'Austria 1':1.80,'Turkey 1':1.0,'Switzerland 1':2.40,
+  'Netherlands 1':4.5,'Netherlands 2':2.5,'Netherlands 2':1.44,
+  'Belgium 1':2.00,'Portugal 1':4.50,'Portugal 2':0.40,
+  'Czech Republic 1':1.80,'Austria 1':1.60,'Turkey 1':1.80,'Switzerland 1':4.32,
   'Greece 1':0.35,'Croatia 1':0.80,'Serbia 1':0.60,'Slovakia 1':0.35,'Slovenia 1':0.25,
-  'Norway 1':1.20,'Sweden 1':1.80,'Denmark 1':0.90,'Poland 1':2.20,
-  'Australia 1':1.20,'USA 1':1.10,'MLS':1.10,'Saudi Arabia 1':0.35,'Brazil 1':3.0,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.10,'Ecuador 1':0.15,'Chile 1':0.15,'Uruguay 1':0.35,
-  'Hungary 1':1.80,'Bulgaria 1':2.20,'Ukraine 1':1.80,'Croatia 1':0.80,'UAE 1':0.35,'Romania 1':3.80,
+  'Norway 1':2.16,'Sweden 1':3.24,'Denmark 1':1.62,'Poland 1':3.63,
+  'Australia 1':2.16,'USA 1':1.98,'MLS':1.98,'Saudi Arabia 1':0.63,'Brazil 1':5.40,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.10,'Ecuador 1':0.15,'Chile 1':0.15,'Uruguay 1':0.35,
+  'Hungary 1':2.78,'Bulgaria 1':3.96,'Ukraine 1':1.80,'Croatia 1':0.80,'UAE 1':0.35,'Romania 1':2.96,
 };
 const LEAGUE_TRANSFER_BUDGET={
   'England 1':50,'England 2':5,'England 3':0.8,'England 4':0.3,
@@ -5154,6 +5154,65 @@ const POS_TRANSFER_MULT={'GK':0.70,'CB':0.82,'FB':0.80,'DM':1.05,'CM':1.0,'AM':1
 // GK: Alisson €72.5M. CB: Gvardiol/van Dijk ~£110M. FB: Trent/Hakimi ~£90M.
 // WF/CF: Mbappé €180M, Haaland £175M. AM: Neymar-era. DM/CM: Bellingham-type.
 const POS_TRANSFER_CAP={'GK':80,'CB':110,'FB':90,'DM':140,'CM':150,'AM':180,'WF':175,'CF':175};
+
+const CIES_REFERENCE={
+  'Argentina 1':[['River Plate',16.965],['Boca Juniors',15.66],['Rosario Central',12.18],['CA Lanús',10.44],['Vélez Sarsfield',10.44],['CA Tigre',8.7],['CA Talleres',7.482],['Gimnasia La Plata',7.047],['Independiente Rivadavia',5.742],['Argentinos Juniors',5.351],['Newell\'s Old Boys',5.003],['Instituto Córdoba',4.698],['Racing Club',4.524],['Club Estudiantes',4.481],['CA Unión',4.263],['CA Huracán',3.872],['CA Independiente',3.654],['CA San Lorenzo',3.567],['CA Banfield',3.48],['Defensa y Justicia',2.74],['CA Belgrano',2.653],['CA Platense',1.958],['Gimnasia Mendoza',1.131],['CD Riestra',0.913],['CA Sarmiento',0.596],['CA Tucumán',0.531],['Barracas Central',0.513],['Central Córdoba SdE',0.413],['CA Aldosivi',0.387],['Estudiantes Río Cuarto',0.178]],
+  'Australia 1':[['Newcastle Jets',2.697],['Melbourne City',2.349],['Adelaide United',1.87],['Auckland FC',1.479],['Sydney FC',1.305],['Macarthur FC',1.218],['Central Coast Mariners',1.044],['Wellington Phoenix',0.87],['Perth Glory',0.592],['Brisbane Roar',0.405],['Melbourne Victory',0.331],['Western Sydney',0.3]],
+  'Austria 1':[['RB Salzburg',22.62],['Sturm Graz',6.742],['LASK',5.481],['Rapid Wien',5.438],['Austria Wien',4.046],['Wolfsberger AC',1.914],['TSV Hartberg',1.827],['Grazer AK',1.218],['SCR Altach',1.0],['SV Ried',0.87],['Blau-Weiss Linz',0.666],['WSG Tirol',0.509]],
+  'Belgium 1':[['Club Brugge',39.585],['KRC Genk',34.8],['Union SG',26.535],['RSC Anderlecht',23.49],['KVC Westerlo',11.31],['KAA Gent',10.005],['Zulte Waregem',7.091],['RSC Charleroi',6.873],['Cercle Brugge',6.612],['Standard Liège',6.482],['KV Mechelen',6.308],['Royal Antwerp',6.09],['Sint-Truidense VV',4.959],['OH Leuven',3.045],['FCV Dender',1.305],['RAAL La Louvière',1.131]],
+  'Brazil 1':[['SE Palmeiras',48.285],['Botafogo RJ',25.23],['Cruzeiro EC',20.445],['SC Corinthians',16.095],['CR Flamengo',16.095],['Fluminense FC',13.92],['Vasco da Gama',10.44],['Santos FC',9.57],['Atlético Mineiro',9.57],['Grêmio FBPA',9.135],['Athletico Paranaense',8.265],['RB Bragantino',7.395],['EC Bahia',7.134],['São Paulo FC',6.612],['SC Internacional',6.569],['Coritiba FC',3.349],['EC Vitória',2.262],['Mirassol FC',1.914],['Clube do Remo',0.913],['Associação Chapecoense',0.387]],
+  'Bulgaria 1':[['Ludogorets Razgrad',3.175],['CSKA Sofia',2.436],['Slavia Sofia',2.001],['Levski Sofia',1.61],['CSKA 1948',0.913],['Botev Plovdiv',0.827],['Cherno More',0.796],['Lokomotiv Plovdiv',0.526],['Septemvri Sofia',0.526],['Spartak Varna',0.509],['Dobrudzha Dobrich',0.365],['PFK Beroe',0.357],['Lokomotiv Sofia',0.339],['Botev Vratsa',0.291],['Arda Kardzhali',0.252]],
+  'Chile 1':[['O\'Higgins FC',3.872],['CD Palestino',2.175],['Coquimbo Unido',1.783],['Universidad de Chile',1.522],['Universidad Católica',1.435],['CD Huachipato',1.131],['Unión La Calera',1.044],['Audax Italiano',0.748],['Colo Colo',0.744],['CD La Serena',0.47],['CD Everton',0.348],['Deportes Concepción',0.339],['Deportivo Ñublense',0.331],['Deportes Limache',0.244],['Universidad Concepción',0.196],['CD Cobresal',0.122]],
+  'Colombia 1':[['Atlético Nacional',4.133],['América de Cali',3.915],['Independiente Medellín',3.48],['Deportivo Cali',3.175],['Junior FC',1.653],['Millonarios FC',1.653],['Internacional de Bogotá',1.305],['Rionegro Águilas',1.131],['Once Caldas',1.044],['Fortaleza CEIF',0.87],['Atlético Bucaramanga',0.827],['Independiente Santa Fe',0.783],['Deportivo Pasto',0.735],['Alianza FC',0.735],['Deportes Tolima',0.687],['Deportivo Pereira',0.687],['Cúcuta Deportivo',0.413],['Llaneros FC',0.322]],
+  'Croatia 1':[['Dinamo Zagreb',16.965],['HNK Rijeka',4.22],['Istra 1961',3.784],['Hajduk Split',3.219],['Lokomotiva Zagreb',2.914],['HNK Gorica',2.349],['Slaven Belupo',2.131],['NK Osijek',1.653],['NK Varaždin',0.827],['Vukovar 1991',0.37]],
+  'Cyprus 1':[['AC Omonia',4.35],['Aris Limassol',2.74],['Pafos FC',1.827],['AEK Larnaca',1.131],['APOEL FC',1.0],['Apollon FC',0.622],['AEL Limassol',0.348],['Anorthosis FC',0.27],['Olympiakos Nicosia',0.252],['Ethnikos Achna',0.235],['Omonia Aradippou',0.222],['ENY Ypsonas',0.217],['Enosis',0.104]],
+  'Czech Republic 1':[['Slavia Praha',9.57],['Sparta Praha',5.916],['Viktoria Plzeň',4.959],['Baník Ostrava',2.567],['Sigma Olomouc',2.523],['Slovan Liberec',2.349],['FK Jablonec',1.696],['FC Hradec Králové',1.131],['FK Pardubice',0.8],['MFK Karviná',0.779],['FC Slovácko',0.705],['FK Teplice',0.674],['FC Zlín',0.574],['Bohemians 1905',0.526],['Mladá Boleslav',0.47],['FK Dukla Praha',0.357]],
+  'Denmark 1':[['FC Midtjylland',16.53],['Brøndby IF',14.79],['FC Nordsjælland',13.92],['FC København',13.485],['AGF Aarhus',6.742],['Viborg FF',4.524],['SønderjyskE',4.22],['Odense BK',1.958],['Randers FC',1.566],['Silkeborg IF',1.392],['Vejle BK',1.262],['FC Fredericia',1.131]],
+  'Ecuador 1':[['Independiente del Valle',8.7],['LDU Quito',1.87],['Barcelona SC',1.044],['CD Macará',0.957],['CS Emelec',0.705],['Orense SC',0.679],['Deportivo Cuenca',0.509],['Guayaquil City',0.413],['Delfín SC',0.326],['SD Aucas',0.3],['Libertad FC',0.252],['Universidad Católica',0.235],['Mushuc Runa',0.217],['Técnico Universitario',0.152],['Manta FC',0.139],['Leones FC',0.135]],
+  'England 1':[['Manchester City',197.49],['Aston Villa',103.53],['Liverpool FC',93.96],['Chelsea FC',86.13],['Arsenal FC',84.39],['AFC Bournemouth',78.3],['Newcastle United',73.08],['Brentford FC',71.34],['Manchester United',66.99],['Brighton & Hove',61.77],['West Ham United',58.29],['Nottingham Forest',53.94],['Tottenham Hotspur',53.07],['Crystal Palace',49.59],['Everton FC',46.11],['Sunderland AFC',43.5],['Fulham FC',25.23],['Wolverhampton FC',22.62],['Leeds United',20.01],['Burnley FC',16.53]],
+  'England 2':[['Ipswich Town',26.1],['Leicester City',19.575],['Norwich City',16.095],['Southampton FC',15.225],['Swansea City',14.79],['Middlesbrough FC',12.18],['Watford FC',11.31],['West Bromwich Albion',11.31],['Millwall FC',10.005],['Queens Park Rangers',9.57],['Derby County',8.7],['Birmingham City',8.265],['Sheffield United',7.874],['Hull City AFC',6.569],['Blackburn Rovers',6.133],['Coventry City',6.133],['Stoke City FC',5.829],['Bristol City',5.263],['Wrexham AFC',3.263],['Preston North End',2.349],['Sheffield Wednesday',2.175],['Charlton Athletic',2.045],['Portsmouth FC',1.958],['Oxford United',1.522]],
+  'England 3':[['Cardiff City',3.741],['Leyton Orient',2.914],['Luton Town',2.784],['Plymouth Argyle',2.436],['Peterborough United',2.262],['Lincoln City',1.87],['Barnsley FC',1.783],['Blackpool FC',1.131],['Huddersfield Town',1.131],['Reading FC',1.131],['Stockport County',1.044],['Exeter City',1.044],['Burton Albion',0.913],['Wigan Athletic',0.753],['Bradford City',0.696],['Port Vale FC',0.687],['Bolton Wanderers',0.631],['Wycombe Wanderers',0.461],['Doncaster Rovers',0.392],['AFC Wimbledon',0.357],['Stevenage FC',0.244],['Roterham United',0.235],['Northampton Town',0.204],['Mansfield Town',0.183]],
+  'France 1':[['Paris St-Germain',115.71],['Olympique Marseille',49.59],['LOSC Lille',47.85],['AS Monaco',37.41],['RC Strasbourg',34.8],['RC Lens',30.45],['Olympique Lyonnais',30.45],['Stade Rennais',26.97],['FC Lorient',18.27],['Toulouse FC',17.4],['OGC Nice',17.4],['Paris FC',16.53],['Stade Brestois',13.05],['FC Nantes',10.44],['AJ Auxerre',10.44],['Angers SCO',9.57],['FC Metz',5.22],['Le Havre AC',4.35]],
+  'France 2':[['AS St-Etienne',14.355],['Stade de Reims',9.57],['ES Troyes',9.135],['Montpellier HSC',3.654],['Rodez AF',3.567],['US Dunkerque',2.175],['Clermont Foot',1.653],['Amiens SC',1.61],['Pau FC',1.392],['SC Bastia',0.957],['Le Mans FC',0.87],['Grenoble Foot',0.87],['AS Nancy',0.87],['Annecy FC',0.792],['Stade Lavallois',0.792],['Red Star',0.705],['EA Guingamp',0.644],['US Boulogne',0.291]],
+  'Germany 1':[['Bayern München',122.67],['RB Leipzig',103.53],['Bayer Leverkusen',73.95],['TSG Hoffenheim',62.64],['SC Freiburg',61.77],['Borussia Dortmund',61.77],['Eintracht Frankfurt',46.11],['VfB Stuttgart',43.5],['FC Köln',26.1],['VfL Wolfsburg',25.23],['FC Augsburg',21.75],['Union Berlin',20.88],['FSV Mainz 05',15.66],['Borussia M\'gladbach',14.79],['Werder Bremen',13.05],['FC St. Pauli',6.96],['Hamburger SV',5.22],['FC Heidenheim',3.48]],
+  'Germany 2':[['Hertha BSC',11.31],['FC Nürnberg',8.265],['Karlsruher SC',8.004],['FC Schalke 04',4.524],['Fortuna Düsseldorf',4.176],['SV Elversberg',3.654],['Holstein Kiel',3.175],['FC Kaiserslautern',3.088],['Greuther Fürth',2.871],['SV Darmstadt',2.828],['VfL Bochum',2.784],['Hannover 96',2.523],['SC Paderborn',1.783],['Arminia Bielefeld',1.435],['Eintracht Braunschweig',1.392],['FC Magdeburg',0.753],['Dynamo Dresden',0.666],['Preussen Münster',0.6]],
+  'Germany 3':[['TSG Hoffenheim Am',2.523],['VfB Stuttgart Am',1.653],['Jahn Regensburg',0.87],['Alemannia Aachen',0.87],['MSV Duisburg',0.631],['TSV 1860 München',0.509],['FC Ingolstadt 04',0.479],['SV Wehen',0.461],['SSV Ulm 1846',0.413],['Hansa Rostock',0.405],['Rot-Weiss Essen',0.374],['VfL Osnabrück',0.357],['SC Verl',0.331],['Energie Cottbus',0.304],['Viktoria Köln',0.283],['Waldhof Mannheim',0.191],['Erzgebirge Aue',0.161],['FC Saarbrücken',0.113],['FC Schweinfurt 05',0.113]],
+  'Greece 1':[['Olympiacos FC',16.095],['PAOK FC',13.05],['Panathinaikos FC',8.7],['AEK Athens',4.263],['Aris FC',1.783],['Levadiakos FC',1.392],['OFI Crete',1.305],['Asteras Tripolis',0.722],['AE Larissa',0.713],['AE Kifisia',0.618],['Panetolikos FC',0.609],['Atromitos FC',0.566],['Volos FC',0.509],['Panserraikos FC',0.378]],
+  'Hungary 1':[['Ferencvárosi TC',2.697],['Debreceni VSC',2.001],['Györi ETO',1.61],['MTK Budapest',1.566],['Kisvárda FC',1.566],['Puskás Akadémia',1.479],['Zalaegerszegi TE',1.218],['Újpest FC',1.0],['Diósgyöri VTK',0.913],['Nyíregyháza Spartacus',0.526],['Paksi FC',0.405],['Kazincbarcikai SC',0.091]],
+  'Ireland 1':[['Shamrock Rovers',1.783],['Sligo Rovers',1.435],['Dundalk FC',0.696],['Derry City',0.583],['Bohemian FC',0.561],['Shelbourne FC',0.526],['Waterford United',0.505],['St Pat\'s FC',0.487],['Drogheda United',0.461],['Galway United',0.196]],
+  'Israel 1':[['Maccabi Tel Aviv',9.135],['Hapoel Tel Aviv',6.09],['Maccabi Haifa',3.263],['Beitar Jerusalem',2.349],['Hapoel Be\'er Sheva',1.958],['Hapoel Jerusalem',1.696],['Maccabi Netanya',1.435],['Hapoel Petah Tikva',1.131],['Bnei Sakhnin',1.044],['FC Ashdod',0.561],['Ironi Kiryat Shmona',0.413],['Maccabi Bnei Reineh',0.322],['Ironi Tiberias',0.265],['Hapoel Haifa',0.17]],
+  'Italy 1':[['Juventus FC',115.71],['SSC Napoli',87.87],['FC Inter',82.65],['AS Roma',53.07],['Como 1907',53.07],['Bologna FC',53.07],['AC Milan',46.98],['Atalanta BC',43.5],['SS Lazio',37.41],['US Sassuolo',33.93],['ACF Fiorentina',33.93],['Torino FC',30.45],['Parma Calcio',24.36],['Cagliari Calcio',23.49],['US Lecce',21.75],['Udinese Calcio',18.27],['Genoa CFC',15.66],['Hellas Verona',11.31],['Pisa SC',6.96],['US Cremonese',4.35]],
+  'Italy 2':[['Venezia FC',12.18],['Frosinone Calcio',7.612],['Empoli FC',6.96],['US Catanzaro',6.003],['AC Monza',3.784],['Cesena FC',3.567],['UC Sampdoria',3.002],['Palermo FC',2.914],['Spezia Calcio',2.436],['FC Südtirol',2.131],['Modena FC',2.131],['US Carrarese',1.87],['Juve Stabia',1.131],['Virtus Entella',1.0],['AC Mantova',0.957],['SSC Bari',0.913],['Calcio Padova',0.705],['US Avellino',0.622],['Delfino Pescara',0.618],['AC Reggiana',0.557]],
+  'Japan 1':[['FC Tokyo',5.959],['Kashima Antlers',3.219],['Kashiwa Reysol',2.349],['Kyoto Sanga',2.262],['Sanfrecce Hiroshima',1.522],['Machida Zelvia',1.479],['Kawasaki Frontale',1.479],['Gamba Osaka',1.435],['Shimizu S-Pulse',1.435],['Nagoya Grampus',1.305],['Cerezo Osaka',1.044],['Yokohama F. Marinos',1.044],['Vissel Kobe',1.0],['Urawa Reds',0.957],['Avispa Fukuoka',0.613],['Mito Hollyhock',0.479],['Tokyo Verdy',0.461],['V-Varen Nagasaki',0.361],['Fagiano Okayama',0.235],['JEF United',0.204]],
+  'Korea 1':[['Jeonbuk FC',3.175],['Pohang Steelers',2.523],['Gangwon FC',1.044],['Ulsan HD',1.0],['Daejeon Hana Citizen',0.957],['Seoul FC',0.827],['Incheon United',0.713],['Gwangju FC',0.544],['Jeju United',0.535],['FC Anyang',0.487],['Gimcheon Sangmu',0.17],['Bucheon FC 1995',0.157]],
+  'Latvia 1':[['BFC Daugavpils',1.392],['FK RFS',0.957],['FC Riga',0.87],['FK Liepaja',0.87],['FK Auda',0.631],['SK Super Nova',0.435],['FK Tukums 2000',0.322],['Ogre United',0.244],['FK Grobinas',0.148]],
+  'Mexico 1':[['Chivas Guadalajara',19.14],['Club Tijuana',11.31],['Pumas UNAM',11.31],['CF América',9.57],['Deportivo Toluca',9.57],['Cruz Azul',7.656],['CF Monterrey',6.655],['Tigres UANL',5.916],['CF Pachuca',5.829],['Club Necaxa',5.394],['FC Juárez',5.176],['Querétaro FC',4.524],['Atlas Guadalajara',3.958],['CF Puebla',3.002],['Club León',2.914],['Atlético San Luis',2.131],['Santos Laguna',1.783],['Mazatlán FC',0.913]],
+  'Netherlands 1':[['AFC Ajax',60.03],['PSV Eindhoven',46.98],['AZ Alkmaar',27.405],['Feyenoord',20.88],['FC Twente',15.225],['NEC Nijmegen',9.135],['FC Groningen',8.7],['SC Heerenveen',6.873],['Sparta Rotterdam',6.873],['FC Utrecht',6.655],['Go Ahead Eagles',5.046],['FC Volendam',3.132],['SBV Excelsior',3.002],['PEC Zwolle',2.74],['Fortuna Sittard',2.74],['NAC Breda',2.262],['Heracles Almelo',1.696],['SC Telstar',1.218]],
+  'Netherlands 2':[['Willem II',4.046],['SC Cambuur',3.958],['Jong Utrecht',2.088],['Jong Ajax',2.045],['Jong PSV',1.435],['FC Dordrecht',1.435],['Almere City',1.435],['ADO Den Haag',1.218],['FC Eindhoven',1.131],['RKC Waalwijk',1.044],['Jong AZ',1.0],['FC Den Bosch',0.957],['De Graafschap',0.913],['SBV Vitesse',0.796],['FC Emmen',0.687],['MVV Maastricht',0.583],['TOP Oss',0.509],['VVV Venlo',0.492],['Helmond Sport',0.479],['Roda JC',0.452]],
+  'Norway 1':[['FK Bodø/Glimt',15.225],['Tromsø IL',6.264],['Viking FK',4.611],['Rosenborg BK',3.002],['Molde FK',3.002],['SK Brann',3.002],['Sarpsborg 08',2.914],['Fredrikstad FK',2.697],['Aalesunds FK',2.262],['Vålerenga Fotball',2.001],['Kristiansund BK',1.435],['Lillestrøm SK',1.218],['Sandefjord Fotball',1.218],['Ham-Kam',1.131],['IK Start',0.535],['KFUM Oslo',0.422]],
+  'Paraguay 1':[['Olimpia Asunción',3.567],['Cerro Porteño',2.74],['Club Libertad',1.131],['Club Guaraní',1.044],['Sportivo Luqueño',0.661],['Club Nacional',0.539],['CS San Lorenzo',0.387],['CS Trinidense',0.309],['Deportivo Recoleta',0.291],['2 de Mayo',0.274],['Sportivo Ameliano',0.27],['Club Rubio Ñú',0.226]],
+  'Poland 1':[['Lech Poznań',10.005],['Jagiellonia Bialystok',5.438],['Zaglebie Lubin',4.35],['Raków Częstochowa',4.22],['Lechia Gdańsk',2.914],['Legia Warszawa',2.828],['Widzew Lódź',2.175],['Pogoń Szczecin',2.001],['Górnik Zabrze',2.001],['Piast Gliwice',1.783],['Korona Kielce',1.522],['Motor Lublin SA',1.218],['MKS Cracovia',1.044],['GKS Katowice',1.044],['Arka Gdynia',0.913],['Wisla Plock',0.696],['Radomiak Radom',0.592],['Termalica Nieciecza',0.47]],
+  'Portugal 1':[['FC Porto',73.08],['SL Benfica',44.805],['Sporting CP',43.5],['SC Braga',19.575],['FC Famalicão',12.18],['Vitória SC',9.57],['GD Estoril Praia',6.046],['FC Arouca',5.089],['FC Alverca',4.611],['Gil Vicente FC',3.958],['Rio Ave FC',3.393],['CD Santa Clara',2.914],['Moreirense FC',2.653],['Casa Pia AC',2.175],['Estrela da Amadora',2.001],['CD Tondela',1.914],['CD Nacional',1.61],['AVS Futebol',1.479]],
+  'Portugal 2':[['SCU Torreense',1.522],['FC Porto B',1.522],['Académico de Viseu',1.479],['SL Benfica B',1.435],['FC Paços de Ferreira',1.305],['CS Marítimo',1.262],['Sporting CP B',1.218],['Leixões SC',0.957],['FC Vizela',0.87],['SC Farense',0.696],['Portimonense SC',0.622],['GD Chaves',0.552],['UD Leiria',0.492],['CD Feirense',0.365],['Lusitânia de Lourosa',0.3],['UD Oliveirense',0.257],['FC Penafiel',0.122]],
+  'Qatar 1':[['Al-Duhail SC',4.829],['Al-Sadd SC',4.089],['Al-Arabi SC',2.697],['Al-Wakrah SC',2.653],['Al-Shamal SC',2.175],['Al-Gharafa SC',2.001],['Al-Rayyan SC',1.218],['Al-Shahania SC',0.87],['Al-Ahli SC',0.613],['Qatar SC',0.596],['Umm Salal',0.452],['Al-Sailiya SC',0.413]],
+  'Romania 1':[['Universitatea Craiova',7.874],['Dinamo Bucureşti',3.393],['FCSB',3.088],['CFR Cluj',3.088],['FC Argeș',2.175],['Rapid București',2.001],['Universitatea Cluj',1.131],['FCV Farul',0.674],['FC Botoșani',0.666],['UTA Arad',0.535],['FC Hermannstadt',0.479],['Oțelul Galați',0.461],['Petrolul Ploiești',0.244],['FK Csíkszereda',0.187],['Unirea Slobozia',0.187]],
+  'Russia 1':[['Lokomotiv Moskva',26.97],['FK Zenit',26.1],['CSKA Moskva',25.23],['FK Krasnodar',14.355],['Dinamo Moskva',14.355],['Spartak Mosvka',8.7],['Rubin Kazan',4.916],['Akron Togliatti',4.872],['FK Baltika',4.046],['Akhmat Grozny',3.306],['FK Rostov',2.914],['Krylia Sovetov',2.393],['FK Orenburg',1.783],['Dynamo Makhachkala',1.522],['FK Pari NN',0.957],['FK Sochi',0.787]],
+  'Saudi Arabia 1':[['Al-Qadsiah FC',25.665],['Al-Hilal SFC',18.705],['Al-Ahli SFC',18.27],['Al-Ittihad Club',17.835],['Al-Nassr FC',16.53],['Neom SC',11.31],['Al-Taawoun FC',7.221],['Al-Ettifaq FC',4.437],['Al-Hazem SC',3.175],['Al-Fayha FC',3.132],['Al-Kholood',2.958],['Al-Shabab FC',2.61],['Al-Fateh SC',2.349],['Al-Najma SC',1.522],['Damac FC',0.913],['Al-Riyadh SC',0.827],['Khaleej FC',0.827],['Al-Okhdood',0.339]],
+  'Scotland 1':[['Celtic FC',14.355],['Rangers FC',10.44],['Motherwell FC',3.654],['Hibernian FC',3.567],['Aberdeen FC',1.653],['Heart of Midlothian',1.566],['Dundee United',1.566],['Falkirk FC',1.305],['St Mirren FC',0.957],['Dundee FC',0.696],['Kilmarnock FC',0.435],['Livingston FC',0.261]],
+  'Serbia 1':[['Crvena Zvezda',19.575],['FK Partizan',8.265],['FK IMT',5.524],['FK Čukarički',3.697],['FK Napredak',2.653],['FK Vojvodina',2.001],['OFK Beograd',1.958],['FK Novi Pazar',1.522],['Železničar Pančevo',1.479],['Radnički 1923',1.392],['Radnički Niš',1.305],['Spartak Subotica',1.131],['FK Javor',0.87],['TSC Bačka Topola',0.87],['Radnik Surdulica',0.774],['FK Mladost',0.278]],
+  'Slovakia 1':[['MŠK Žilina',3.263],['Slovan Bratislava',3.132],['AS Trenčín',1.914],['FK DAC 1904',1.61],['FK Košice',1.522],['Spartak Trnava',0.957],['Železiarne Podbrezová',0.87],['MFK Ružomberok',0.496],['MFK Zemplín',0.392],['Tatran Prešov',0.139],['MFK Skalica',0.096]],
+  'Slovenia 1':[['NK Maribor',4.133],['NK Celje',3.697],['Olimpija Ljubljana',2.436],['FC Koper',1.522],['NK Radomlje',1.131],['NŠ Mura',0.87],['NK Bravo',0.827],['NK Aluminij',0.405],['NK Primorje',0.187]],
+  'South Africa 1':[['Mamelodi Sundowns',3.393],['Chippa United',0.444],['Kaizer Chiefs',0.431],['Stellenbosch FC',0.357],['AmaZulu FC',0.222],['Orlando Pirates',0.178],['Sekhukhune United',0.135],['Richards Bay',0.091]],
+  'Spain 1':[['FC Barcelona',311.46],['Real Madrid',144.42],['Atlético Madrid',95.7],['Real Sociedad',56.55],['Villarreal CF',54.81],['Real Betis',38.28],['Girona FC',33.06],['Athletic Club',31.32],['Celta Vigo',26.1],['CA Osasuna',24.36],['Levante UD',20.01],['Getafe CF',20.01],['RCD Mallorca',18.27],['RCD Espanyol',18.27],['Valencia CF',17.4],['Sevilla FC',17.4],['Elche CF',15.66],['Deportivo Alavés',7.83],['Rayo Vallecano',7.83],['Real Oviedo',4.35]],
+  'Spain 2':[['UD Almería',11.31],['Racing de Santander',9.57],['Málaga CF',7.526],['Real Sociedad B',6.308],['Deportivo La Coruña',5.176],['UD Las Palmas',4.22],['Real Valladolid',3.654],['CD Leganés',3.219],['Cádiz CF',3.132],['CD Castellón',3.088],['FC Andorra',3.002],['Granada CF',2.828],['Sporting Gijón',2.262],['Burgos CF',2.001],['Albacete Balompié',1.958],['Real Zaragoza',1.696],['SD Eibar',1.522],['Córdoba CF',1.131],['CD Mirandés',0.827],['Huesca SD',0.661],['Cultural Leonesa',0.387],['AD Ceuta FC',0.252]],
+  'Sweden 1':[['Hammarby IF',6.569],['Djurgårdens IF',6.394],['IK Sirius',4.829],['BK Häcken',4.263],['Malmö FF',4.133],['AIK Fotboll',3.567],['Mjällby AIF',3.175],['Kalmar FF',2.784],['IFK Göteborg',2.436],['GAIS',1.653],['IF Brommapojkarna',1.349],['IF Elfsborg',1.305],['Halmstads BK',1.131],['Västeras SK',1.131],['Degerfors IF',1.044],['Örgryte IS',0.339]],
+  'Switzerland 1':[['FC Zürich',8.7],['FC Basel',8.7],['Young Boys',8.004],['FC St. Gallen',7.786],['FC Luzern',5.916],['Lausanne-Sport',5.916],['FC Thun',3.002],['FC Sion',2.828],['FC Lugano',2.436],['Servette FC',1.827],['Grasshopper Club',1.0],['FC Winterthur',0.526]],
+  'Turkey 1':[['Galatasaray SK',40.02],['Trabzonspor',25.665],['Fenerbahçe SK',24.36],['Beşiktaş JK',18.705],['Göztepe SK',8.265],['Başakşehir FK',7.83],['Alanyaspor',4.524],['Kasimpaşa SK',3.958],['Samsunspor',3.088],['Çaykur Rizespor',2.914],['Gaziantep FK',2.001],['Konyaspor',1.783],['Fatih Karagümrük',1.61],['Eyüpspor',1.61],['Antalyaspor',1.305],['Gençlerbirliği SK',1.131],['Kocaelispor',0.913],['Kayserispor',0.761]],
+  'UAE 1':[['Al-Ain FC',4.306],['Shabab Al-Ahli',2.61],['Al-Nasr SC',1.958],['Al-Jazira Club',1.783],['Al-Wahda FC',1.522],['Sharjah FC',1.435],['Al-Wasl FC',1.044],['Kalba FC',0.518],['Ajman Club',0.444],['Khor Fakkan',0.435],['Baniyas Club',0.3],['Al-Bataeh Club',0.278],['Al-Dhafra FC',0.235],['Dibba FC',0.152]],
+  'USA 1':[['Los Angeles FC',13.92],['Colorado Rapids',13.05],['Real Salt Lake',13.05],['Charlotte FC',13.05],['Chicago Fire',13.05],['New York RB',13.05],['Inter Miami',12.615],['FC Cincinnati',10.44],['New England',9.57],['Seattle Sounders',9.135],['Philadelphia Union',9.135],['FC Dallas',8.7],['Austin FC',8.265],['New York City',7.786],['Columbus Crew',7.526],['Vancouver Whitecaps',7.308],['San Diego FC',7.047],['Nashville SC',6.786],['Portland Timbers',6.482],['Minnesota United',6.394],['Orlando City',5.916],['Atlanta United',5.655],['Houston Dynamo',5.176],['Sporting KC',5.133],['Los Angeles Galaxy',4.872],['San Jose Earthquakes',4.785],['D.C. United',4.698],['Toronto FC',3.915],['CF Montréal',3.393],['St. Louis City',2.914]],
+  'Ukraine 1':[['Shakhtar Donetsk',18.705],['Dynamo Kyiv',17.835],['Karpaty Lviv',3.958],['Zorya Luhansk',3.045],['FK Kryvbas',2.828],['FK Polissya',2.349],['Metalist 1925',2.218],['LNZ Cherkasy',2.001],['FK Oleksandriya',1.87],['Kolos Kovalivka',1.61],['FK Obolon',1.479],['FK Epitsentr',1.0],['NK Veres',0.487],['Rukh Lviv',0.439],['FC Kudrivka',0.405],['SK Poltava',0.131]],
+  'Uruguay 1':[['Boston River',4.133],['Danubio FC',2.74],['Club Nacional',2.61],['Racing Montevideo',2.523],['CA Peñarol',2.48],['Defensor SC',2.175],['Liverpool FC',1.958],['Montevideo City',0.87],['CA Juventud',0.827],['CA Progreso',0.544],['Albion FC',0.535],['CD Maldonado',0.526],['Cerro Largo',0.392],['Montevideo Wanderers',0.392],['Central Español',0.226],['CA Cerro',0.178]],
+};
 
 function getClubRating(team, league){
   const CLUB_WAGE_BUDGET_REF=CLUB_WAGE_BUDGET;
@@ -5250,7 +5309,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       // Norway 1
       'Bodø / Glimt':1.8,'Rosenborg':1.8,'Molde':1.5,'Brann':1.5,'Tromsø':1.5,'Sarpsborg 08':1.3,
       // Sweden 1 — Hammarby(5), Djurgarden(4), Malmö(3), Häcken(3) top sellers
-      'Hammarby':1.5,'Hammarby IF':1.5,'Djurgården':1.5,'Malmö FF':1.5,'Häcken':1.5,'AIK':1.5,
+      'Hammarby':1.5,'Djurgården':1.8,'Häcken':1.5,
       // Switzerland 1 — Basel(14!), Young Boys(3), FC Sion(1) top sellers
       'Basel':1.8,'Young Boys':1.8,'FC Basel':1.8,'FC Sion':1.30,
       // Croatia 1 (not yet in DB)
@@ -5398,14 +5457,15 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       'Groningen':0.85,'Volendam':0.80,'Excelsior':0.80,'PEC Zwolle':0.80,
       'Fortuna Sittard':0.80,'Heracles':0.80,'Heracles Almelo':0.80,
       'Vitória de Guimarães':1.2,'Vitória Guimarães':1.2,'FC Famalicão':1.1,'Famalicão':1.1,'Casa Pia':1.0,'Rio Ave':1.0,'CD Nacional':1.0,'Nacional':1.0,'Gil Vicente':1.0,'FC Arouca':0.95,'Moreirense FC':0.95,'CD Santa Clara':0.95,'Estrela da Amadora SAD':0.95,
-      'De Graafschap':0.90,'ADO Den Haag':0.90,'ADO':0.90,
+      'Jong AZ':1.5,'AZ II':1.5,'Jong Ajax':1.5,'Jong PSV':1.5,'De Graafschap':0.90,'ADO Den Haag':0.90,'ADO':0.90,
+      'Djurgårdens IF':1.8,'Djurgården':1.8,'Hammarby IF':1.8,'Malmö FF':1.8,'AIK Fotboll':1.8,'IFK Göteborg':1.5,'BK Häcken':1.5,'IK Sirius':1.5,
       // Belgium 1
       'Club Brugge':1.8,
       'KRC Genk':1.40,'KAA Gent':1.25,'Genk':1.40,
       'Union Saint-Gilloise':1.30,'R.S.C. Anderlecht':1.30,'RSC Anderlecht':1.30,'Anderlecht':1.30,
       'Standard Liège':1.10,
       // Portugal 1
-      'Benfica':1.8,'Sporting CP':1.8,'Porto':1.70,
+      'Benfica':1.8,'Sporting CP':1.8,'Porto':1.8,'FC Porto':1.8,'Porto':1.70,
       'Sporting Braga':1.5,'Vitória Guimarães':1.5,
     };
     const lp=ST.players.filter(x=>x.leagueTag===league&&x.season===p.season&&x.rating);
@@ -5445,18 +5505,18 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const _mktBase={'England 1':5.0,'England 2':1.5,'England 3':0.40,'England 4':0.18,'England 5':0.06,
     'Germany 1':3.0,'Germany 2':0.8,'Spain 1':3.0,'Spain 2':0.7,
     'Italy 1':3.0,'Italy 2':0.7,'France 1':2.5,'France 2':1.00,
-    'Netherlands 1':1.5,'Netherlands 2':0.25,'Belgium 1':0.8,'Portugal 1':1.5,'Portugal 2':0.2,
+    'Netherlands 1':1.5,'Netherlands 2':0.12,'Belgium 1':0.8,'Portugal 1':1.5,'Portugal 2':0.2,
     'Scotland 1':0.50,'Scotland 2':0.30,'Scotland 3':0.060,'Scotland 4':0.060,
-    'Austria 1':0.35,'Switzerland 1':0.45,'Denmark 1':0.40,'Sweden 1':0.30,
-    'Norway 1':0.20,'Czech Republic 1':0.35,'Turkey 1':0.60,'Greece 1':0.30,
-    'Romania 1':0.40,'Hungary 1':0.25,'Bulgaria 1':0.25,'Croatia 1':0.20,'Poland 1':0.20,
-    'Brazil 1':0.40,'Brazil 2':0.08,'Argentina 1':0.25,
+    'Austria 1':0.35,'Switzerland 1':0.45,'Denmark 1':0.35,'Sweden 1':0.30,
+    'Norway 1':0.25,'Czech Republic 1':0.20,'Turkey 1':0.25,'Greece 1':0.30,
+    'Romania 1':0.20,'Hungary 1':0.12,'Bulgaria 1':0.25,'Croatia 1':0.20,'Poland 1':0.25,
+    'Brazil 1':0.65,'Brazil 2':0.08,'Argentina 1':0.25,
     'Colombia 1':0.10,'Ecuador 1':0.08,'Chile 1':0.08,'Uruguay 1':0.10,
-    'Saudi Arabia 1':0.50,'UAE 1':0.15,'Qatar 1':0.05,'UAE 1':0.30,'MLS':0.30,'USA 1':0.30,'Australia 1':0.30,'Ireland 1':0.20,
+    'Saudi Arabia 1':0.20,'UAE 1':0.15,'Qatar 1':0.05,'UAE 1':0.30,'MLS':0.60,'USA 1':0.60,'Australia 1':0.10,'Ireland 1':0.06,
   'Russia 1':0.20,'Israel 1':0.10,'Mexico 1':0.20,'Japan 1':0.10,'Korea 1':0.08,
   'Morocco 1':0.05,'Tunisia 1':0.03,'Cyprus 1':0.05,'Georgia 1':0.04,
   'Latvia 1':0.02,'Paraguay 1':0.04,'Wales 1':0.02,'Northern Ireland 1':0.02,
-  'South Africa 1':0.05,'Ireland 2':0.02,'Portugal 2':0.15,'Norway 1':0.20,};
+  'South Africa 1':0.05,'Ireland 2':0.02,'Portugal 2':0.15,'Norway 1':0.25,};
   const _minsF=Math.min(1.0,(p.minutes||0)/1800);
   const _ageF=Math.max(0.10,1.0-Math.max(0,(p.age||25)-30)*0.15);
   const leagueMin=(_mktBase[league]||0.03)*_minsF*_ageF*Math.min(1.3,prestigeMult);
@@ -5505,14 +5565,14 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     }
     if(baseMult>0){
       const pctAdj=1.0+(leaguePct/100)*0.6;
-      const minsAdj=Math.min(1.4,Math.max(0,((p.minutes||0)-300)/3000));
+      const minsAdj=Math.min(1.4,Math.max(0,((p.minutes||0)-300)/1800));
       eliteYouthMult=baseMult*pctAdj*minsAdj*_pipelineAgeFactor*_pipelinePctFactor;
     }
   }
   // Marquee player boost: Saudi/Turkey/MLS have top imported players whose
   // value reflects European market, not the local league quality
   // Smooth blend based on how far above the league 'good' threshold the player is
-  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:62,boost:25.0},'UAE 1':{good:62,boost:25.0},'Qatar 1':{good:60,boost:22.0},'Turkey 1':{good:64,boost:14.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
+  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:62,boost:25.0},'UAE 1':{good:62,boost:25.0},'Qatar 1':{good:60,boost:22.0},'Turkey 1':{good:64,boost:10.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
   const _mq=MARQUEE_LEAGUES[league];
   const _mqLV=_mq?Math.max(lv,lv+(_mq.boost-lv)*Math.min(1.0,Math.max(0,(dr-(_mq.good+4))/8.0))):lv;
   // Elite pull: world-class players at top clubs are priced at global rates, not local league rates
@@ -5528,7 +5588,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const youthVal=eliteYouthMult>1.0?youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult:0;
   const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
   // Elite club floor: Celtic/Rangers players with 600+ mins have minimum value
-  const ELITE_CLUB_FLOOR={'Celtic':1.2,'Rangers':1.2,'Ajax':1.8,'AFC Ajax':1.8,'PSV':1.6,'PSV Eindhoven':1.6,'Benfica':1.8,'SL Benfica':1.8,'Sporting CP':1.6,'FC Porto':1.3,'Ferencváros':0.6,'Legia Warszawa':0.6,'Legia':0.6,'Shakhtar Donetsk':0.6,'Shakhtar':0.6,'Dinamo Zagreb':0.6,'Dinamo':0.6,'Crvena zvezda':0.6,'Red Star Belgrade':0.6};
+  const ELITE_CLUB_FLOOR={'Celtic':1.2,'Rangers':1.2,'Ajax':1.8,'AFC Ajax':1.8,'PSV':1.6,'PSV Eindhoven':1.6,'Benfica':1.8,'SL Benfica':1.8,'FC Porto':1.8,'Sporting CP':1.6,'FC Porto':1.8,'Ferencváros':0.6,'Legia Warszawa':0.6,'Legia':0.6,'Shakhtar Donetsk':0.6,'Shakhtar':0.6,'Dinamo Zagreb':0.6,'Dinamo':0.6,'Crvena zvezda':0.6,'Red Star Belgrade':0.6};
   const _eliteBase=ELITE_CLUB_FLOOR[p.team]||0;
   // Smooth floor: scales with minutes (proportional), tapers post-peak age, and blends
   // with raw model so it's a soft minimum not a rigid value
@@ -5575,6 +5635,15 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const _compressed=_rawCapped<=_capThreshold
     ? _rawCapped
     : _capThreshold + Math.pow(Math.min(1.0,(_rawCapped-_capThreshold)/(_ceiling-_capThreshold)),1.3)*(_ceiling-_capThreshold);
+  // CIES club ceiling: softly constrain to avoid exceeding known club ceilings
+  const _ciLeague=CIES_REFERENCE[league];
+  if(_ciLeague){
+    const _ciEntry=_ciLeague.find(e=>e[0]===p.team||e[0]===p.team+' FC'||e[0]==='FC '+p.team);
+    if(_ciEntry){
+      const _ciCeiling=_ciEntry[1]*3.5; // allow up to 3.5× club's own ceiling for outliers
+      if(_compressed>_ciCeiling) return Math.round(Math.min(_compressed,_ciCeiling)*10)/10;
+    }
+  }
   return Math.round(_compressed*10)/10;
 }
 
