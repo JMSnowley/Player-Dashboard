@@ -5457,8 +5457,9 @@ function calcPlayerValue(p, yearsRemaining=3.0){
       'Groningen':0.85,'Volendam':0.80,'Excelsior':0.80,'PEC Zwolle':0.80,
       'Fortuna Sittard':0.80,'Heracles':0.80,'Heracles Almelo':0.80,
       'Vitória de Guimarães':1.2,'Vitória Guimarães':1.2,'FC Famalicão':1.1,'Famalicão':1.1,'Casa Pia':1.0,'Rio Ave':1.0,'CD Nacional':1.0,'Nacional':1.0,'Gil Vicente':1.0,'FC Arouca':0.95,'Moreirense FC':0.95,'CD Santa Clara':0.95,'Estrela da Amadora SAD':0.95,
-      'Jong AZ':1.5,'AZ II':1.5,'Jong Ajax':1.5,'Jong PSV':1.5,'De Graafschap':0.90,'ADO Den Haag':0.90,'ADO':0.90,
-      'Djurgårdens IF':1.8,'Djurgården':1.8,'Hammarby IF':1.8,'Malmö FF':1.8,'AIK Fotboll':1.8,'IFK Göteborg':1.5,'BK Häcken':1.5,'IK Sirius':1.5,
+      'Jong AZ':1.8,'AZ II':1.8,'Jong Ajax':1.8,'Jong PSV':1.8,'De Graafschap':0.90,'ADO Den Haag':0.90,'ADO':0.90,
+      'Djurgårdens IF':1.8,'Djurgården':1.8,'Hammarby IF':1.8,'Hammarby':1.8,'Malmö FF':1.8,'Malmö':1.8,'AIK Fotboll':1.8,'AIK':1.8,'IFK Göteborg':1.5,'Göteborg':1.5,'BK Häcken':1.5,'Häcken':1.5,'IK Sirius':1.5,'Sirius':1.5,
+      'Newcastle Jets':1.5,'Melbourne City':1.5,'Sydney FC':1.5,'Wellington Phoenix':1.5,'Adelaide United':1.5,'Shamrock Rovers':1.5,'Sligo Rovers':1.5,'Dundalk':1.5,'Bohemian FC':1.3,'Shelbourne FC':1.3,
       // Belgium 1
       'Club Brugge':1.8,
       'KRC Genk':1.40,'KAA Gent':1.25,'Genk':1.40,
@@ -5502,17 +5503,17 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   const pctMult=0.90+0.25*(leaguePct/100);
   // Dynamic market floor: scales with minutes and age — a regular in a top league
   // always commands something, but old/fringe players trail off naturally
-  const _mktBase={'England 1':5.0,'England 2':1.5,'England 3':0.40,'England 4':0.18,'England 5':0.06,
-    'Germany 1':3.0,'Germany 2':0.8,'Spain 1':3.0,'Spain 2':0.7,
-    'Italy 1':3.0,'Italy 2':0.7,'France 1':2.5,'France 2':1.00,
-    'Netherlands 1':1.5,'Netherlands 2':0.12,'Belgium 1':0.8,'Portugal 1':1.5,'Portugal 2':0.2,
-    'Scotland 1':0.50,'Scotland 2':0.30,'Scotland 3':0.060,'Scotland 4':0.060,
-    'Austria 1':0.35,'Switzerland 1':0.45,'Denmark 1':0.35,'Sweden 1':0.30,
-    'Norway 1':0.25,'Czech Republic 1':0.20,'Turkey 1':0.25,'Greece 1':0.30,
-    'Romania 1':0.20,'Hungary 1':0.12,'Bulgaria 1':0.25,'Croatia 1':0.20,'Poland 1':0.25,
+  const _mktBase={'England 1':5.0,'England 2':1.5,'England 3':0.40,'England 4':0.33,'England 5':0.11,
+    'Germany 1':3.0,'Germany 2':0.8,'Spain 1':3.33,'Spain 2':0.7,
+    'Italy 1':3.33,'Italy 2':0.7,'France 1':2.5,'France 2':0.52,
+    'Netherlands 1':2.38,'Netherlands 2':0.48,'Belgium 1':1.43,'Portugal 1':1.5,'Portugal 2':0.2,
+    'Scotland 1':0.50,'Scotland 2':0.33,'Scotland 3':0.095,'Scotland 4':0.067,
+    'Austria 1':0.48,'Switzerland 1':0.76,'Denmark 1':0.35,'Sweden 1':0.52,
+    'Norway 1':0.57,'Czech Republic 1':0.24,'Turkey 1':0.76,'Greece 1':0.30,
+    'Romania 1':0.24,'Hungary 1':0.12,'Bulgaria 1':0.27,'Croatia 1':0.20,'Poland 1':0.48,
     'Brazil 1':0.65,'Brazil 2':0.08,'Argentina 1':0.25,
     'Colombia 1':0.10,'Ecuador 1':0.08,'Chile 1':0.08,'Uruguay 1':0.10,
-    'Saudi Arabia 1':0.20,'UAE 1':0.15,'Qatar 1':0.05,'UAE 1':0.30,'MLS':0.60,'USA 1':0.60,'Australia 1':0.10,'Ireland 1':0.06,
+    'Saudi Arabia 1':0.48,'UAE 1':0.15,'Qatar 1':0.05,'UAE 1':0.30,'MLS':1.14,'USA 1':1.14,'Australia 1':0.38,'Ireland 1':0.19,
   'Russia 1':0.20,'Israel 1':0.10,'Mexico 1':0.20,'Japan 1':0.10,'Korea 1':0.08,
   'Morocco 1':0.05,'Tunisia 1':0.03,'Cyprus 1':0.05,'Georgia 1':0.04,
   'Latvia 1':0.02,'Paraguay 1':0.04,'Wales 1':0.02,'Northern Ireland 1':0.02,
@@ -5533,9 +5534,9 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // Big5 includes 2nd divisions — they feed directly into top leagues
   const ELITE_YOUTH_BIG5=new Set(['England 1','England 2','Germany 1','Germany 2','Spain 1','Spain 2','Spain 3','Italy 1','Italy 2','France 1','France 2','France 3']);
   // P2: Portugal, Netherlands, Ukraine (Shakhtar/Dynamo match PL fees)
-  const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1','Ukraine 1']);
+  const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1','Ukraine 1','Netherlands 2']);
   // P3: Danish/Austrian/Swiss/Swedish/Croatian/MLS model — elite club premiums
-  const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1','Norway 1','Croatia 1','USA 1','MLS','Portugal 2']);
+  const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1','Norway 1','Croatia 1','USA 1','MLS','Portugal 2','Belgium 1','Australia 1','Ireland 1']);
   // P4: Eastern Europe + SA Others — lower multiplier, calibrated to €10-15M ceilings
   const ELITE_YOUTH_P4=new Set(['Romania 1','Bulgaria 1','Czech Republic 1','Serbia 1','Greece 1','Poland 1','Hungary 1','Slovakia 1','Slovenia 1','Israel 1','Russia 1']);
   // South American pipeline — separate tiers
@@ -5572,7 +5573,7 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // Marquee player boost: Saudi/Turkey/MLS have top imported players whose
   // value reflects European market, not the local league quality
   // Smooth blend based on how far above the league 'good' threshold the player is
-  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:62,boost:25.0},'UAE 1':{good:62,boost:25.0},'Qatar 1':{good:60,boost:22.0},'Turkey 1':{good:64,boost:10.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
+  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:65,boost:25.0},'UAE 1':{good:65,boost:22.0},'Qatar 1':{good:63,boost:20.0},'Turkey 1':{good:64,boost:10.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
   const _mq=MARQUEE_LEAGUES[league];
   const _mqLV=_mq?Math.max(lv,lv+(_mq.boost-lv)*Math.min(1.0,Math.max(0,(dr-(_mq.good+4))/8.0))):lv;
   // Elite pull: world-class players at top clubs are priced at global rates, not local league rates
