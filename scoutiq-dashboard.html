@@ -4254,10 +4254,11 @@ function searchVariants(team){
   return [...new Set(variants)];
 }
 
-async function fetchBadge(team,retryNone=false){
-  if(BADGE_MAP[team]!==undefined&&BADGE_MAP[team]!=='none'&&!retryNone) return BADGE_MAP[team];
-  if(BADGE_MAP[team]==='loading') return null;
-  BADGE_MAP[team]='loading';
+async function fetchBadge(team,retryNone=false,league=''){
+  const _badgeKey=league?team+'|'+league:team;
+  if(BADGE_MAP[_badgeKey]!==undefined&&BADGE_MAP[_badgeKey]!=='none'&&!retryNone) return BADGE_MAP[_badgeKey];
+  if(BADGE_MAP[_badgeKey]==='loading') return null;
+  BADGE_MAP[_badgeKey]='loading';
   try{
     const variants=searchVariants(team);
     let bestTeam=null,bestScore=-999;
@@ -4276,13 +4277,13 @@ async function fetchBadge(team,retryNone=false){
     if(bestTeam&&bestScore>=20){
       let badgeUrl=bestTeam.strBadge||'';
       if(badgeUrl&&!badgeUrl.endsWith('/preview')) badgeUrl+='/preview';
-      BADGE_MAP[team]=badgeUrl||'none';
+      BADGE_MAP[_badgeKey]=badgeUrl||'none';
     } else {
-      BADGE_MAP[team]='none';
+      BADGE_MAP[_badgeKey]='none';
     }
-    if(BADGE_MAP[team]&&BADGE_MAP[team]!=='none'){_badgeMapDirty=true;scheduleBadgeMapSave();}
+    if(BADGE_MAP[_badgeKey]&&BADGE_MAP[_badgeKey]!=='none'){_badgeMapDirty=true;scheduleBadgeMapSave();}
   }catch(e){BADGE_MAP[team]='none';}
-  document.querySelectorAll(`[data-badge-team="${CSS.escape(team)}"]`).forEach(el=>{
+  document.querySelectorAll(`[data-badge-team="${CSS.escape(_badgeKey)}"]`).forEach(el=>{
     const url=BADGE_MAP[team];
     if(url&&url!=='none'&&url!=='loading'){
       const img=document.createElement('img');img.className='player-badge';img.src=url;img.alt=team;img.style.cssText=el.style.cssText;
@@ -5123,7 +5124,7 @@ const LEAGUE_VALUE_MULT={
   'Netherlands 1':4.5,'Netherlands 2':2.5,'Netherlands 2':1.44,
   'Belgium 1':2.00,'Portugal 1':4.50,'Portugal 2':0.40,
   'Czech Republic 1':1.80,'Austria 1':1.60,'Turkey 1':1.80,'Switzerland 1':4.32,
-  'Greece 1':0.35,'Croatia 1':0.80,'Serbia 1':0.60,'Slovakia 1':0.35,'Slovenia 1':0.25,
+  'Cyprus 1':0.30,'Greece 1':0.35,'Croatia 1':0.80,'Serbia 1':0.60,'Slovakia 1':0.35,'Slovenia 1':0.25,
   'Norway 1':2.16,'Sweden 1':3.24,'Denmark 1':1.62,'Poland 1':3.63,
   'Australia 1':2.16,'USA 1':1.98,'MLS':1.98,'Saudi Arabia 1':0.63,'Brazil 1':5.40,'Brazil 2':0.40,'Argentina 1':0.80,'Colombia 1':0.10,'Ecuador 1':0.15,'Chile 1':0.15,'Uruguay 1':0.35,
   'Hungary 1':2.78,'Bulgaria 1':3.96,'Ukraine 1':1.80,'Croatia 1':0.80,'UAE 1':0.35,'Romania 1':2.96,
@@ -6188,11 +6189,11 @@ const TRANSFER_CORRIDORS={
   'Greece 1':{'England 1':0.4,'Portugal 1':0.3,'Germany 1':0.3,'Saudi Arabia 1':0.2},
   'Romania 1':{'Italy 1':0.4,'England 1':0.3,'Portugal 1':0.3,'MLS':0.2,'Turkey 1':0.2},
   'Bulgaria 1':{'Italy 1':0.4,'France 1':0.3,'Germany 1':0.3,'England 1':0.2},
-  'Brazil 1':{'Spain 1':0.6,'England 1':0.5,'France 1':0.3,'Italy 1':0.3},
-  'Argentina 1':{'Spain 1':0.7,'Italy 1':0.5,'England 1':0.3,'Germany 1':0.2},
-  'Colombia 1':{'Brazil 1':0.5,'MLS':0.3,'Mexico 1':0.3,'Belgium 1':0.2},
-  'Ecuador 1':{'MLS':0.4,'Spain 1':0.3,'Belgium 1':0.3,'Germany 1':0.2},
-  'Chile 1':{'Argentina 1':0.4,'Brazil 1':0.4,'Italy 1':0.3,'Portugal 1':0.2},
+  'Brazil 1':{'Spain 1':0.6,'England 1':0.5,'France 1':0.3,'Italy 1':0.3,'Portugal 1':0.5,'Argentina 1':0.4,'Colombia 1':0.3,'MLS':0.3},
+  'Argentina 1':{'Spain 1':0.7,'Italy 1':0.5,'England 1':0.3,'Germany 1':0.2,'Portugal 1':0.4,'Brazil 1':0.4,'MLS':0.3},
+  'Colombia 1':{'Brazil 1':0.5,'MLS':0.3,'Mexico 1':0.3,'Belgium 1':0.2,'Spain 1':0.3,'Portugal 1':0.3,'Argentina 1':0.3},
+  'Ecuador 1':{'MLS':0.4,'Spain 1':0.3,'Belgium 1':0.3,'Portugal 1':0.3,'Brazil 1':0.3,'Colombia 1':0.3,'Argentina 1':0.3},
+  'Chile 1':{'Argentina 1':0.5,'Brazil 1':0.4,'Italy 1':0.3,'Portugal 1':0.3,'Spain 1':0.3,'MLS':0.3,'Colombia 1':0.2},
   'Croatia 1':{'Germany 1':0.7,'Italy 1':0.5,'England 1':0.4,'France 1':0.3},
   'Serbia 1':{'England 1':0.6,'Germany 1':0.4,'Italy 1':0.3,'France 1':0.2},
   'Ukraine 1':{'England 1':0.5,'Germany 1':0.4,'Italy 1':0.3,'France 1':0.2},
@@ -6213,12 +6214,13 @@ const TRANSFER_CORRIDORS={
   'France 1':{'England 1':0.6,'Spain 1':0.5,'Germany 1':0.4,'Italy 1':0.3,'Saudi Arabia 1':0.2},
   'Netherlands 1':{'England 1':0.9,'Spain 1':0.3,'Germany 1':0.3,'Italy 1':0.2},
   'Russia 1':{'England 1':0.5,'Germany 1':0.4,'Spain 1':0.3,'Italy 1':0.2},
-  'Mexico 1':{'MLS':0.7,'Spain 1':0.3,'England 1':0.2},
+  'Mexico 1':{'MLS':0.7,'Spain 1':0.3,'England 1':0.2,'Portugal 1':0.2},'Uruguay 1':{'Argentina 1':0.6,'Brazil 1':0.5,'Spain 1':0.4,'Italy 1':0.4,'Portugal 1':0.3,'MLS':0.3},'Paraguay 1':{'Argentina 1':0.5,'Brazil 1':0.4,'Spain 1':0.3,'Portugal 1':0.3,'MLS':0.3},
   'Japan 1':{'England 1':0.4,'Germany 1':0.3,'Netherlands 1':0.3,'Spain 1':0.2},
   'Korea 1':{'Japan 1':0.5,'England 1':0.3,'Germany 1':0.2},
   'Morocco 1':{'France 1':0.7,'Spain 1':0.3,'Belgium 1':0.3},
   'South Africa 1':{'England 1':0.4,'Belgium 1':0.3,'Netherlands 1':0.3},
   'Israel 1':{'Netherlands 1':0.4,'Germany 1':0.3,'Belgium 1':0.3},
+  'Cyprus 1':    {tier:7,name:'Cyprus First Division',  good:55,top:63,elite:71},
   'UAE 1':{'England 1':0.4,'Spain 1':0.3},
   'Slovakia 1':{'Czech Republic 1':0.5,'Germany 1':0.3,'Austria 1':0.3},
   'Slovenia 1':{'Austria 1':0.5,'Germany 1':0.3,'Italy 1':0.3},
@@ -6682,9 +6684,14 @@ function buildFORecommendedClubs(p){
     else if(overshoot>0) qualityCap=92;
     // Undershoot: clubs buy potential, use projected rating, wider tolerance
     const undershoot=clubLQ.good-projRating;
-    if(undershoot>20) qualityCap=Math.min(qualityCap,40);
-    else if(undershoot>12) qualityCap=Math.min(qualityCap,60);
-    else if(undershoot>6) qualityCap=Math.min(qualityCap,78);
+    // Scale undershoot tolerance with league percentile:
+    // High performers (70%ile+) can stretch into better clubs (larger undershoot allowed)
+    // Low performers (<40%ile) face a tighter cap — clubs that are "too good" should score lower
+    const _pctFactor=Math.min(1.0,Math.max(0,(p.leaguePct??50)/70));
+    const _undershootTolerance=6+_pctFactor*16; // 6 at 0%ile, 22 at 70%ile+
+    if(undershoot>_undershootTolerance*1.4) qualityCap=Math.min(qualityCap,38);
+    else if(undershoot>_undershootTolerance) qualityCap=Math.min(qualityCap,58);
+    else if(undershoot>_undershootTolerance*0.5) qualityCap=Math.min(qualityCap,76);
     // ── Club level floor ──────────────────────────────────────────
     // A player's current club level acts as their baseline — even poor performers
     // have demonstrated they can function at that level.
@@ -6752,10 +6759,31 @@ function buildFORecommendedClubs(p){
     // Corridor bonus applied to cultural score (max +25 for strength=1.0)
     culturalScore=Math.min(100,culturalScore+corridorBonus);
 
+    // ── Co-national players bonus (medium weight) ─────────────────
+    // It's easier to transfer somewhere if there are players of your nationality there.
+    // Check how many players at target club share nationality with the player.
+    const _coNatSet=new Set((p.nationality||'').split(',').map(n=>n.trim()).filter(Boolean));
+    if(_coNatSet.size>0){
+      const clubNatMatches=club.players.filter(x=>{
+        if(!x.nationality) return false;
+        const xNats=x.nationality.split(',').map(n=>n.trim());
+        return xNats.some(n=>_coNatSet.has(n));
+      }).length;
+      // Bonus: 0 matches=0, 1 match=+8, 2=+14, 3+=+18 (capped)
+      const coNatBonus=clubNatMatches===0?0:clubNatMatches===1?8:clubNatMatches===2?14:18;
+      culturalScore=Math.min(100,culturalScore+coNatBonus);
+    }
+
     // Cultural fit matters more at lower levels; elite players move for opportunity
+    // Also: low-percentile players have noisier complement signals → reduce compW, raise cultW
     const pot=dp;
-    const cultW=Math.max(0.05,Math.min(0.22,0.22-(pot-65)*0.01));
-    const compW=Math.max(0.15,Math.min(0.22,0.15+(pot-65)*0.0035));
+    const _pctAdj=Math.max(0,Math.min(1,(p.leaguePct??50)/70)); // 0 at 0%ile, 1 at 70%ile+
+    // cultW rises for low-pct players (weaker players care more about familiarity)
+    const _cultBase=Math.max(0.05,Math.min(0.22,0.22-(pot-65)*0.01));
+    const cultW=Math.min(0.28,_cultBase+(1-_pctAdj)*0.08);
+    // compW drops for low-pct players (their skill gaps are noisier signals)
+    const _compBase=Math.max(0.15,Math.min(0.22,0.15+(pot-65)*0.0035));
+    const compW=Math.max(0.10,_compBase*_pctAdj+0.10*(1-_pctAdj));
     // Club Level is the non-negotiable constraint — weight raised significantly
     // Stepping up: slightly lower (being top of a better squad is expected)
     const playW=steppingUp?Math.max(0.40,Math.min(0.45,0.40+(pot-65)*0.0025)):Math.max(0.55,Math.min(0.65,0.55+(pot-65)*0.005));
@@ -6864,6 +6892,7 @@ const LEAGUE_QUALITY={
   'Ecuador 1':    {tier:3,name:'Liga Pro',              good:58,top:63,elite:68},
   'Chile 1':      {tier:3,name:'Primera División',      good:58,top:63,elite:68},
   'Uruguay 1':    {tier:3,name:'Primera División',      good:59,top:64,elite:69},
+  'Cyprus 1':    {tier:7,name:'Cyprus First Division',  good:55,top:63,elite:71},
 };
 
 function ratingContext(dr,dp,leagueTag,age){
