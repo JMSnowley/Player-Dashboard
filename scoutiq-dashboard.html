@@ -5235,418 +5235,248 @@ function getClubRating(team, league){
   return 35+Math.min(1,w/15000)*5;
 }
 
+const XTV_TRANSFER_PROFILES={
+  'Argentina 1':{_s:new Set(['Boca Juniors','Independiente','Newell\'s','River Plate','San Lorenzo','Vélez Sarsfield']),bl:12.214,pk:20.0,yw:0.85,qm:3.339,cn:0.85},
+  'Australia 1':{_s:new Set(['Adelaide United','Central Coast','Gold Coast Utd.','Melb. Victory','Melbourne City','Newcastle','Sydney FC','Wellington','Western Sydney']),bl:0.819,pk:23.1,yw:0.65,qm:1.84,cn:0.55},
+  'Austria 1':{_s:new Set(['Salzburg','Sturm Graz']),bl:12.786,pk:21.0,yw:0.95,qm:2.22,cn:1.0},
+  'Belgium 1':{_s:new Set(['Club Brugge','Genk','KAA Gent','R Charleroi SC','RSC Anderlecht','Royal Antwerp','Standard Liège','Union SG']),bl:13.995,pk:21.2,yw:0.9,qm:1.692,cn:0.7},
+  'Brazil 1':{_s:new Set(['Athletico-PR','Botafogo','Flamengo','Grêmio','Internacional','Palmeiras','Santos','São Paulo','Vasco da Gama']),bl:25.287,pk:19.6,yw:0.85,qm:2.267,cn:0.65},
+  'Bulgaria 1':{_s:new Set(['CSKA Sofia','CSKA-Sofia','Levski Sofia','Litex Lovech','Lovech','Ludogorets']),bl:3.019,pk:24.4,yw:0.4,qm:2.781,cn:0.8},
+  'Chile 1':{_s:new Set(['Audax Italiano','Colo-Colo','Huachipato','O\'Higgins','U. Católica','U. de Chile','Union Española']),bl:2.255,pk:23.0,yw:0.65,qm:1.8,cn:0.6},
+  'Colombia 1':{_s:new Set(['Alianza FC','Atl. Nacional','CD América','Deportivo Cali','Deportivo Pasto','Envigado','Indep. Medellín','Indep. Santa Fe','Inter Bogotá','Junior FC','Millonarios']),bl:1.498,pk:23.0,yw:0.65,qm:2.014,cn:0.6},
+  'Croatia 1':{_s:new Set(['Dinamo Zagreb','HNK Rijeka','Hajduk Split']),bl:10.423,pk:21.5,yw:0.95,qm:3.303,cn:1.0},
+  'Cyprus 1':{bl:3.557,pk:22.8,yw:0.45,qm:3.699,cn:0.85},
+  'Czech Republic 1':{_s:new Set(['Slavia Praha','Sparta Prague','Viktoria Plzeň']),bl:7.242,pk:21.7,yw:0.6,qm:2.549,cn:1.0},
+  'Denmark 1':{_s:new Set(['Bröndby IF','Copenhagen','Midtjylland','Nordsjaelland']),bl:9.073,pk:19.5,yw:0.95,qm:2.052,cn:0.95},
+  'Ecuador 1':{_s:new Set(['Barcelona SC','CS Emelec','Delfín SC','Independiente','LDU Quito','Uni. Católica']),bl:2.383,pk:23.0,yw:0.65,qm:2.0,cn:0.6},
+  'England 1':{_s:new Set(['Aston Villa','Brentford','Brighton','Chelsea','Everton','Leicester','Liverpool','Man City','Man Utd','Newcastle','Southampton','Tottenham','West Ham','Wolves']),bl:52.809,pk:25.2,yw:0.15,qm:1.481,cn:0.3},
+  'England 2':{_s:new Set(['Birmingham','Bournemouth','Brentford','Burnley','Ipswich','Leeds','Leicester','Newcastle','Sheff Utd','Southampton','Sunderland','Watford']),bl:22.216,pk:23.2,yw:0.5,qm:1.8,cn:0.5},
+  'England 3':{_s:new Set(['Barnsley','Birmingham','Charlton','Coventry','Crewe Alexandra','Huddersfield','Leeds','Luton','MK Dons','Peterborough','Sunderland','Swindon Town','Wigan']),bl:3.79,pk:21.6,yw:0.7,qm:1.974,cn:0.5},
+  'England 4':{_s:new Set(['AFC Wimbledon','Carlisle United','Cheltenham','Colchester Utd','Crawley Town','Exeter City','Fleetwood','Gillingham','Hartlepool','Luton','MK Dons','Rochdale','Stevenage','York City']),bl:1.669,pk:21.0,yw:0.7,qm:2.2,cn:0.45},
+  'England 5':{bl:0.267,pk:21.0,yw:0.7,qm:2.2,cn:0.45},
+  'France 1':{_s:new Set(['Lille','Lyon','Monaco','PSG','Stade Rennais']),bl:49.521,pk:22.2,yw:0.8,qm:1.82,cn:0.7},
+  'France 2':{_s:new Set(['AJ Auxerre','Amiens SC','Cannes','FC Lorient','FC Metz','G. Bordeaux','Le Havre AC','Lens','Saint-Étienne','Stade Reims','Troyes']),bl:8.591,pk:23.0,yw:0.65,qm:2.0,cn:0.5},
+  'France 3':{bl:1.89,pk:23.0,yw:0.65,qm:2.0,cn:0.5},
+  'Germany 1':{_s:new Set(['Dortmund','Frankfurt','Leipzig','Leverkusen','Stuttgart','Wolfsburg']),bl:50.204,pk:21.8,yw:0.7,qm:2.287,cn:0.8},
+  'Germany 2':{_s:new Set(['1.FC Köln','1.FC Nuremberg','FC Schalke 04','Hamburg','Hertha BSC','Mönchengladbach','Stuttgart','VfL Bochum','Werder Bremen']),bl:10.385,pk:23.0,yw:0.65,qm:2.0,cn:0.55},
+  'Germany 3':{bl:1.869,pk:23.0,yw:0.65,qm:2.0,cn:0.55},
+  'Greece 1':{_s:new Set(['AEK Athens','Iraklis','Olympiacos','PAOK','Panathinaikos']),bl:10.164,pk:22.8,yw:0.45,qm:3.699,cn:0.85},
+  'Hungary 1':{_s:new Set(['Debrecen','Fehérvár','Ferencváros','MTK Budapest','Puskás AFC']),bl:2.662,pk:22.6,yw:0.5,qm:2.505,cn:0.9},
+  'Ireland 1':{_s:new Set(['Cork City','Derry City','Dundalk FC','Galway United','Shamrock Rovers','Sligo Rovers','St. Pat\'s','Waterford FC']),bl:0.477,pk:19.5,yw:0.8,qm:4.776,cn:0.7},
+  'Israel 1':{bl:5.59,pk:22.8,yw:0.45,qm:3.699,cn:0.85},
+  'Italy 1':{_s:new Set(['AC Milan','Atalanta','Fiorentina','Inter','Juventus','Napoli','Roma']),bl:41.771,pk:25.1,yw:0.35,qm:1.96,cn:0.65},
+  'Italy 2':{bl:17.126,pk:25.1,yw:0.35,qm:1.96,cn:0.65},
+  'Japan 1':{bl:6.999,pk:22.5,yw:0.55,qm:2.524,cn:0.45},
+  'Korea 1':{bl:4.549,pk:22.5,yw:0.55,qm:2.524,cn:0.45},
+  'Latvia 1':{bl:0.238,pk:19.5,yw:0.8,qm:4.776,cn:0.7},
+  'Mexico 1':{bl:7.932,pk:22.5,yw:0.55,qm:2.524,cn:0.45},
+  'Morocco 1':{bl:2.334,pk:24.3,yw:0.4,qm:1.687,cn:0.8},
+  'Netherlands 1':{_s:new Set(['Ajax','Feyenoord','PSV']),bl:29.375,pk:23.0,yw:0.65,qm:2.0,cn:1.0},
+  'Netherlands 2':{bl:4.7,pk:23.0,yw:0.65,qm:2.0,cn:1.0},
+  'Norway 1':{_s:new Set(['Bodø/Glimt','Lyn','Molde FK','Rosenborg BK','SK Brann','Sarpsborg 08','Stabæk','Tromsø IL']),bl:5.638,pk:20.4,yw:1.0,qm:2.657,cn:0.7},
+  'Paraguay 1':{bl:3.054,pk:20.0,yw:0.85,qm:3.339,cn:0.85},
+  'Poland 1':{_s:new Set(['Cracovia','Jagiellonia','Lech Poznan','Legia Warszawa','Pogon Szczecin','Pol. Warsaw','Raków','Zaglebie Lubin']),bl:3.871,pk:20.1,yw:0.9,qm:1.78,cn:0.7},
+  'Portugal 1':{_s:new Set(['Benfica','Porto','Sporting']),bl:41.629,pk:22.5,yw:0.75,qm:3.046,cn:1.0},
+  'Portugal 2':{bl:17.068,pk:22.5,yw:0.75,qm:3.046,cn:1.0},
+  'Qatar 1':{bl:3.793,pk:24.3,yw:0.4,qm:1.687,cn:0.8},
+  'Romania 1':{_s:new Set(['CFR Cluj','FC Dinamo','FC Rapid 1923','FC Viitorul','FCSB','Rapid Bucharest','Steaua Bucharest','Univ. Craiova']),bl:4.143,pk:23.3,yw:0.7,qm:1.966,cn:0.55},
+  'Russia 1':{bl:16.944,pk:24.2,yw:0.45,qm:2.89,cn:1.0},
+  'Saudi Arabia 1':{bl:7.587,pk:24.3,yw:0.4,qm:1.687,cn:0.8},
+  'Scotland 1':{_s:new Set(['Celtic','Rangers']),bl:9.684,pk:23.0,yw:0.55,qm:2.137,cn:1.0},
+  'Scotland 2':{_s:new Set(['Clyde FC','Dundee FC','Dundee United','Dunfermline A.','Falkirk','Heart of Midl.','Hibernian FC','Partick Thistle','Queen\'s Park','Raith Rovers','Rangers','St. Mirren']),bl:0.641,pk:20.3,yw:0.8,qm:2.0,cn:0.45},
+  'Scotland 3':{bl:0.019,pk:20.3,yw:0.8,qm:2.0,cn:0.45},
+  'Scotland 4':{bl:0.001,pk:20.3,yw:0.8,qm:2.0,cn:0.45},
+  'Serbia 1':{_s:new Set(['FK TSC','Partizan','Red Star']),bl:5.381,pk:20.1,yw:0.9,qm:2.723,cn:1.0},
+  'Slovakia 1':{bl:3.259,pk:21.7,yw:0.6,qm:2.549,cn:1.0},
+  'Slovenia 1':{bl:3.648,pk:21.5,yw:0.95,qm:3.303,cn:1.0},
+  'South Africa 1':{bl:0.491,pk:23.1,yw:0.65,qm:1.84,cn:0.55},
+  'Spain 1':{_s:new Set(['Athletic Club','Atlético','Barcelona','Real Madrid','Real Sociedad','Sevilla FC']),bl:59.403,pk:26.0,yw:0.35,qm:2.444,cn:0.7},
+  'Spain 2':{bl:24.355,pk:26.0,yw:0.35,qm:2.444,cn:0.7},
+  'Sweden 1':{_s:new Set(['AIK','Djurgården','Hammarby','Häcken','IFK Göteborg','Malmö','Norrköping']),bl:5.433,pk:18.9,yw:0.95,qm:2.743,cn:0.7},
+  'Switzerland 1':{_s:new Set(['Basel','FC Sion','Young Boys']),bl:9.501,pk:21.5,yw:1.0,qm:2.609,cn:1.0},
+  'Turkey 1':{_s:new Set(['Basaksehir','Besiktas','Fenerbahçe','Galatasaray','Göztepe','Trabzonspor']),bl:11.672,pk:24.3,yw:0.4,qm:1.687,cn:0.8},
+  'UAE 1':{bl:3.793,pk:24.3,yw:0.4,qm:1.687,cn:0.8},
+  'USA 1':{_s:new Set(['Atlanta','Austin','Chicago','Cincinnati','Columbus','Dallas','Miami','New England','New York City','Orlando','Philadelphia','Portland','Salt Lake','Vancouver']),bl:9.332,pk:22.5,yw:0.55,qm:2.524,cn:0.45},
+  'Ukraine 1':{_s:new Set(['Dynamo Kyiv','Metalist Kharkiv','Shakhtar D.']),bl:19.934,pk:24.2,yw:0.45,qm:2.89,cn:1.0},
+  'Uruguay 1':{bl:4.275,pk:20.0,yw:0.85,qm:3.339,cn:0.85},
+};
+
+
 function calcPlayerValue(p, yearsRemaining=3.0){
-  // Use raw FM ratings for xTV — club weight only affects display, not market value
+  // ── NEW MARKET-ANCHORED xTV MODEL ───────────────────────────────────────
+  // Architecture: baseline (from transfer data) × club tier × age × mins ×
+  //               quality (pct) × rating correction × potential uplift
+  // All parameters empirically derived from transfer data + CIES + FM wages
+
   const dr=p.rating??0;
   const dp=p.potential??dr;
-  // Mid-season transfer boost: apply extra credit for combined minutes across clubs
-  const {minsBoost}=getMinsMaps();
-  const _boost=(minsBoost||{})[p.id]||{r:0,ptp:0};
+  const {minsBoost,maxMins,effMins}=getMinsMaps();
+  const _boost=(minsBoost||{})[p.id]||{r:0};
   const effectiveDr=Math.min(99,dr+(_boost.r||0));
   const effectiveDp=Math.min(99,dp+(_boost.r||0));
   const age=p.age||25; const pos=p.pos||'CM';
   const league=p.leagueTag||''; const leaguePct=p.leaguePct??50;
-  const ageCurve={16:0.65,17:0.70,18:0.75,19:0.80,20:0.85,21:0.90,22:0.95,23:1.0,24:1.0,25:1.0,26:1.0,
-    27:0.92,28:0.82,29:0.70,30:0.58,31:0.45,32:0.32,33:0.20,34:0.11,35:0.06};
-  const ageMult=ageCurve[age]||(age>34?0.05:0.55);
-  const contractMult=yearsRemaining>=4?1.0:yearsRemaining>=2.5?0.95:yearsRemaining>=1.5?0.80:yearsRemaining>=0.75?0.55:0.20;
-  // Steeper exponential with higher floor — creates separation at top, collapses lower end
-  const base=Math.pow(Math.max(0,effectiveDr-62),2.5);
-  // Youth direct value: young players with potential carry market value regardless of current league
-  // Bypasses LVM entirely — their value is international/future, not current-league-based
-  // Youth age factor: smooth taper extending to age 25 rather than hard zero at 23
-  const _youthAgeFactor={16:2.0,17:1.8,18:1.5,19:1.4,20:1.2,21:1.0,22:0.80,23:0.50,24:0.25,25:0.10}[age]||0;
-  const lv=LEAGUE_VALUE_MULT[league]||0.1;
-  // youthDirectVal is dampened for low-LVM leagues (Australia, Ireland etc.)
-  // to prevent potential-based values wildly exceeding the league's actual market ceiling
-  const _youthLvDamp=lv<1.0?lv:1.0; // LVM<1 → dampen; LVM>=1 → no change
-  const youthDirectVal=(_youthAgeFactor>0&&dp>=62)?Math.pow(Math.max(0,dp-60),1.6)*_youthAgeFactor*0.0148*_youthLvDamp:0;
-  const pm=POS_TRANSFER_MULT[pos]||1.0;
-  let potPremium=1.0;
-  if(age<=26&&effectiveDp>effectiveDr){
-    const gap=effectiveDp-effectiveDr;
-    const youthBoost=age<23?Math.max(0,(25-age))/5:0;
-    potPremium=1+(gap*0.025*(1+youthBoost));
-  }
-  // Memoised prestige: only compute once per club/season
-  const presKey=`${p.team}|${league}|${p.season||''}`;
-  if(!window._xtvPrestige) window._xtvPrestige={};
-  if(window._xtvPrestige[presKey]===undefined){
-    // Hardcoded overrides based on real-world transfer power (discussed/calibrated manually)
-    const PRESTIGE_OVERRIDE={
-      // Scotland 1 — only Celtic/Rangers command big fees; all others strictly capped
-      'Celtic':1.8,'Rangers':1.8,
-      'Hearts':0.55,'Motherwell':0.50,'Hibernian':0.50,'Aberdeen':0.50,
-      'Falkirk':0.50,'St. Mirren':0.50,'Kilmarnock':0.50,
-      'Dundee':0.45,'Dundee United':0.45,'Livingston':0.45,
-      // England 1 — based on transfer market evidence + buying power
-      'Manchester City':1.8,'Liverpool':1.8,'Arsenal':1.8,'Chelsea':1.8,
-      'Manchester United':1.8,'Tottenham Hotspur':1.8,
-      'Newcastle United':1.5,'Aston Villa':1.5,'Brighton & Hove Albion':1.5,'Brighton':1.5,
-      'West Ham United':1.25,'Wolverhampton Wanderers':1.25,'Everton':1.25,
-      'Leicester City':1.25,'Nottingham Forest':1.25,'Fulham':1.25,
-      'Crystal Palace':1.0,'Brentford':1.0,'Bournemouth':1.0,
-      'Burnley':0.80,'Sunderland':0.80,'Southampton':0.80,'Leeds United':0.80,
-      // England 2 — Southampton(5 sales) and Leeds(4) dominant, Burnley here = Championship prestige only
-      'Southampton':1.40,'Leeds United':1.30,'Leicester City':1.25,'Ipswich Town':1.20,
-      'Coventry City':1.20,'Middlesbrough':1.20,'Sheffield United':1.20,
-      // England 3 — Peterborough(4 sales) and Sunderland(3) key sellers
-      'Peterborough United':1.30,'Sunderland':1.25,
-      'Bolton Wanderers':1.1,'Portsmouth':1.1,'Charlton Athletic':1.1,
-      'Oxford United':1.1,'Sheffield Wednesday':1.1,
-      // England 4 — Exeter City(3 sales) top seller
-      'Exeter City':1.15,'Bradford City':1.05,'Wrexham':1.05,'Stockport County':1.05,
-      // Austria 1
-      'Salzburg':1.8,
-      'Sturm Graz':1.5,'Rapid Wien':1.5,'LASK':1.5,
-      // Bulgaria 1
-      'Ludogorets':1.5,'Levski Sofia':1.5,
-      // Czech Republic 1
-      'Slavia Praha':1.8,'Sparta Praha':1.8,'Viktoria Plzeň':1.5,
-      // Denmark 1
-      'Nordsjælland':1.8,'Midtjylland':1.8,'København':1.70,'Brøndby':1.30,
-      // Poland 1
-      'Lech Poznań':1.5,'Legia Warszawa':1.5,
-      // Norway 1
-      'Bodø / Glimt':1.8,'Rosenborg':1.8,'Molde':1.5,'Brann':1.5,'Tromsø':1.5,'Sarpsborg 08':1.3,
-      // Sweden 1 — Hammarby(5), Djurgarden(4), Malmö(3), Häcken(3) top sellers
-      'Hammarby':1.5,'Djurgården':1.8,'Häcken':1.5,
-      // Switzerland 1 — Basel(14!), Young Boys(3), FC Sion(1) top sellers
-      'Basel':1.8,'Young Boys':1.8,'FC Basel':1.8,'FC Sion':1.30,
-      // Croatia 1 (not yet in DB)
-      'Dinamo Zagreb':1.8,'Hajduk Split':1.5,
-      // Ukraine 1 (not yet in DB)
-      'Shakhtar Donetsk':1.8,'Dynamo Kyiv':1.8,
-      // Croatia 1 — Dinamo Zagreb(17/20!) complete monopoly
-      'Dinamo Zagreb':1.8,'GNK Dinamo':1.8,'NK Dinamo Zagreb':1.8,'Hajduk Split':1.5,'NK Hajduk':1.5,'NK Rijeka':1.3,
-      // Serbia 1 — Red Star(13) + Partizan(6) duopoly
-      'Red Star Belgrade':1.8,'Crvena zvezda':1.8,'FK Red Star Belgrade':1.8,
-      'Partizan':1.8,'FK Partizan':1.8,'FK Partizan Beograd':1.8,'FK TSC':1.3,
-      // Ukraine 1 — Shakhtar dominant
-      'Shakhtar Donetsk':1.8,'Shakhtar D.':1.8,'FC Shakhtar':1.8,
-      'Dynamo Kyiv':1.8,'Dynamo Kyyiv':1.8,'FC Dynamo':1.8,
-      // Poland 1 — Legia and Lech dominant
-      'Legia Warszawa':1.8,'Legia':1.8,'Lech Poznań':1.8,'Lech Poznan':1.8,
-      'Jagiellonia':1.5,'Jagiellonia Białystok':1.5,'Raków':1.5,'Raków Częstochowa':1.5,
-      'Pogoń Szczecin':1.3,'Pogon Szczecin':1.3,
-      // Hungary 1 — Ferencváros complete monopoly
-      'Ferencváros':1.5,'Ferencvaros':1.8,'MTK Budapest':1.3,'Debrecen':1.3,
-      'Puskás Akadémia':1.3,'Puskas Akademia':1.3,'Fehérvár':1.2,'Fehervar':1.2,
-      // MLS — Atlanta United and other key clubs
-      'Atlanta United':1.8,'Chicago Fire':1.5,'New York City FC':1.5,'NYCFC':1.5,
-      'Inter Miami':1.5,'LA Galaxy':1.5,'Portland Timbers':1.3,'Seattle Sounders':1.3,
-      'Columbus Crew':1.3,'Orlando City':1.3,'New England Revolution':1.3,
-      'Dallas FC':1.3,'FC Dallas':1.3,'Vancouver Whitecaps':1.3,'Philadelphia Union':1.3,
-      // Ecuador 1 — Independiente del Valle elite pipeline
-      'Independiente del Valle':1.8,'LDU Quito':1.8,'Liga de Quito':1.8,'Barcelona SC':1.5,
-      'CS Emelec':1.3,'Deportivo Quito':1.2,
-      // Chile 1 — Colo-Colo and Universidad de Chile
-      'Colo-Colo':1.8,'Universidad de Chile':1.8,'U. de Chile':1.8,
-      'Universidad Católica':1.5,'U. Católica':1.5,'Huachipato':1.3,
-      // Colombia 1 — Atlético Nacional dominant
-      'Atlético Nacional':1.8,'Atletico Nacional':1.8,'Junior FC':1.5,'Junior':1.5,
-      'Independiente Medellín':1.5,'Deportivo Cali':1.3,'Millonarios':1.5,
+  const season=p.season||'';
 
-      // Russia 1
-      'Zenit':1.8,'Spartak Moscow':1.8,'CSKA Moscow':1.5,'Dinamo Moscow':1.5,'Krasnodar':1.3,
-      // Mexico Liga MX
-      'Club América':1.8,'América':1.8,'Monterrey':1.7,'Tigres UANL':1.7,'Tigres':1.7,
-      'Chivas':1.5,'Cruz Azul':1.5,'Pumas UNAM':1.3,'Pumas':1.3,
-      // Japan J1
-      'Vissel Kobe':1.8,'Yokohama F. Marinos':1.8,'Yokohama FM':1.8,
-      'Urawa Red Diamonds':1.7,'Urawa Reds':1.7,'Gamba Osaka':1.5,'Kashima Antlers':1.5,
-      // Korea K League
-      'Jeonbuk Hyundai':1.8,'Jeonbuk Motors':1.8,'Ulsan HD':1.8,'Ulsan Hyundai':1.8,
-      'FC Seoul':1.5,'Pohang Steelers':1.5,
-      // Morocco
-      'Wydad Casablanca':1.8,'Wydad AC':1.8,'Raja Casablanca':1.8,'Raja Club Athletic':1.8,
-      // South Africa
-      'Mamelodi Sundowns':1.8,'Orlando Pirates':1.5,'Kaizer Chiefs':1.5,
-      // UAE
-      'Al Ain':1.8,'Al-Ain':1.8,'Shabab Al Ahli':1.7,'Al Jazira':1.5,
-      // Qatar
-      'Al Sadd':1.8,'Al Duhail':1.8,
-      // Cyprus
-      'APOEL':1.8,'Omonia':1.5,'AEK Larnaca':1.3,'Pafos FC':1.3,'Pafos':1.3,
-      // Georgia
-      'Dinamo Tbilisi':1.8,'FC Dinamo Tbilisi':1.8,'Saburtalo':1.5,
-      // Israel
-      'Maccabi Tel-Aviv':1.8,'Maccabi Haifa':1.7,'Hapoel Beer Sheva':1.5,"Hapoel Be'er-Sheva":1.5,
-      // Slovakia
-      'Slovan Bratislava':1.8,'Žilina':1.5,'Trnava':1.3,
-      // Slovenia
-      'Olimpija':1.8,'NK Olimpija':1.8,'Maribor':1.7,'NK Maribor':1.7,'Celje':1.3,
-      // Wales
-      'The New Saints':1.8,'Connah\'s Quay Nomads':1.5,'Bala Town':1.3,
-      // Northern Ireland
-      'Linfield':1.8,'Larne':1.7,'Glentoran':1.5,'Crusaders':1.5,'Cliftonville':1.3,
-      // Uruguay
-      'Peñarol':1.8,'Nacional':1.8,'Defensor Sporting':1.5,'Racing Montevideo':1.3,
-      // Latvia
-      'RFS':1.8,'Riga':1.7,'Liepāja':1.5,
-      // Tunisia
-      'Espérance Sportive':1.8,'ES Tunis':1.8,'Club Africain':1.5,'Étoile du Sahel':1.5,
-      // Paraguay
-      'Olimpia':1.8,'Cerro Porteño':1.8,'Libertad':1.5,
-      // Australia 1
-      'Melbourne City':1.8,'Melbourne Victory':1.5,'Sydney FC':1.5,
-      'Western Sydney Wanderers':1.5,'Adelaide United':1.5,
-      // Ireland 1
-      'Shamrock Rovers':1.8,'Cork City':1.5,'Derry City':1.5,'Dundalk':1.3,
-      // Romania 1 — FCSB/Steaua(7), CFR Cluj(2), Craiova(2)
-      'FCSB':1.8,'Steaua Bucharest':1.8,'FC Steaua Bucharest':1.8,
-      'CFR Cluj':1.5,'Universitatea Craiova':1.5,'FC Rapid 1923':1.3,
-      'FC Dinamo':1.3,'FC Viitorul':1.2,
-      // Brazil 1
-      'Flamengo':1.8,'São Paulo':1.8,'Corinthians':1.8,'Atlético Mineiro':1.8,
-      'Palmeiras':1.8,'Fluminense':1.8,'Internacional':1.5,'Grêmio':1.5,
-      'Vasco da Gama':1.5,'Santos':1.5,'Botafogo':1.5,'Cruzeiro':1.5,
-      'Athletico Paranaense':1.5,'Athletico-PR':1.5,'Red Bull Bragantino':1.5,
-      'Bahia':1.3,'Fortaleza':1.3,'Ceará':1.3,
-      // Argentina 1
-      'River Plate':1.8,'Boca Juniors':1.8,'Racing Club':1.5,'Independiente':1.5,
-      'San Lorenzo':1.5,'Estudiantes':1.5,'Vélez Sársfield':1.5,
-      // Colombia 1 / Ecuador 1 / Chile 1 / Uruguay 1
-      'Atlético Nacional':1.8,'Millonarios':1.5,'Junior':1.5,
-      'Liga de Quito':1.8,'Barcelona SC':1.5,
-      'Colo-Colo':1.8,'Universidad de Chile':1.5,
-      'Peñarol':1.8,'Nacional':1.8,
-      // Greece 1 — Olympiacos(10!), PAOK(4), Panathinaikos(3), AEK(2)
-      'Olympiakos':1.8,'Olympiacos':1.8,'PAOK':1.5,'Panathinaikos':1.5,'AEK Athens':1.30,
-      // Turkey 1
-      'Galatasaray':1.8,'Fenerbahçe':1.8,'Fenerbahce':1.8,'Beşiktaş':1.8,'Besiktas':1.8,
-      'Trabzonspor':1.40,'Göztepe':1.20,'Istanbul Basaksehir':1.25,'İstanbul Başakşehir':1.25,
-      // Germany 1
-      'Bayern München':1.8,'Borussia Dortmund':1.6,
-      'RB Leipzig':1.6,'Bayer Leverkusen':1.60,'Eintracht Frankfurt':1.50,
-      'VfB Stuttgart':1.40,'Stuttgart':1.40,'VfL Wolfsburg':1.10,'Wolfsburg':1.10,
-      'Werder Bremen':1.10,"Borussia M'gladbach":1.10,'Borussia Mönchengladbach':1.10,
-      '1. FC Union Berlin':1.00,'Union Berlin':1.00,'TSG 1899 Hoffenheim':1.00,'TSG Hoffenheim':1.00,
-      'SC Freiburg':1.00,'Freiburg':1.00,'1. FC Köln':0.90,'Köln':0.90,
-      '1. FSV Mainz 05':0.90,'Mainz 05':0.90,'1. FC Heidenheim':0.85,'Heidenheim':0.85,
-      'FC St. Pauli':0.85,'St. Pauli':0.85,'FC Augsburg':0.85,'Augsburg':0.85,'FC St Pauli':0.85,
-      // Spain 1
-      'Real Madrid':1.8,'Barcelona':1.8,'Atlético Madrid':1.8,
-      'Athletic Club':1.50,'Real Sociedad':1.60,'Villarreal':1.40,'Sevilla':1.40,
-      'Real Betis':1.30,'Osasuna':0.90,'CA Osasuna':0.90,'Girona':1.10,'Girona FC':1.10,
-      'Celta Vigo':1.00,'Celta de Vigo':1.00,'Valencia':1.00,'Getafe':0.90,
-      'Mallorca':0.85,'RCD Mallorca':0.85,'Alavés':0.80,'Deportivo Alavés':0.80,
-      'Real Oviedo':0.80,'Espanyol':0.90,'RCD Espanyol':0.90,'Levante':0.80,
-      // Italy 1 — Napoli(5), Juve(4), Inter(3) top sellers; Atalanta rising
-      'Internazionale':1.8,'Juventus':1.8,'Milan':1.8,'Napoli':1.8,'AC Milan':1.8,
-      'Atalanta':1.70,'Roma':1.5,'AS Roma':1.5,'Lazio':1.5,'Fiorentina':1.5,
-      'Bologna':1.10,'Torino':1.00,'Cagliari':0.85,'Parma':0.90,
-      'Hellas Verona':0.85,'Lecce':0.80,'Genoa':0.85,'Udinese':0.90,
-      'Pisa':0.75,'Cremonese':0.80,'Como':0.90,'Sassuolo':0.95,
-      // France 2 — league-specific so prestige doesn't carry on promotion
-      'Stade Reims|France 2':1.8,'Troyes|France 2':1.3,'Le Havre|France 2':1.3,
-      'Paris FC|France 2':1.3,'Angers SCO|France 2':1.3,
-      // England 2 — dominant sellers lose this prestige on promotion to PL
-      'Southampton|England 2':1.40,'Leeds United|England 2':1.40,
-      'Ipswich Town|England 2':1.30,'Leicester City|England 2':1.25,
-      // France 1
-      'PSG':1.8,
-      'Monaco':1.8,'AS Monaco':1.8,
-      'Lille':1.70,'Stade Rennais':1.50,'Stade Rennes':1.50,
-      'Olympique Lyonnais':1.50,'Olympique de Marseille':1.50,'Olympique Marseille':1.50,
-      'Lens':1.25,'RC Lens':1.25,'Nice':1.25,'OGC Nice':1.25,'Brest':1.10,'Stade Brestois 29':1.10,
-      'Toulouse':1.00,'Toulouse FC':1.00,'Nantes':0.90,'Angers':0.90,'Angers SCO':0.90,
-      // Netherlands 1
-      'Ajax':1.7,'AFC Ajax':1.7,'PSV':1.8,'Feyenoord':1.8,
-      'AZ':1.5,'AZ Alkmaar':1.5,'Twente':1.5,'FC Twente':1.5,'Utrecht':1.3,'FC Utrecht':1.3,'NEC':1.0,'NEC Nijmegen':1.0,
-      'Go Ahead Eagles':0.95,'Sparta Rotterdam':1.0,'Heerenveen':0.90,'NAC Breda':0.85,
-      'Groningen':0.85,'Volendam':0.80,'Excelsior':0.80,'PEC Zwolle':0.80,
-      'Fortuna Sittard':0.80,'Heracles':0.80,'Heracles Almelo':0.80,
-      'Vitória de Guimarães':1.2,'Vitória Guimarães':1.2,'FC Famalicão':1.1,'Famalicão':1.1,'Casa Pia':1.0,'Rio Ave':1.0,'CD Nacional':1.0,'Nacional':1.0,'Gil Vicente':1.0,'FC Arouca':0.95,'Moreirense FC':0.95,'CD Santa Clara':0.95,'Estrela da Amadora SAD':0.95,
-      'Jong AZ':1.8,'AZ II':1.8,'Jong Ajax':1.8,'Jong PSV':1.8,'De Graafschap':0.90,'ADO Den Haag':0.90,'ADO':0.90,
-      'Djurgårdens IF':1.8,'Djurgården':1.8,'Hammarby IF':1.8,'Hammarby':1.8,'Malmö FF':1.8,'Malmö':1.8,'AIK Fotboll':1.8,'AIK':1.8,'IFK Göteborg':1.5,'Göteborg':1.5,'BK Häcken':1.5,'Häcken':1.5,'IK Sirius':1.5,'Sirius':1.5,
-      'Newcastle Jets':1.5,'Melbourne City':1.5,'Sydney FC':1.5,'Wellington Phoenix':1.5,'Adelaide United':1.5,'Shamrock Rovers':1.5,'Sligo Rovers':1.5,'Dundalk':1.5,'Bohemian FC':1.3,'Shelbourne FC':1.3,
-      // Belgium 1
-      'Club Brugge':1.8,
-      'KRC Genk':1.40,'KAA Gent':1.25,'Genk':1.40,
-      'Union Saint-Gilloise':1.30,'R.S.C. Anderlecht':1.30,'RSC Anderlecht':1.30,'Anderlecht':1.30,
-      'Standard Liège':1.10,
-      // Portugal 1
-      'Benfica':1.8,'Sporting CP':1.8,'Porto':1.8,'FC Porto':1.8,'Porto':1.70,
-      'Sporting Braga':1.5,'Vitória Guimarães':1.5,
-    };
-    const lp=ST.players.filter(x=>x.leagueTag===league&&x.season===p.season&&x.rating);
-    const ta={};
-    lp.forEach(x=>{if(!ta[x.team])ta[x.team]={s:0,n:0};ta[x.team].s+=x.rating;ta[x.team].n++;});
-    const sorted=Object.entries(ta).map(([t,v])=>({t,avg:v.s/v.n})).sort((a,b)=>b.avg-a.avg);
-    const n=Math.max(sorted.length,4);
-    sorted.forEach((c,i)=>{
-      const cp=(n-(i+1))/(n-1);
-      // Use override if available — check league-specific key first, then team-only
-      // League-specific key format: 'TeamName|League' (e.g. 'Stade Reims|France 2')
-      // This means a promoted club loses its division-specific prestige in the new league
-      let pr;
-      const leagueSpecificKey=c.t+'|'+league;
-      if(PRESTIGE_OVERRIDE[leagueSpecificKey]!==undefined){
-        pr=PRESTIGE_OVERRIDE[leagueSpecificKey];
-      } else if(PRESTIGE_OVERRIDE[c.t]!==undefined){
-        pr=PRESTIGE_OVERRIDE[c.t];
-      } else if(lv>=4.5){
-        // Cap at 1.2 for unvalidated clubs — only PRESTIGE_OVERRIDE clubs get higher
-        pr=cp>=0.90?1.2:cp>=0.75?1.1:cp>=0.50?1.0:cp>=0.25?0.90:0.80;
-      } else if(lv>=3.5){
-        pr=cp>=0.90?1.2:cp>=0.75?1.1:cp>=0.50?1.0:cp>=0.25?0.90:0.75;
-      } else if(lv>=1.5){
-        pr=cp>=0.90?1.1:cp>=0.75?1.0:cp>=0.50?0.95:0.85;
-      } else {
-        pr=cp>=0.90?1.1:0.90;
-      }
-      window._xtvPrestige[`${c.t}|${league}|${p.season||''}`]=pr;
+  // Position weights and soft caps
+  const _posW={WF:1.08,CF:1.10,AM:1.05,CM:1.0,DM:0.98,FB:0.92,CB:0.90,GK:0.82};
+  const _posCap={GK:60,CB:110,FB:90,DM:130,CM:150,AM:170,WF:190,CF:190};
+  const posW=_posW[pos]||1.0;
+  const posCap=_posCap[pos]||140;
+
+  // Soft cap helper: linear to T=60% of cap, compressed above
+  const softCap=(v,cap)=>{
+    const T=cap*0.60,ceil=cap*1.50;
+    if(v<=T) return v;
+    return T+Math.pow(Math.min(1,(v-T)/(ceil-T)),1.30)*(ceil-T);
+  };
+
+  // ── Fallback: old model for leagues with no transfer profile ────────────
+  const _prof=XTV_TRANSFER_PROFILES[league];
+  if(!_prof){
+    // Minimal fallback using LVM
+    const lv=LEAGUE_VALUE_MULT[league]||0.3;
+    const _mktBase=0.05||0.05;
+    const _am={16:0.65,17:0.70,18:0.75,19:0.80,20:0.85,21:0.90,22:0.95,23:1.0,24:1.0,25:1.0,26:1.0,
+               27:0.92,28:0.82,29:0.70,30:0.58,31:0.45,32:0.32,33:0.20}[age]||(age>34?0.05:0.55);
+    const _raw=Math.pow(Math.max(0,effectiveDr-62),2.5)*lv*_am*(0.9+0.25*(leaguePct/100))*0.00305;
+    return Math.round(Math.max(_mktBase,_raw)*10)/10;
+  }
+
+  // ── 1. League baseline from transfer data ──────────────────────────────
+  const {bl:baseline,pk:peak,yw:youngPct,qm:qm99,cn:conc}=_prof;
+
+  // ── 2. Club tier from wage rank (concentration-adjusted) ──────────────
+  // adj_tier: compress tier range in concentrated leagues to avoid double-counting
+  // elite club premium already baked into baseline
+  // Compute club tier from wage rank within league (0.75 / 1.0 / 1.3 / 1.8)
+  // Also blend in explicit prestige overrides for well-known clubs
+  const _prOverride=PRESTIGE_OVERRIDE[p.team]||0;
+  let _rawTier=1.0;
+  {
+    const _cw=Object.entries(CLUB_WAGE_BUDGET).filter(([k])=>{
+      // Find all clubs in same league by checking if their wages appear in same league context
+      // Approximate: compare wage magnitude to league fallback
+      return true; // we filter by league below via rank
     });
-    if(window._xtvPrestige[presKey]===undefined) window._xtvPrestige[presKey]=1.0;
-  }
-  const prestigeMult=window._xtvPrestige[presKey]||1.0;
-  const pctMult=0.90+0.25*(leaguePct/100);
-  // Dynamic market floor: scales with minutes and age — a regular in a top league
-  // always commands something, but old/fringe players trail off naturally
-  const _mktBase={'England 1':5.0,'England 2':1.5,'England 3':0.40,'England 4':0.33,'England 5':0.11,
-    'Germany 1':3.0,'Germany 2':0.8,'Spain 1':3.33,'Spain 2':0.7,
-    'Italy 1':3.33,'Italy 2':0.7,'France 1':2.5,'France 2':0.52,
-    'Netherlands 1':2.38,'Netherlands 2':0.48,'Belgium 1':1.43,'Portugal 1':1.5,'Portugal 2':0.2,
-    'Scotland 1':0.50,'Scotland 2':0.33,'Scotland 3':0.095,'Scotland 4':0.067,
-    'Austria 1':0.48,'Switzerland 1':0.76,'Denmark 1':0.35,'Sweden 1':0.52,
-    'Norway 1':0.57,'Czech Republic 1':0.24,'Turkey 1':0.76,'Greece 1':0.30,
-    'Romania 1':0.24,'Hungary 1':0.12,'Bulgaria 1':0.27,'Croatia 1':0.20,'Poland 1':0.48,
-    'Brazil 1':0.65,'Brazil 2':0.08,'Argentina 1':0.25,
-    'Colombia 1':0.10,'Ecuador 1':0.08,'Chile 1':0.08,'Uruguay 1':0.10,
-    'Saudi Arabia 1':0.48,'UAE 1':0.15,'Qatar 1':0.05,'UAE 1':0.30,'MLS':1.14,'USA 1':1.14,'Australia 1':0.38,'Ireland 1':0.19,
-  'Russia 1':0.20,'Israel 1':0.10,'Mexico 1':0.20,'Japan 1':0.10,'Korea 1':0.08,
-  'Morocco 1':0.05,'Tunisia 1':0.03,'Cyprus 1':0.05,'Georgia 1':0.04,
-  'Latvia 1':0.02,'Paraguay 1':0.04,'Wales 1':0.02,'Northern Ireland 1':0.02,
-  'South Africa 1':0.05,'Ireland 2':0.02,'Portugal 2':0.15,'Norway 1':0.25,};
-  const _minsF=Math.min(1.0,(p.minutes||0)/1800);
-  const _ageF=Math.max(0.10,1.0-Math.max(0,(p.age||25)-30)*0.15);
-  const leagueMin=(_mktBase[league]||0.03)*_minsF*_ageF*Math.min(1.3,prestigeMult);
-  // Elite club youth multiplier — an 18-22yo playing meaningful minutes at a top club
-  // in a recognised youth pipeline league signals a major market premium.
-  // Only applies to leagues with strong international youth sale history.
-  // Elite youth pipeline leagues, tiered by strength of academy reputation
-  // Big 5: England, Germany, Spain, Italy, France
-  // Pipeline 2: Portugal, Netherlands (Benfica/Ajax level — regular big-fee sales)
-  // Pipeline 3: Denmark, Austria, Switzerland, Sweden (Nordsjælland/Salzburg/Basel level)
-  // Pipeline 4: Eastern Europe elite clubs — FCSB, Ludogorets, Slavia etc.
-  // Saudi/Turkey intentionally excluded
-  // Pipeline tiers calibrated from Transfermarkt top-20 data across 30+ leagues
-  // Big5 includes 2nd divisions — they feed directly into top leagues
-  const ELITE_YOUTH_BIG5=new Set(['England 1','England 2','Germany 1','Germany 2','Spain 1','Spain 2','Spain 3','Italy 1','Italy 2','France 1','France 2','France 3']);
-  // P2: Portugal, Netherlands, Ukraine (Shakhtar/Dynamo match PL fees)
-  const ELITE_YOUTH_P2=new Set(['Portugal 1','Netherlands 1','Ukraine 1','Netherlands 2']);
-  // P3: Danish/Austrian/Swiss/Swedish/Croatian/MLS model — elite club premiums
-  const ELITE_YOUTH_P3=new Set(['Denmark 1','Austria 1','Switzerland 1','Sweden 1','Norway 1','Croatia 1','USA 1','MLS','Portugal 2','Belgium 1','Australia 1','Ireland 1']);
-  // P4: Eastern Europe + SA Others — lower multiplier, calibrated to €10-15M ceilings
-  const ELITE_YOUTH_P4=new Set(['Romania 1','Bulgaria 1','Czech Republic 1','Serbia 1','Greece 1','Poland 1','Hungary 1','Slovakia 1','Slovenia 1','Israel 1','Russia 1']);
-  // South American pipeline — separate tiers
-  const ELITE_YOUTH_BRAZIL=new Set(['Brazil 1','Brazil 2']);
-  const ELITE_YOUTH_ARGENTINA=new Set(['Argentina 1']);
-  const ELITE_YOUTH_SA_OTHER=new Set(['Colombia 1','Ecuador 1','Chile 1','Uruguay 1']);
-  let eliteYouthMult=1.0;
-  // Pipeline age taper: full at ≤21, smoothly fades through 22-23, zero at 24+
-  const _pipelineAgeFactor=age<=21?1.0:age<=23?Math.max(0,1-(age-21)/3):0;
-  const _pipelinePctFactor=Math.min(1.0,Math.max(0,((p.leaguePct??0)-5)/20));
-  if(_pipelineAgeFactor>0&&_pipelinePctFactor>0&&(p.minutes||0)>=300){
-    let baseMult=0;
-    if(ELITE_YOUTH_BIG5.has(league)){
-      baseMult=prestigeMult>=1.8?4.5:prestigeMult>=1.5?2.5:prestigeMult>=1.25?1.4:0;
-    } else if(ELITE_YOUTH_P2.has(league)){
-      baseMult=prestigeMult>=1.8?4.5:prestigeMult>=1.5?3.0:0;
-    } else if(ELITE_YOUTH_P3.has(league)){
-      baseMult=prestigeMult>=1.8?1.5:prestigeMult>=1.5?1.2:0;
-    } else if(ELITE_YOUTH_P4.has(league)){
-      baseMult=prestigeMult>=1.8?0.8:prestigeMult>=1.5?0.5:0;
-    } else if(ELITE_YOUTH_BRAZIL.has(league)){
-      baseMult=prestigeMult>=1.8?3.0:prestigeMult>=1.5?2.0:0;
-    } else if(ELITE_YOUTH_ARGENTINA.has(league)){
-      baseMult=prestigeMult>=1.8?1.5:prestigeMult>=1.5?1.0:0;
-    } else if(ELITE_YOUTH_SA_OTHER.has(league)){
-      baseMult=prestigeMult>=1.8?1.5:prestigeMult>=1.5?1.0:0;
-    }
-    if(baseMult>0){
-      const pctAdj=1.0+(leaguePct/100)*0.6;
-      const minsAdj=Math.min(1.4,Math.max(0,((p.minutes||0)-300)/1800));
-      eliteYouthMult=baseMult*pctAdj*minsAdj*_pipelineAgeFactor*_pipelinePctFactor;
+    // Get wages for all teams in this league from the DB snapshot
+    const _lgTeams=window.ST&&ST.players?[...new Set(ST.players.filter(x=>x.leagueTag===league).map(x=>x.team))]:[];
+    const _lgWages=_lgTeams.map(t=>CLUB_WAGE_BUDGET[t]||0).filter(w=>w>0).sort((a,b)=>b-a);
+    const _tw=CLUB_WAGE_BUDGET[p.team]||0;
+    if(_lgWages.length>=4&&_tw>0){
+      const _rank=_lgWages.indexOf(_tw)/_lgWages.length;
+      _rawTier=_rank<0.20?1.8:_rank<0.45?1.3:_rank<0.75?1.0:0.75;
+    } else {
+      // Fallback: use prestige override or compute from absolute wage
+      if(_prOverride>=1.8) _rawTier=1.8;
+      else if(_prOverride>=1.5) _rawTier=1.5;
+      else if(_tw>0){
+        const _lgFallback=LEAGUE_QUALITY[league]||{};
+        _rawTier=_tw>2000000?1.8:_tw>500000?1.3:_tw>100000?1.0:0.75;
+      }
     }
   }
-  // Marquee player boost: Saudi/Turkey/MLS have top imported players whose
-  // value reflects European market, not the local league quality
-  // Smooth blend based on how far above the league 'good' threshold the player is
-  const MARQUEE_LEAGUES={'Saudi Arabia 1':{good:65,boost:25.0},'UAE 1':{good:65,boost:22.0},'Qatar 1':{good:63,boost:20.0},'Turkey 1':{good:64,boost:10.0},'USA 1':{good:60,boost:8.0},'MLS':{good:60,boost:8.0}};
-  const _mq=MARQUEE_LEAGUES[league];
-  const _mqLV=_mq?Math.max(lv,lv+(_mq.boost-lv)*Math.min(1.0,Math.max(0,(dr-(_mq.good+4))/8.0))):lv;
-  // Elite pull: world-class players at top clubs are priced at global rates, not local league rates
-  // Applies when pr>=1.8 and player is both high-rated (r>76) AND high-percentile (pct>85)
-  // Pulls effectiveLV toward 7.0 (England 1 level) proportionally
-  // Elite pull tapers with prestige — full at pr=1.8, partial at pr=1.5, zero below 1.3
-  const _prFactor=Math.min(1.0,Math.max(0,(prestigeMult-1.3)/0.5));
-  const _elitePull=_prFactor*Math.min(1.0,Math.max(0,(dr-76)/10))*Math.min(1.0,Math.max(0,(leaguePct-85)/15));
-  const effectiveLV=_mqLV+(7.0-_mqLV)*_elitePull;
-  const raw=base*effectiveLV*ageMult*pm*potPremium*prestigeMult*pctMult*0.00305;
-  // youthVal only fires when a pipeline multiplier has activated (eliteYouthMult>1.0)
-  // Without a pipeline, the raw model handles everything — prevents non-pipeline leagues inflating values
-  const youthVal=eliteYouthMult>1.0?youthDirectVal*eliteYouthMult*prestigeMult*pctMult*contractMult:0;
-  const posCap=(POS_TRANSFER_CAP[pos]||100)*contractMult;
-  // Elite club floor: Celtic/Rangers players with 600+ mins have minimum value
-  const ELITE_CLUB_FLOOR={'Celtic':1.2,'Rangers':1.2,'Ajax':1.8,'AFC Ajax':1.8,'PSV':1.6,'PSV Eindhoven':1.6,'Benfica':1.8,'SL Benfica':1.8,'FC Porto':1.8,'Sporting CP':1.6,'FC Porto':1.8,'Ferencváros':0.6,'Legia Warszawa':0.6,'Legia':0.6,'Shakhtar Donetsk':0.6,'Shakhtar':0.6,'Dinamo Zagreb':0.6,'Dinamo':0.6,'Crvena zvezda':0.6,'Red Star Belgrade':0.6};
-  const _eliteBase=ELITE_CLUB_FLOOR[p.team]||0;
-  // Smooth floor: scales with minutes (proportional), tapers post-peak age, and blends
-  // with raw model so it's a soft minimum not a rigid value
-  // Smooth mins scale: ramps from 0 at 0 mins to 1.0 at 2000 mins, no hard threshold
-  const _eliteMinsScale=_eliteBase>0?Math.min(1.0,(p.minutes||0)/2000):0;
-  const _eliteAgeTaper=Math.max(0.15,1.0-Math.max(0,(p.age||25)-28)*0.055);
-  const eliteClubFloor=_eliteBase*_eliteMinsScale*_eliteAgeTaper*contractMult;
-  const modelVal=Math.max(youthVal,Math.max(0.01,raw*contractMult));
-  // ── Contextual minutes penalty ─────────────────────────────────
-  // Compare player's effective minutes to the max in their league+season
-  // For mid-season transfers: sum minutes across entries in the SAME league+season
-  // The penalty applies only to the model value — the floor is never penalised
-  const {maxMins,effMins}=getMinsMaps();
-  const leagueSeasonKey=`${league}|${p.season||''}`;
-  const leagueMaxMins=maxMins[leagueSeasonKey]||1800;
-  const playerEffMins=effMins[p.id]||(p.minutes||0);
-  const minsPct=Math.min(1.0,playerEffMins/leagueMaxMins);
-  // Age-scaled minutes penalty: young players barely affected, full penalty from age 24+
-  // Under 20: virtually no penalty (breaking through is the achievement)
-  // 20-21: small penalty
-  // 22-23: moderate penalty
-  // 24+: full penalty (0.60 + 0.40 * pct)
-  // Smooth minutes floor: linear decay from 0.92 at age 16 to 0.60 at age 27+
-  const _minsFloor=Math.max(0.60,0.92-Math.max(0,age-16)*0.030);
-  const _minsRange=1.0-_minsFloor;
-  const minsMult=_minsFloor+_minsRange*minsPct;
-  const penalisedModel=Math.max(leagueMin,modelVal*minsMult);
-  // Exposure premium: young players (≤21) logging heavy minutes in high-LVM leagues
-  // get a boost independent of club prestige — Bundesliga/PL regular at 19 signals high value
-  // regardless of whether their club clears the pipeline prestige threshold
-  let _exposureMult=1.0;
-  const _expAgeFactor=age<=20?1.0:age<=23?Math.max(0,1-(age-20)/4):0;
-  if(_expAgeFactor>0&&(p.minutes||0)>=700&&lv>=3.0){
-    const _expAge=_expAgeFactor;
-    const _expMins=Math.min(1.0,Math.max(0,((p.minutes||0)-700)/(3800-700)));
-    const _expLv=Math.min(1.0,Math.max(0,(lv-3.5)/3.5));
-    _exposureMult=1.0+2.5*_expAge*_expMins*_expLv;
+  if(_prOverride>=1.8) _rawTier=Math.max(_rawTier,1.8);
+  else if(_prOverride>=1.5) _rawTier=Math.max(_rawTier,1.5);
+  const _tierScale=1.0-conc*0.70;
+  const tier=1.0+(_rawTier-1.0)*_tierScale;
+
+  // ── 3. Youth baseline scale (smooth, not binary) ───────────────────────
+  // Young players at high-baseline clubs get compressed because transfer data
+  // baselines are anchored to peak-age (21-25) sales
+  // At baseline £50M: max 45% compression at age 16, fades to zero at peak
+  // At baseline £5M: near-zero compression (small leagues price youth correctly)
+  const _ybs_sensitivity=Math.min(1.0,baseline/50.0);
+  const _ybs_maxComp=0.45*_ybs_sensitivity;
+  const _ybs_ageToPeak=age<peak ? Math.max(0,peak-age)/Math.max(1,peak-16) : 0;
+  const ybs=Math.max(0.45,1.0-_ybs_maxComp*_ybs_ageToPeak);
+
+  // ── 4. CIES anchor ─────────────────────────────────────────────────────
+  // If club has CIES data, use it as an alternative baseline signal
+  // Normalised matching handles slash/space variants (Bodø / Glimt vs FK Bodø/Glimt)
+  const _normalise=s=>s.toLowerCase().replace(/\s*\/\s*/g,'/').replace(/\s+/g,'');
+  const _ciLeague=CIES_REFERENCE[league]||[];
+  const _tn=_normalise(p.team||'');
+  const _ciEntry=_ciLeague.find(e=>{const kn=_normalise(e[0]); return kn===_tn||kn.includes(_tn)||_tn.includes(kn);});
+  const ciesVal=_ciEntry?_ciEntry[1]:null;
+
+  // Effective baseline: max of (baseline×tier×ybs) or (CIES × pct-quality × ybs)
+  const baseTierAdj=baseline*tier*ybs;
+  let effBaseline=baseTierAdj;
+  let ciesWon=false;
+  if(ciesVal!==null){
+    const ciesAnchor=ciesVal*(leaguePct/100)*0.85*ybs;
+    if(ciesAnchor>baseTierAdj){ effBaseline=ciesAnchor; ciesWon=true; }
   }
-  // Power-compress values above 60% of cap to prevent bunching at top
-  // Below threshold: unchanged. Above: compressed toward cap with alpha=1.3
-  const _capThreshold=posCap*0.60;
-  const _ceiling=posCap*1.5; // soft ceiling — truly exceptional players can exceed soft cap
-  const _rawCapped=Math.max(eliteClubFloor,penalisedModel)*_exposureMult;
-  const _compressed=_rawCapped<=_capThreshold
-    ? _rawCapped
-    : _capThreshold + Math.pow(Math.min(1.0,(_rawCapped-_capThreshold)/(_ceiling-_capThreshold)),1.3)*(_ceiling-_capThreshold);
-  // CIES club ceiling: softly constrain to avoid exceeding known club ceilings
-  const _ciLeague=CIES_REFERENCE[league];
-  if(_ciLeague){
-    const _ciEntry=_ciLeague.find(e=>e[0]===p.team||e[0]===p.team+' FC'||e[0]==='FC '+p.team);
-    if(_ciEntry){
-      const _ciCeiling=_ciEntry[1]*3.5; // allow up to 3.5× club's own ceiling for outliers
-      if(_compressed>_ciCeiling) return Math.round(Math.min(_compressed,_ciCeiling)*10)/10;
-    }
+
+  // ── 5. Age factor (league-specific peak, smooth) ───────────────────────
+  let ageFactor;
+  if(age<=peak){
+    const t=Math.max(0,(age-16)/(peak-16));
+    const baseAF=0.45+0.55*t;
+    // Extra compression for young players in mature (low youngPct) markets
+    const penalty=Math.max(0,peak-age)*Math.max(0,1-youngPct)*0.025;
+    ageFactor=Math.max(0.30,baseAF-penalty);
+  } else {
+    const fall=youngPct>=0.70?0.065:0.050;
+    ageFactor=Math.max(0.12,1.0-(age-peak)*fall);
   }
-  return Math.round(_compressed*10)/10;
+
+  // ── 6. Minutes factor (league-relative, age-scaled floor) ─────────────
+  // League-relative: normalises to what's achievable in this league's season
+  const _leagueSeasonKey=`${league}|${season}`;
+  const _lgMaxMins=Math.max(300,(maxMins||{})[_leagueSeasonKey]||3000);
+  const _playerMins=Math.min(p.minutes||0,(effMins||{})[p.id]||(p.minutes||0));
+  const minsPct=Math.min(1.0,Math.max(0,_playerMins/_lgMaxMins));
+  // CIES-won: softer floor (market knows this player plays when fit)
+  // Otherwise: age-scaled floor (young players barely penalised)
+  const minsFloor=ciesWon ? 0.75 : Math.max(0.55,0.80-Math.max(0,age-16)*0.025);
+  const minsMult=minsFloor+(1.0-minsFloor)*minsPct;
+
+  // ── 7. Mild percentile signal ──────────────────────────────────────────
+  const pctMild=Math.max(0.5,Math.pow(leaguePct/75,0.40));
+
+  // Proxy xTV
+  let proxy=effBaseline*ageFactor*minsMult*pctMild*posW;
+
+  // ── 8. Marquee import boost (MENA/domestic leagues) ────────────────────
+  const _marqueeThresh={'Turkey 1':68,'Saudi Arabia 1':65,'UAE 1':63,'Qatar 1':62};
+  const _mThresh=_marqueeThresh[league]||0;
+  if(_mThresh>0 && ciesVal!==null && effectiveDr>=_mThresh+4){
+    proxy=Math.max(proxy,ciesVal*0.75);
+  }
+
+  // ── 9. Rating factor ───────────────────────────────────────────────────
+  // How does actual rating compare to expected for this percentile?
+  // Expected: 60 at 0th pct, 78 at 100th pct (linear proxy)
+  const rExpected=60+(leaguePct/100)*18;
+  const ratingFactor=Math.max(0.65,Math.min(1.50,Math.pow(effectiveDr/Math.max(1,rExpected),0.50)));
+
+  // ── 10. Potential factor (youth only) ──────────────────────────────────
+  // Adds a ceiling premium for young players with high upside
+  // Age-gated (zero above 23), scaled by league's youth market activity
+  let potFactor=1.0;
+  if(age<=23 && effectiveDp>effectiveDr){
+    const gapFrac=Math.max(0,(effectiveDp-effectiveDr)/Math.max(1,100-effectiveDr));
+    const ageGate=Math.max(0,(24-age)/8);
+    potFactor=Math.min(1.35,1.0+gapFrac*ageGate*youngPct*0.45);
+  }
+
+  let xTV=proxy*ratingFactor*potFactor;
+
+  // ── 11. CIES ceiling ───────────────────────────────────────────────────
+  if(ciesVal!==null){
+    // Clubs that historically appear in top-20 sales: generous 3.5× ceiling
+    // Non-seller clubs: tight 1.2× ceiling (their players rarely command big fees)
+    const _sellerClubs=(XTV_TRANSFER_PROFILES[league]||{})._s||new Set();
+    const isSeller=_sellerClubs.has(p.team)||[..._sellerClubs].some(s=>s&&(_normalise(s).includes(_tn)||_tn.includes(_normalise(s))));
+    const ciesMult=isSeller?3.5:1.2;
+    xTV=Math.min(xTV,ciesVal*ciesMult);
+  }
+
+  // ── 12. Soft cap + position cap ─────────────────────────────────────────
+  xTV=Math.min(xTV,posCap);
+  return Math.round(softCap(xTV,posCap)*10)/10;
 }
 
 function formatValue(v){
