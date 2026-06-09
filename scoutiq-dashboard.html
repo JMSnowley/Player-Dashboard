@@ -2162,7 +2162,7 @@ function getFiltered(){
   const [alo,ahi]=SLIDER_STATE.age||[15,45];
   if(rlo>0||rhi<100)list=list.filter(p=>{ const dr=displayRating(p)??0; return dr>=rlo&&dr<=rhi; });
   if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
-  if(tlo>0||thi<100)list=list.filter(p=>{return dt>=tlo&&dt<=thi;});
+  if(tlo>0||thi<100)list=list.filter(p=>{const dt=displayPTP(p)??0;return dt>=tlo&&dt<=thi;});
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
   if(alo>15||ahi<45)list=list.filter(p=>p.age!=null&&p.age>=alo&&p.age<=ahi);
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
