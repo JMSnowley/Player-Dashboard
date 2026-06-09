@@ -5215,6 +5215,108 @@ const CIES_REFERENCE={
   'Uruguay 1':[['Boston River',4.133],['Danubio FC',2.74],['Club Nacional',2.61],['Racing Montevideo',2.523],['CA Peñarol',2.48],['Defensor SC',2.175],['Liverpool FC',1.958],['Montevideo City',0.87],['CA Juventud',0.827],['CA Progreso',0.544],['Albion FC',0.535],['CD Maldonado',0.526],['Cerro Largo',0.392],['Montevideo Wanderers',0.392],['Central Español',0.226],['CA Cerro',0.178]],
 };
 
+const CLUB_WAGE_BUDGET={
+  // England 1
+  'Arsenal':4496230,'Aston Villa':3149500,'Bournemouth':1626470,'Brentford':1584120,
+  'Brighton':1580180,'Brighton & Hove Albion':1580180,'Burnley':1366210,'Chelsea':4458100,
+  'Crystal Palace':1385380,'Everton':1948350,'Fulham':2037520,'Leeds United':1505660,
+  'Liverpool':5061070,'Manchester City':5186300,'Manchester United':3863390,
+  'Newcastle United':2867440,'Nottingham Forest':2491960,'Sunderland':1725470,
+  'Tottenham Hotspur':3606970,'West Ham United':2128130,'Wolverhampton Wanderers':1603990,
+  // England 2
+  'Birmingham':683010,'Birmingham City':683010,'Blackburn Rovers':297250,'Bristol City':334110,
+  'Charlton Athletic':275650,'Coventry City':328360,'Derby County':372860,'Hull City':343360,
+  'Ipswich Town':871510,'Leicester City':1118400,'Middlesbrough':592950,'Millwall':407220,
+  'Norwich City':512800,'Oxford United':266080,'Portsmouth':277430,'QPR':395260,
+  'Sheffield United':589130,'Sheffield Wednesday':194660,'Southampton':800040,
+  'Stoke City':380370,'Watford':444510,'West Bromwich Albion':444510,'Wrexham':509900,
+  // England 3
+  'Bolton Wanderers':200340,'Bradford City':104450,'Cardiff City':301040,
+  'Exeter City':66450,'Huddersfield Town':242680,'Luton Town':286830,
+  'Peterborough United':122990,'Peterborough':122990,'Stockport County':146260,
+  // Italy 1
+  'Atalanta':1267280,'Bologna':945180,'Fiorentina':1356600,'Internazionale':2746890,
+  'Inter':2746890,'Juventus':2624260,'Lazio':1508260,'Milan':2015240,'AC Milan':2015240,
+  'Napoli':2144760,'Roma':2162910,'AS Roma':2162910,'Torino':1009100,'Udinese':519310,
+  // Spain 1
+  'Athletic Club':1536660,'Atl\u00e9tico Madrid':2572720,'FC Barcelona':4384310,'Barcelona':4384310,
+  'Girona':795260,'Real Betis':1200110,'Real Madrid':5376170,'Real Sociedad':1064350,
+  'Sevilla':1012820,'Villarreal':1419570,'Celta Vigo':839190,'Valencia':1004080,
+  // France 1
+  'Paris Saint-Germain':3465290,'PSG':3465290,'Olympique Marseille':1222070,
+  'AS Monaco':1230320,'Monaco':1230320,'Lille':639100,'Stade Rennais':766310,
+  'Olympique Lyonnais':761350,'Lyon':761350,'Strasbourg':864030,'OGC Nice':655750,'RC Lens':384830,
+  // Germany 1
+  'Bayern M\u00fcnchen':5161390,'Bayer 04 Leverkusen':2141970,'Bayer Leverkusen':2141970,
+  'Borussia Dortmund':2604720,'RB Leipzig':2127860,'Eintracht Frankfurt':1112700,
+  'VfB Stuttgart':1255990,'VfL Wolfsburg':1012760,'Borussia M\u00f6nchengladbach':949200,
+  'Werder Bremen':706350,'TSG Hoffenheim':1093470,'SC Freiburg':860470,'1. FC K\u00f6ln':640810,
+  // Austria 1
+  'Salzburg':290950,'FC RB Salzburg':290950,'LASK':146310,'SK Rapid':175420,'Rapid Wien':175420,
+  'SK Sturm Graz':132190,'Sturm Graz':132190,
+  // Belgium 1
+  'Club Brugge':473640,'KRC Genk':267740,'Genk':267740,'RSC Anderlecht':301000,'Anderlecht':301000,
+  'Union Saint-Gilloise':174770,'AA Gent':210400,'Gent':210400,'Standard Li\u00e8ge':179760,
+  'Royal Antwerp':235180,'Antwerp':235180,
+  // Bulgaria 1
+  'Ludogorets':202380,'CSKA Sofia':111260,'Levski Sofia':49720,
+  // Scotland 1 (estimated \u2014 not in FM26 data)
+  'Celtic':180000,'Rangers':160000,'Hearts':55000,'Hibernian':45000,
+  'Aberdeen':38000,'Motherwell':22000,'Kilmarnock':20000,'St. Mirren':18000,
+  'Dundee United':18000,'Dundee':15000,'Falkirk':14000,'Livingston':12000,
+  // Norway 1
+  'Bodø / Glimt':820000,'Rosenborg BK':450000,'Brann':380000,'Molde':350000,
+  'Viking FK':320000,'Vålerenga':280000,'Tromsø IL':240000,
+  // Sweden 1
+  'Djurgårdens IF':620000,'Hammarby IF':580000,'Malmö FF':560000,
+  'AIK Fotboll':540000,'IFK Göteborg':380000,'IK Sirius':180000,
+  // Denmark 1
+  'FC Copenhagen':1200000,'Brøndby IF':680000,'FC Midtjylland':650000,'AGF':320000,
+  // Netherlands 1
+  'Ajax':4800000,'PSV Eindhoven':4200000,'Feyenoord':3100000,'AZ':1800000,
+  // Netherlands 2
+  'Jong Ajax':800000,'Jong PSV':700000,'FC Groningen':400000,'Jong AZ':350000,
+  // Portugal 1
+  'Porto':5200000,'Benfica':4800000,'Sporting CP':4100000,'SC Braga':1200000,
+  // Turkey 1
+  'Galatasaray':3800000,'Fenerbahçe':3600000,'Beşiktaş':2800000,'Trabzonspor':1400000,
+  // Czech Republic 1
+  'Slavia Praha':980000,'Sparta Praha':920000,'Plzeň':640000,
+  // Ireland 1
+  'Shamrock Rovers':95000,'Bohemian FC':65000,'Dundalk FC':60000,
+  // Australia 1
+  'Melbourne City':820000,'Western Sydney':680000,'Sydney FC':650000,
+  'Melbourne Victory':600000,'Brisbane Roar':420000,'Newcastle Jets':360000,
+  // Scotland 2
+  'Ayr United':32000,'Inverness CT':28000,'Raith Rovers':22000,
+  // Romania 1
+  'FCSB':380000,'CFR Cluj':340000,'Rapid București':280000,
+  // Hungary 1
+  'Ferencváros':650000,'Puskás Akadémia':280000,
+  // Croatia 1
+  'Dinamo Zagreb':1200000,'Hajduk Split':580000,'Rijeka':320000,
+  // Brazil 1
+  'Flamengo':8500000,'Palmeiras':7800000,'Corinthians':5200000,
+  'Atlético Mineiro':3200000,'Grêmio':2600000,'Internacional':2500000,
+  // Argentina 1
+  'River Plate':3200000,'Boca Juniors':2800000,'Racing Club':1400000,
+  'Independiente':980000,'San Lorenzo':820000,
+  // Ukraine 1
+  'Shakhtar Donetsk':3800000,'Dynamo Kyiv':2200000,
+  // Greece 1
+  'Olympiacos':1800000,'PAOK':1400000,'AEK Athens':1200000,
+  // Poland 1
+  'Legia Warsaw':980000,'Raków Częstochowa':820000,'Lech Poznań':750000,
+  // Switzerland 1
+  'FC Basel':1200000,'BSC Young Boys':1100000,'FC Zürich':820000,
+  // Austria 1
+  'Red Bull Salzburg':3200000,'Sturm Graz':680000,'Rapid Wien':580000,
+  // Serbia 1
+  'Red Star Belgrade':1200000,'Partizan':880000,
+  // Colombia 1
+  'Atlético Nacional':480000,'Millonarios FC':380000,
+};
+
 function getClubRating(team, league){
   const CLUB_WAGE_BUDGET_REF=CLUB_WAGE_BUDGET;
   const LEAGUE_WAGE_FALLBACK={'England 1':3000000,'England 2':450000,'England 3':120000,'England 4':55000,'England 5':25000,'Germany 1':1200000,'Germany 2':220000,'Spain 1':1100000,'Spain 2':250000,'Italy 1':1000000,'France 1':600000,'France 2':100000,'Scotland 1':120000,'Scotland 2':20000,'Scotland 3':8000,'Scotland 4':4000,'Netherlands 1':180000,'Portugal 1':250000,'Belgium 1':160000,'Austria 1':100000,'Denmark 1':150000,'Sweden 1':60000,'Norway 1':45000,'Switzerland 1':200000,'Czech Republic 1':55000,'Hungary 1':85000,'Romania 1':65000,'Bulgaria 1':35000,'Poland 1':70000,'Croatia 1':60000,'Serbia 1':30000,'Ukraine 1':55000,'Greece 1':150000,'Turkey 1':500000,'Brazil 1':300000,'Argentina 1':150000,'Colombia 1':120000,'Ecuador 1':30000,'Chile 1':45000,'Uruguay 1':25000,'MLS':280000,'USA 1':280000,'Australia 1':45000,'Ireland 1':25000,'Saudi Arabia 1':250000,
