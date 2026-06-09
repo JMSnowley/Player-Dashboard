@@ -5349,33 +5349,12 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // ── 2. Club tier from wage rank (concentration-adjusted) ──────────────
   // adj_tier: compress tier range in concentrated leagues to avoid double-counting
   // elite club premium already baked into baseline
-  // Compute club tier from wage rank within league (0.75 / 1.0 / 1.3 / 1.8)
-  // Also blend in explicit prestige overrides for well-known clubs
+  // Compute club tier from getClubRating() — already handles wage rank + fallbacks
+  // Maps the 50-90 rating to a 4-tier multiplier: 0.75 / 1.0 / 1.3 / 1.8
   const _prOverride=PRESTIGE_OVERRIDE[p.team]||0;
-  let _rawTier=1.0;
-  {
-    const _cw=Object.entries(CLUB_WAGE_BUDGET).filter(([k])=>{
-      // Find all clubs in same league by checking if their wages appear in same league context
-      // Approximate: compare wage magnitude to league fallback
-      return true; // we filter by league below via rank
-    });
-    // Get wages for all teams in this league from the DB snapshot
-    const _lgTeams=window.ST&&ST.players?[...new Set(ST.players.filter(x=>x.leagueTag===league).map(x=>x.team))]:[];
-    const _lgWages=_lgTeams.map(t=>CLUB_WAGE_BUDGET[t]||0).filter(w=>w>0).sort((a,b)=>b-a);
-    const _tw=CLUB_WAGE_BUDGET[p.team]||0;
-    if(_lgWages.length>=4&&_tw>0){
-      const _rank=_lgWages.indexOf(_tw)/_lgWages.length;
-      _rawTier=_rank<0.20?1.8:_rank<0.45?1.3:_rank<0.75?1.0:0.75;
-    } else {
-      // Fallback: use prestige override or compute from absolute wage
-      if(_prOverride>=1.8) _rawTier=1.8;
-      else if(_prOverride>=1.5) _rawTier=1.5;
-      else if(_tw>0){
-        const _lgFallback=LEAGUE_QUALITY[league]||{};
-        _rawTier=_tw>2000000?1.8:_tw>500000?1.3:_tw>100000?1.0:0.75;
-      }
-    }
-  }
+  const _cr=getClubRating(p.team||'',league);
+  let _rawTier=_cr>=76?1.8:_cr>=68?1.3:_cr>=60?1.0:0.75;
+  // Apply prestige overrides for known elite clubs
   if(_prOverride>=1.8) _rawTier=Math.max(_rawTier,1.8);
   else if(_prOverride>=1.5) _rawTier=Math.max(_rawTier,1.5);
   const _tierScale=1.0-conc*0.70;
