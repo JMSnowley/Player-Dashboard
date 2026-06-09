@@ -5479,10 +5479,18 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // ── 4. CIES anchor ─────────────────────────────────────────────────────
   // If club has CIES data, use it as an alternative baseline signal
   // Normalised matching handles slash/space variants (Bodø / Glimt vs FK Bodø/Glimt)
-  const _normalise=s=>s.toLowerCase().replace(/\s*\/\s*/g,'/').replace(/\s+/g,'');
+  // Normalised club name matching: strips diacritics, FC/SC suffixes, articles (da/de/etc)
+  // so 'St. Mirren' matches 'St Mirren FC', 'Estrela Amadora' matches 'Estrela da Amadora'
+  const _normalise=s=>{
+    let n=s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    n=n.replace(/\b(fc|cf|sc|ac|bk|if|fk|sk|gd|cd|ud|sd|rcd|ssd|afc|fca|hb|ob|ik|bf|jong)\b/g,'');
+    n=n.replace(/\b(da|de|do|di|del|el|la|los|las|the|al|af|van|von)\b/g,'');
+    return n.replace(/[.\s\-'\/]/g,'').trim();
+  };
+  const _ciMatch=(a,b)=>{if(!a||!b)return false;if(a.length<=3&&b.length<=3)return a===b;if(a.length<=3)return a===b.slice(0,a.length);return b.includes(a)||a.includes(b);};
   const _ciLeague=CIES_REFERENCE[league]||[];
   const _tn=_normalise(p.team||'');
-  const _ciEntry=_ciLeague.find(e=>{const kn=_normalise(e[0]); return kn===_tn||kn.includes(_tn)||_tn.includes(kn);});
+  const _ciEntry=_ciLeague.find(e=>_ciMatch(_tn,_normalise(e[0])));
   const ciesVal=_ciEntry?_ciEntry[1]:null;
 
   // Effective baseline: max of (baseline×tier×ybs) or (CIES × pct-quality × ybs)
@@ -5491,7 +5499,10 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   let ciesWon=false;
   if(ciesVal!==null){
     const ciesAnchor=ciesVal*(leaguePct/100)*0.85*ybs;
-    if(ciesAnchor>baseTierAdj){ effBaseline=ciesAnchor; ciesWon=true; }
+    // Cap: CIES anchor cannot exceed 2× the transfer-data baseline
+    // Prevents elite club benchmarks (Yamal at Barcelona) from dominating all club-mates
+    const ciesAnchorCapped=Math.min(ciesAnchor,baseTierAdj*1.5);
+    if(ciesAnchorCapped>baseTierAdj){ effBaseline=ciesAnchorCapped; ciesWon=true; }
   }
 
   // ── 5. Age factor (league-specific peak, smooth) ───────────────────────
