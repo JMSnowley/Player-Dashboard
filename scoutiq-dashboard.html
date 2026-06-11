@@ -3041,9 +3041,11 @@ async function runPhysCapture(){
         capturedAt,
         matchedPlayerId: existing>=0 ? PHYS.snapshots[existing].matchedPlayerId : null,
         matchConfidence: existing>=0 ? PHYS.snapshots[existing].matchConfidence : null,
-        physicalScore: null,  // calculated after matching in Phase 4
-        physicalAdj: null,
-        applied: false,
+        // Preserve physicalScore on recapture — only null for brand-new snapshots
+        // This prevents already-matched players from appearing in the match queue after recapture
+        physicalScore: existing>=0 ? PHYS.snapshots[existing].physicalScore : null,
+        physicalAdj: existing>=0 ? PHYS.snapshots[existing].physicalAdj : null,
+        applied: existing>=0 ? PHYS.snapshots[existing].applied : false,
       };
       if(existing>=0){ PHYS.snapshots[existing]=snap; updated++; }
       else{ PHYS.snapshots.push(snap); added++; }
