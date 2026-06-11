@@ -399,7 +399,7 @@
   "Sporting KC": "none",
   "Al Akhdoud": "none",
   "Al Hilal": "none",
-  "Al Ahli": "none",
+  "Al Ahli": "https://r2.thesportsdb.com/images/media/team/badge/1bbtgb1755192301.png/preview",
   "Al Nassr": "none",
   "Al Najma": "none",
   "Al Fateh": "https://r2.thesportsdb.com/images/media/team/badge/a5cjf41662659789.png/preview",
@@ -955,5 +955,16 @@
   "Al Sharjah": "none",
   "Khorfakkan": "none",
   "Shabab Al Ahli Dubai": "none",
-  "Ajman": "none"
+  "Ajman": "none",
+  "Al Wakrah": "https://r2.thesportsdb.com/images/media/team/badge/ejg2io1693026715.png/preview",
+  "Al Duhail": "https://r2.thesportsdb.com/images/media/team/badge/n1vtjm1577985347.png/preview",
+  "Al Shamal": "https://r2.thesportsdb.com/images/media/team/badge/qghkxn1720532526.png/preview",
+  "Umm Salal": "https://r2.thesportsdb.com/images/media/team/badge/0sw0601635871111.png/preview",
+  "Al Sailiya": "https://r2.thesportsdb.com/images/media/team/badge/4u34lv1751841223.png/preview",
+  "Al Gharafa": "https://r2.thesportsdb.com/images/media/team/badge/yan4hx1617909550.png/preview",
+  "Al Rayyan": "https://r2.thesportsdb.com/images/media/team/badge/hvb3r41653090047.png/preview",
+  "Al Arabi": "https://r2.thesportsdb.com/images/media/team/badge/9tudph1693026180.png/preview",
+  "Qatar SC": "https://r2.thesportsdb.com/images/media/team/badge/3c07ob1774579037.png/preview",
+  "Al Sadd": "https://r2.thesportsdb.com/images/media/team/badge/908a011774579337.png/preview",
+  "Al Shahaniya": "https://r2.thesportsdb.com/images/media/team/badge/0qyw431720532412.png/preview"
 }
