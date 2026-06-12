@@ -1656,16 +1656,18 @@ function _fmtXtv(v){
 // LISTS FEATURE v2
 // ═══════════════════════════════════════════════════════════
 
+let _listsSaveTimer=null;
 function _saveLists(){
-  saveState();
-  queueGitHubSave(saveToGitHub);
+  saveState(); // always persist to localStorage immediately
+  // Debounce GitHub save — wait 2s after last change before pushing
+  clearTimeout(_listsSaveTimer);
+  _listsSaveTimer=setTimeout(()=>{ queueGitHubSave(saveToGitHub); },2000);
 }
 
 // ── Lists manager modal ──────────────────────────────────────────────────
 function openListsModal(){
-  // If already in a list view, show switcher; otherwise show full manager
-  _renderListsModal(false);
-  document.getElementById('listsModal').style.display='flex';
+  _renderListsModal();
+  document.getElementById('listsModal').classList.add('open');
 }
 
 function _renderListsModal(){
@@ -1852,7 +1854,7 @@ function openAddToListModal(playerId,event){
     });
     opts.innerHTML=html;
   }
-  document.getElementById('addToListModal').style.display='flex';
+  document.getElementById('addToListModal').classList.add('open');
 }
 
 function confirmAddToList(){
@@ -7973,22 +7975,22 @@ if(!ST.players.length)document.getElementById('emptyState').style.display='flex'
 
 
 <!-- ── Lists Manager Modal ───────────────────────────────── -->
-<div class="modal-overlay" id="listsModal" style="display:none" onclick="if(event.target===this)closeModal('listsModal')">
-  <div class="modal-box" style="max-width:460px;max-height:82vh;display:flex;flex-direction:column">
-    <div class="modal-hdr">
-      <span>My Lists</span>
-      <button class="modal-close" onclick="closeModal('listsModal')">✕</button>
+<div class="mb" id="listsModal" onclick="if(event.target===this)closeModal('listsModal')">
+  <div class="modal" style="width:460px;max-height:82vh;display:flex;flex-direction:column;padding:0;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border2);flex-shrink:0">
+      <span style="font-weight:700;font-size:13px;letter-spacing:.04em">MY LISTS</span>
+      <button onclick="closeModal('listsModal')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;line-height:1;padding:0">✕</button>
     </div>
     <div style="padding:16px;flex:1;overflow-y:auto" id="listsModalBody"></div>
   </div>
 </div>
 
 <!-- ── Add to List Modal (from + button) ─────────────────── -->
-<div class="modal-overlay" id="addToListModal" style="display:none" onclick="if(event.target===this)closeModal('addToListModal')">
-  <div class="modal-box" style="max-width:360px">
-    <div class="modal-hdr">
-      <span>Add to List</span>
-      <button class="modal-close" onclick="closeModal('addToListModal')">✕</button>
+<div class="mb" id="addToListModal" onclick="if(event.target===this)closeModal('addToListModal')">
+  <div class="modal" style="width:360px;padding:0">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border2)">
+      <span style="font-weight:700;font-size:13px;letter-spacing:.04em">ADD TO LIST</span>
+      <button onclick="closeModal('addToListModal')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;line-height:1;padding:0">✕</button>
     </div>
     <div style="padding:16px">
       <div id="atlPlayerName" style="font-weight:600;font-size:13px;color:var(--text);margin-bottom:14px"></div>
