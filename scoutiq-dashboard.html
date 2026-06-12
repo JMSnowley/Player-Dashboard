@@ -2407,21 +2407,30 @@ async function resolveSnap(snap){
     }
   }
 
-  // 3. Same name, different team — check age consistency before prompting
+  // 3. Same name, different team — apply age + nationality + position guards
   const nameMatches=ST.players.filter(p=>norm(p.name)===nameNorm);
   if(nameMatches.length>0){
-    // Filter to only those with consistent age
+    // Apply all three filters: age, nationality, position
     const ageFiltered=nameMatches.filter(p=>
       ageConsistent(p.age,p.capturedAt,snap.age,snap.capturedAt)
     );
     if(ageFiltered.length===0){
-      // No existing player has a consistent age — must be a new player
-      createPlayer(snap);
-      return;
+      createPlayer(snap); return;
     }
-    if(ageFiltered.length===1){
-      // Only one plausible match — prompt (they may have transferred)
-      const action=await showDupPrompt(snap,ageFiltered);
+    // Apply nationality guard — if nationalities are known and share none → rule out
+    const natFiltered=ageFiltered.filter(p=>
+      natConsistent(p.nationalities||[],snap.nationalities||[])
+    );
+    const candidates=natFiltered.length>0?natFiltered:ageFiltered; // fall back if nat filter too aggressive
+    // Apply position guard — GK vs non-GK, CB vs CF/WF → rule out
+    const posFiltered=candidates.filter(p=>posConsistent(p.pos,snap.pos));
+    const finalCandidates=posFiltered.length>0?posFiltered:candidates;
+    if(finalCandidates.length===0){
+      createPlayer(snap); return;
+    }
+    if(finalCandidates.length===1){
+      // Only one plausible match after all guards — prompt (they may have transferred)
+      const action=await showDupPrompt(snap,finalCandidates);
       if(action==='new') createPlayer(snap);
       else if(action&&action.startsWith('merge:')){
         const pid=action.split(':')[1];
@@ -2430,8 +2439,8 @@ async function resolveSnap(snap){
       }
       return;
     }
-    // Multiple plausible age-consistent matches — prompt with all of them
-    const action=await showDupPrompt(snap,ageFiltered);
+    // Multiple plausible matches — prompt with all of them
+    const action=await showDupPrompt(snap,finalCandidates);
     if(action==='new') createPlayer(snap);
     else if(action&&action.startsWith('merge:')){
       const pid=action.split(':')[1];
@@ -2444,6 +2453,29 @@ async function resolveSnap(snap){
   // 4. No name match at all — new player
   createPlayer(snap);
 }
+// Nationality guard: if both players have nationality data and share NONE → different player
+function natConsistent(existingNats, snapNats){
+  if(!existingNats||!existingNats.length||!snapNats||!snapNats.length) return true; // no data → can't rule out
+  const norm=s=>(s||'').toLowerCase().trim();
+  const a=existingNats.map(norm);
+  const b=snapNats.map(norm);
+  return a.some(n=>b.includes(n)); // at least one nationality in common → could be same player
+}
+
+// Position guard: only rules out clear contradictions
+// GK vs non-GK → definitely different
+// CB vs (CF or WF) → definitely different
+function posConsistent(existingPos, snapPos){
+  if(!existingPos||!snapPos) return true; // no position data → can't rule out
+  const a=existingPos.toUpperCase();
+  const b=snapPos.toUpperCase();
+  if(a===b) return true; // same position → consistent
+  if((a==='GK')!==(b==='GK')) return false; // one GK, one not → different
+  const opposite=({CB:['CF','WF'],CF:['CB'],WF:['CB']})[a]||[];
+  if(opposite.includes(b)) return false; // CB vs CF/WF → different
+  return true; // all other combos (CB vs FB, CM vs DM etc) → inconclusive
+}
+
 function norm(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
 function capScore(v){return v!=null?Math.min(100,v):v;}
 function createPlayer(snap){
@@ -3894,51 +3926,118 @@ async function runAutoMatch(){
   const total=unmatched.length;
   if(!total){showToast('Nothing left to auto-match','success');return;}
 
-  // Pre-build name index from unmatched PHYS snapshots
+  // Pre-build indices from unmatched PHYS snapshots
+  // shortName index (primary — column B in sheet, e.g. "M. Frame")
+  const shortNameIndex={};
+  // fullName index (secondary fallback)
   const nameIndex={};
   PHYS.snapshots.filter(s=>!s.matchedPlayerId).forEach(snap=>{
-    const sn=normPhys(snap.shortName);
-    const fn=normPhys(snap.fullName);
-    [...sn.split(' '),...fn.split(' ')].filter(w=>w.length>=3).forEach(w=>{
+    const sn=normPhys(snap.shortName||'');
+    const fn=normPhys(snap.fullName||'');
+    // Index by shortName words
+    sn.split(' ').filter(w=>w.length>=3).forEach(w=>{
+      if(!shortNameIndex[w]) shortNameIndex[w]=[];
+      shortNameIndex[w].push(snap);
+    });
+    // Index by fullName words
+    fn.split(' ').filter(w=>w.length>=3).forEach(w=>{
       if(!nameIndex[w]) nameIndex[w]=[];
       nameIndex[w].push(snap);
     });
   });
 
-  // Also build skillcornerId → snap lookup for instant matching
+  // Build shortName → snap lookup for exact shortName matches
+  // Key: normalised shortName (e.g. "m frame"). Multi-entry if same shortName exists.
+  const shortNameExact={};
+  PHYS.snapshots.filter(s=>!s.matchedPlayerId&&s.shortName).forEach(s=>{
+    const k=normPhys(s.shortName);
+    if(!shortNameExact[k]) shortNameExact[k]=[];
+    shortNameExact[k].push(s);
+  });
+
+  // SkillcornerId → snap lookup for instant matching
   const scIdIndex={};
   PHYS.snapshots.filter(s=>!s.matchedPlayerId&&s.skillcornerId).forEach(s=>{
     scIdIndex[s.skillcornerId]=s;
   });
 
   const CHUNK=200;
-  let autoCount=0, idCount=0;
+  let autoCount=0, idCount=0, snCount=0;
   showToast(`Auto-matching ${total} players…`,'success');
 
   for(let i=0;i<unmatched.length;i+=CHUNK){
     const chunk=unmatched.slice(i,i+CHUNK);
     chunk.forEach(player=>{
-      // 1. Try stored Skillcorner ID first
+      // ── Step 1: Stored Skillcorner ID (highest confidence) ────────
       if(player.skillcornerId&&scIdIndex[player.skillcornerId]){
         _physMatchDecisions[player.id]=scIdIndex[player.skillcornerId].id;
         idCount++; autoCount++; return;
       }
-      // 2. Fall back to name+age matching
+
       const pn=normPhys(player.name);
-      const pBDYear=player.age&&player.capturedAt?new Date(player.capturedAt).getFullYear()-player.age:null;
+      const pBDYear=player.age&&player.capturedAt
+        ?new Date(player.capturedAt).getFullYear()-player.age:null;
+
+      // ── Step 2: ShortName exact match (primary new signal) ─────────
+      // Wyscout names like "M. Frame" are already in shortName format.
+      // Build candidate shortName from player: initial + surname.
+      const pParts=pn.split(' ');
+      const pShort=pParts.length>=2
+        ?pParts[0].charAt(0)+' '+pParts.slice(1).join(' ')  // "mitchel frame" → "m frame"
+        :pn;
+      const snCandidates=shortNameExact[pShort]||
+        shortNameExact[normPhys(player.name.replace(/^(\S).*?\s/,'$1. '))];  // try "M. Frame" form too
+      if(snCandidates&&snCandidates.length===1){
+        // Unique shortName match — verify with birthdate if available
+        const snap=snCandidates[0];
+        if(pBDYear&&snap.birthdate){
+          const snapBDYear=parseInt(snap.birthdate.slice(0,4));
+          if(Math.abs(pBDYear-snapBDYear)<=1){
+            _physMatchDecisions[player.id]=snap.id;
+            snCount++; autoCount++; return;
+          }
+          // Birthdate mismatch — fall through to fullName matching
+        } else {
+          // No birthdate to check — accept the unique shortName match
+          _physMatchDecisions[player.id]=snap.id;
+          snCount++; autoCount++; return;
+        }
+      }
+      if(snCandidates&&snCandidates.length>1){
+        // Multiple players share this shortName — use birthdate + fullName to disambiguate
+        let bestSnap=null;
+        snCandidates.forEach(snap=>{
+          if(pBDYear&&snap.birthdate){
+            const snapBDYear=parseInt(snap.birthdate.slice(0,4));
+            if(Math.abs(pBDYear-snapBDYear)<=1) bestSnap=snap;
+          }
+        });
+        if(bestSnap){ _physMatchDecisions[player.id]=bestSnap.id; snCount++; autoCount++; return; }
+        // Still ambiguous — fall through to fullName matching
+      }
+
+      // ── Step 3: FullName / word-index fallback ─────────────────────
       const words=pn.split(' ').filter(w=>w.length>=3);
       const seen=new Set();
       const pool=[];
-      words.forEach(w=>(nameIndex[w]||[]).forEach(s=>{if(!seen.has(s.id)){seen.add(s.id);pool.push(s);}}));
+      // Search both indices
+      words.forEach(w=>{
+        [...(shortNameIndex[w]||[]),...(nameIndex[w]||[])].forEach(s=>{
+          if(!seen.has(s.id)){seen.add(s.id);pool.push(s);}
+        });
+      });
       let bestSnap=null;
       pool.forEach(snap=>{
-        const sn=normPhys(snap.shortName);
-        const fn=normPhys(snap.fullName);
-        const nameMatch=pn.includes(sn)||sn.includes(pn)||pn===fn||pn.includes(fn)||fn.includes(pn)||(()=>{
-          const parts=sn.split(' ');if(parts.length<2)return false;
-          const init=parts[0].replace('.',''),surname=parts.slice(1).join(' '),pParts=pn.split(' ');
-          return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
-        })();
+        const sn=normPhys(snap.shortName||'');
+        const fn=normPhys(snap.fullName||'');
+        const nameMatch=
+          pn===fn||pn.includes(fn)||fn.includes(pn)||
+          pn.includes(sn)||sn.includes(pn)||(()=>{
+            const parts=sn.split(' ');if(parts.length<2)return false;
+            const init=parts[0].replace('.','');
+            const surname=parts.slice(1).join(' ');
+            return pParts.length>=2&&pParts[0].startsWith(init)&&pn.includes(surname);
+          })();
         if(!nameMatch) return;
         if(pBDYear&&snap.birthdate){
           const snapBDYear=parseInt(snap.birthdate.slice(0,4));
