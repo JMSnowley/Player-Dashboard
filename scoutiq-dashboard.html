@@ -409,26 +409,44 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
   .nav-conf-items { display: none; }
   .nav-conf-items.open { display: block; }
 
-  /* Lists */
+  /* ── Lists ─────────────────────────────────────────────── */
   .list-add-btn{background:none;border:1px solid var(--border);color:var(--muted2);
-    width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1;
-    display:flex;align-items:center;justify-content:center;padding:0;transition:all .15s}
+    width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:15px;line-height:1;
+    display:flex;align-items:center;justify-content:center;padding:0;transition:all .15s;flex-shrink:0}
   .list-add-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.08)}
-  .viewer-mode .col-list-add{display:none}
-  .list-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
-    padding:14px 16px;cursor:pointer;transition:all .15s;display:flex;
-    align-items:center;justify-content:space-between;gap:12px}
-  .list-card:hover{border-color:var(--accent);background:var(--surface3)}
-  .list-card-name{font-weight:600;font-size:13px;color:var(--text)}
-  .list-card-meta{font-size:11px;color:var(--muted2)}
-  .list-back-btn{background:none;border:none;color:var(--accent);cursor:pointer;
-    font-size:12px;padding:0;display:flex;align-items:center;gap:4px;margin-bottom:12px}
-  .list-active-bar{background:rgba(0,212,255,.08);border-bottom:1px solid rgba(0,212,255,.2);
-    padding:6px 16px;display:flex;align-items:center;gap:10px;font-size:11px}
-  .list-name-input{background:transparent;border:none;border-bottom:1px solid var(--border);
-    color:var(--text);font-size:14px;font-weight:600;padding:2px 4px;outline:none;
-    min-width:200px;font-family:inherit}
-  .list-name-input:focus{border-bottom-color:var(--accent)}
+  .viewer-mode .col-list-add{display:none!important}
+  /* List view banner sits between toolbar and table */
+  .list-view-banner{
+    display:flex;align-items:center;gap:10px;padding:6px 14px;
+    background:rgba(0,212,255,.06);border-bottom:1px solid rgba(0,212,255,.18);
+    font-size:11px;flex-shrink:0;
+  }
+  .list-view-banner .lvb-name{
+    font-size:14px;font-weight:700;color:var(--text);
+    background:none;border:none;border-bottom:1px solid transparent;
+    padding:2px 4px;outline:none;font-family:inherit;cursor:text;min-width:140px;
+  }
+  .list-view-banner .lvb-name:focus{border-bottom-color:var(--accent);}
+  .list-view-banner .lvb-count{color:var(--muted2);}
+  /* Smart search */
+  .list-search-wrap{position:relative;margin-bottom:14px}
+  .list-search-input{width:100%;padding:9px 12px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:6px;color:var(--text);
+    font-size:12px;font-family:inherit;outline:none;box-sizing:border-box}
+  .list-search-input:focus{border-color:var(--accent)}
+  .list-search-results{position:absolute;top:100%;left:0;right:0;background:var(--surface2);
+    border:1px solid var(--border);border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;
+    z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .list-search-item{padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;
+    border-bottom:1px solid var(--border);transition:background .1s}
+  .list-search-item:last-child{border-bottom:none}
+  .list-search-item:hover{background:var(--surface3)}
+  .list-search-item.already-added{opacity:.5;cursor:default}
+  .list-card-row{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-radius:8px;background:var(--surface2);
+    border:1px solid var(--border);cursor:pointer;transition:all .15s;gap:12px}
+  .list-card-row:hover{border-color:var(--accent);background:var(--surface3)}
+  .list-card-active{border-color:var(--accent)!important;background:rgba(0,212,255,.08)!important}
 </style>
 </head>
 <body>
@@ -593,6 +611,23 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <button id="deleteSelBtn" class="btn btn-danger" style="font-size:10px;padding:4px 10px;display:none" onclick="deleteSelected()">✕ Delete Selected</button>
         <button class="btn btn-ghost" style="font-size:10px;padding:4px 10px" onclick="clearSelection()">Deselect All</button>
       </div>
+      <div id="listViewBanner" style="display:none;flex-direction:column;background:rgba(0,212,255,.04);border-bottom:1px solid rgba(0,212,255,.15)">
+        <!-- Row 1: name + controls -->
+        <div class="list-view-banner" style="border-bottom:1px solid rgba(0,212,255,.10)">
+          <button onclick="exitListView()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0;white-space:nowrap;flex-shrink:0">‹ All Players</button>
+          <input id="listViewName" class="lvb-name" value="" onchange="renameActiveList(this.value)" title="Rename list">
+          <span id="listViewCount" class="lvb-count"></span>
+          <div style="margin-left:auto;display:flex;gap:8px;flex-shrink:0">
+            <button onclick="openListsModal()" class="btn btn-ghost" style="font-size:10px">Switch List</button>
+            <button onclick="deleteActiveList()" class="btn btn-ghost" style="font-size:10px;color:#ff6b82;border-color:rgba(255,77,106,.3)">Delete List</button>
+          </div>
+        </div>
+        <!-- Row 2: smart search -->
+        <div style="padding:8px 14px;position:relative" id="listSmartSearchWrap">
+          <input id="listSmartInput" class="list-search-input" placeholder="Search players to add…" oninput="onListSearchInput(this.value)" autocomplete="off">
+          <div id="listSmartResults" class="list-search-results"></div>
+        </div>
+      </div>
       <table>
         <thead><tr>
           <th class="col-check" style="width:32px"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" style="accent-color:var(--accent);cursor:pointer"></th>
@@ -616,12 +651,6 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         </tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
-      <div id="activeListBar" class="list-active-bar" style="display:none">
-    <button class="list-back-btn" onclick="exitListView()">‹ All Players</button>
-    <input class="list-name-input" id="activeListNameInput" value="" onchange="renameActiveList(this.value)" title="Click to rename">
-    <span id="activeListCount" style="color:var(--muted2);margin-left:auto"></span>
-    <button class="btn btn-ghost" style="font-size:10px;margin-left:8px;color:#ff6b82;border-color:rgba(255,77,106,.3)" onclick="deleteActiveList()">Delete List</button>
-  </div>
   <div id="emptyState" class="empty">
         <div class="empty-icon">📋</div>
         <div class="empty-title">NO DATA YET</div>
@@ -1621,88 +1650,102 @@ function _fmtXtv(v){
 }
 
 
+
+
 // ═══════════════════════════════════════════════════════════
-// LISTS FEATURE
+// LISTS FEATURE v2
 // ═══════════════════════════════════════════════════════════
 
 function _saveLists(){
   saveState();
-  // Persist to GitHub alongside players
   queueGitHubSave(saveToGitHub);
 }
 
+// ── Lists manager modal ──────────────────────────────────────────────────
 function openListsModal(){
-  renderListsModal();
+  // If already in a list view, show switcher; otherwise show full manager
+  _renderListsModal(false);
   document.getElementById('listsModal').style.display='flex';
 }
 
-function renderListsModal(){
+function _renderListsModal(){
   const body=document.getElementById('listsModalBody');
-  const title=document.getElementById('listsModalTitle');
-  title.textContent='My Lists';
-  body.innerHTML=`
-    <div style="margin-bottom:14px">
-      <button class="btn btn-gold" style="width:100%;font-size:12px" onclick="createNewList()">+ Create New List</button>
-    </div>
-    ${LISTS.length===0
-      ? '<div style="color:var(--muted);text-align:center;padding:32px;font-size:13px">No lists yet. Create one to get started.</div>'
-      : LISTS.map(l=>`
-        <div class="list-card" style="margin-bottom:8px">
-          <div onclick="openListView('${l.id}')">
-            <div class="list-card-name">${l.name}</div>
-            <div class="list-card-meta">${l.playerIds.length} player${l.playerIds.length!==1?'s':''} · Created ${new Date(l.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div>
-          </div>
-          <button onclick="confirmDeleteList('${l.id}')" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;padding:4px;line-height:1" title="Delete list">×</button>
-        </div>`).join('')
-    }`;
+  if(!body) return;
+  const activeId=ST._activeListId;
+  let html='<div style="margin-bottom:14px"><button class="btn btn-gold" style="width:100%;font-size:12px" onclick="_createNewList()">+ New List</button></div>';
+  if(LISTS.length===0){
+    html+='<div style="color:var(--muted);text-align:center;padding:28px 0;font-size:12px">No lists yet.</div>';
+  } else {
+    LISTS.forEach(l=>{
+      const isActive=l.id===activeId;
+      html+='<div class="list-card-row'+(isActive?' list-card-active':'')+'" style="margin-bottom:8px">';
+      html+='<div onclick="openListView(this.dataset.id);closeModal(\'listsModal\')" data-id="'+l.id+'" style="flex:1;min-width:0">';
+      html+='<div style="font-weight:600;font-size:13px;color:var(--text)">'+l.name+(isActive?' <span style=\"color:var(--accent);font-size:10px\">● current</span>':'')+'</div>';
+      html+='<div style="font-size:10px;color:var(--muted2)">'+l.playerIds.length+' player'+(l.playerIds.length!==1?'s':'')+'</div>';
+      html+='</div>';
+      html+='<button onclick="_deleteList(this.dataset.id)" data-id="'+l.id+'" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;padding:4px 6px;line-height:1;flex-shrink:0" title="Delete">×</button>';
+      html+='</div>';
+    });
+  }
+  body.innerHTML=html;
 }
 
-function createNewList(){
+function _createNewList(){
   const name='Untitled List '+(LISTS.length+1);
-  const list={id:'list_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-    name,playerIds:[],createdAt:new Date().toISOString()};
+  const list={
+    id:'list_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    name, playerIds:[], createdAt:new Date().toISOString()
+  };
   LISTS.push(list);
   _saveLists();
+  closeModal('listsModal');
   openListView(list.id);
 }
 
-function confirmDeleteList(listId){
+function _deleteList(listId){
   const list=LISTS.find(l=>l.id===listId);
   if(!list) return;
-  if(!confirm('Delete list "'+list.name+'"? This cannot be undone.')) return;
+  if(!confirm('Delete "'+list.name+'"? This cannot be undone.')) return;
   LISTS=LISTS.filter(l=>l.id!==listId);
   if(ST._activeListId===listId) exitListView();
   _saveLists();
-  renderListsModal();
+  _renderListsModal();
 }
 
+// ── List view ────────────────────────────────────────────────────────────
 function openListView(listId){
   const list=LISTS.find(l=>l.id===listId);
   if(!list) return;
   ST._activeListId=listId;
-  closeModal('listsModal');
-  // Show active list banner
-  const bar=document.getElementById('activeListBar');
-  const nameInput=document.getElementById('activeListNameInput');
-  const countEl=document.getElementById('activeListCount');
-  if(bar){ bar.style.display='flex'; }
-  if(nameInput){ nameInput.value=list.name; }
-  if(countEl){ countEl.textContent=list.playerIds.length+' player'+(list.playerIds.length!==1?'s':''); }
+  _updateListBanner();
+  ST.currentPage=0;
   renderAll();
 }
 
 function exitListView(){
   ST._activeListId=null;
-  const bar=document.getElementById('activeListBar');
-  if(bar) bar.style.display='none';
+  const banner=document.getElementById('listViewBanner');
+  if(banner) banner.style.display='none';
+  ST.currentPage=0;
   renderAll();
 }
 
-function renameActiveList(name){
+function _updateListBanner(){
+  const list=LISTS.find(l=>l.id===ST._activeListId);
+  const banner=document.getElementById('listViewBanner');
+  const nameEl=document.getElementById('listViewName');
+  const countEl=document.getElementById('listViewCount');
+  if(!banner||!list) return;
+  banner.style.display='flex';
+  if(nameEl) nameEl.value=list.name;
+  if(countEl) countEl.textContent=list.playerIds.length+' player'+(list.playerIds.length!==1?'s':'');
+}
+
+function renameActiveList(val){
   if(!ST._activeListId) return;
   const list=LISTS.find(l=>l.id===ST._activeListId);
   if(!list) return;
-  list.name=name.trim()||list.name;
+  list.name=val.trim()||list.name;
   _saveLists();
 }
 
@@ -1710,76 +1753,123 @@ function deleteActiveList(){
   if(!ST._activeListId) return;
   const list=LISTS.find(l=>l.id===ST._activeListId);
   if(!list) return;
-  if(!confirm('Delete list "'+list.name+'"? This cannot be undone.')) return;
+  if(!confirm('Delete "'+list.name+'"? This cannot be undone.')) return;
   LISTS=LISTS.filter(l=>l.id!==ST._activeListId);
   exitListView();
   _saveLists();
 }
 
-// ── Add to list modal ────────────────────────────────────────────────────
-let _addToListPlayerId=null;
+// ── Smart search (add player to current list) ────────────────────────────
+let _listSearchQuery='';
 
-function openAddToListModal(playerId,event){
-  event.stopPropagation();
-  _addToListPlayerId=playerId;
-  const player=ST.players.find(p=>p.id===playerId);
-  if(!player) return;
-  const nameEl=document.getElementById('addToListPlayerName');
-  if(nameEl) nameEl.textContent=player.name+' · '+(player.team||'');
-  const opts=document.getElementById('addToListOptions');
-  if(!opts) return;
-  if(LISTS.length===0){
-    opts.innerHTML='<div style="color:var(--muted);font-size:12px;text-align:center;padding:12px">No lists yet.<br><button class="btn btn-ghost" style="margin-top:8px;font-size:11px" onclick="closeModal(&quot;addToListModal&quot;);createNewList()">Create a list first</button></div>';
-  } else {
-    opts.innerHTML=LISTS.map(l=>{
-      const already=l.playerIds.includes(playerId);
-      return`<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 10px;border-radius:6px;background:var(--surface2);border:1px solid ${already?'var(--accent)':'var(--border)'};transition:all .15s">
-        <input type="checkbox" ${already?'checked':''} data-list-id="${l.id}" style="accent-color:var(--accent);cursor:pointer;width:14px;height:14px">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--text)">${l.name}</div>
-          <div style="font-size:10px;color:var(--muted2)">${l.playerIds.length} player${l.playerIds.length!==1?'s':''}</div>
-        </div>
-      </label>`;
-    }).join('');
-  }
-  document.getElementById('addToListModal').style.display='flex';
+function openListSmartSearch(){
+  const wrap=document.getElementById('listSmartSearchWrap');
+  const input=document.getElementById('listSmartInput');
+  if(wrap) wrap.style.display='block';
+  if(input){ input.value=''; input.focus(); }
+  _listSearchQuery='';
+  document.getElementById('listSmartResults').innerHTML='';
 }
 
-function confirmAddToList(){
-  if(!_addToListPlayerId) return;
-  const checkboxes=document.querySelectorAll('#addToListOptions input[type=checkbox]');
-  checkboxes.forEach(cb=>{
-    const listId=cb.dataset.listId;
-    const list=LISTS.find(l=>l.id===listId);
-    if(!list) return;
-    if(cb.checked && !list.playerIds.includes(_addToListPlayerId)){
-      list.playerIds.push(_addToListPlayerId);
-    } else if(!cb.checked && list.playerIds.includes(_addToListPlayerId)){
-      list.playerIds=list.playerIds.filter(id=>id!==_addToListPlayerId);
-    }
+function onListSearchInput(val){
+  _listSearchQuery=val.toLowerCase().trim();
+  const resultsEl=document.getElementById('listSmartResults');
+  if(!resultsEl) return;
+  if(!_listSearchQuery){resultsEl.innerHTML='';return;}
+  const list=LISTS.find(l=>l.id===ST._activeListId);
+  if(!list) return;
+  const matches=ST.players.filter(p=>{
+    const n=(p.name||'').toLowerCase();
+    const t=(p.team||'').toLowerCase();
+    return n.includes(_listSearchQuery)||t.includes(_listSearchQuery);
+  }).slice(0,12);
+  if(!matches.length){
+    resultsEl.innerHTML='<div class="list-search-item" style="color:var(--muted);cursor:default">No players found</div>';
+    return;
+  }
+  let html='';
+  matches.forEach(p=>{
+    const already=list.playerIds.includes(p.id);
+    const dr=typeof displayRating==='function'?displayRating(p):p.rating;
+    const drStr=dr?Math.round(dr*10)/10:'—';
+    html+='<div class="list-search-item'+(already?' already-added':'')+'" data-pid="'+p.id+'" '+(already?'':'onclick="addPlayerToCurrentList(this.dataset.pid)"')+'>';
+    html+='<div style="flex:1;min-width:0">';
+    html+='<div style="font-weight:600;font-size:12px;color:var(--text)">'+p.name+'</div>';
+    html+='<div style="font-size:10px;color:var(--muted2)">'+(p.team||'')+' · '+(p.pos||'')+' · '+drStr+'</div>';
+    html+='</div>';
+    html+='<span style="font-size:10px;color:'+(already?'var(--muted)':'var(--accent)')+';flex-shrink:0">'+(already?'Added':'+ Add')+'</span>';
+    html+='</div>';
   });
-  // Update count if viewing a list
-  if(ST._activeListId){
-    const list=LISTS.find(l=>l.id===ST._activeListId);
-    const countEl=document.getElementById('activeListCount');
-    if(list&&countEl) countEl.textContent=list.playerIds.length+' player'+(list.playerIds.length!==1?'s':'');
-  }
-  _saveLists();
-  closeModal('addToListModal');
-  if(ST._activeListId) renderTable(); // refresh if viewing a list
-  showToast('Lists updated','success');
+  resultsEl.innerHTML=html;
 }
 
-// ── Remove player from current list ─────────────────────────────────────
+function addPlayerToCurrentList(playerId){
+  if(!ST._activeListId) return;
+  const list=LISTS.find(l=>l.id===ST._activeListId);
+  if(!list||list.playerIds.includes(playerId)) return;
+  list.playerIds.push(playerId);
+  _saveLists();
+  _updateListBanner();
+  // Re-render search results to show "Added" state
+  onListSearchInput(_listSearchQuery);
+  renderTable();
+}
+
 function removeFromCurrentList(playerId){
   if(!ST._activeListId) return;
   const list=LISTS.find(l=>l.id===ST._activeListId);
   if(!list) return;
   list.playerIds=list.playerIds.filter(id=>id!==playerId);
-  const countEl=document.getElementById('activeListCount');
-  if(countEl) countEl.textContent=list.playerIds.length+' player'+(list.playerIds.length!==1?'s':'');
   _saveLists();
+  _updateListBanner();
   renderTable();
+}
+
+// ── Add to list modal (from + button on main table) ──────────────────────
+let _atlPlayerId=null;
+
+function openAddToListModal(playerId,event){
+  if(event) event.stopPropagation();
+  _atlPlayerId=playerId;
+  const player=ST.players.find(p=>p.id===playerId);
+  if(!player) return;
+  const nameEl=document.getElementById('atlPlayerName');
+  if(nameEl) nameEl.textContent=player.name+(player.team?' · '+player.team:'');
+  const opts=document.getElementById('atlOptions');
+  if(!opts) return;
+  if(LISTS.length===0){
+    opts.innerHTML='<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px">No lists yet.<br><br><button class="btn btn-ghost" style="font-size:11px" onclick="closeModal(\'addToListModal\');_createNewList()">Create a list first</button></div>';
+  } else {
+    let html='';
+    LISTS.forEach(l=>{
+      const already=l.playerIds.includes(playerId);
+      html+='<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 12px;border-radius:6px;background:var(--surface2);border:1px solid '+(already?'var(--accent)':'var(--border)')+';transition:border-color .15s">';
+      html+='<input type="checkbox" '+(already?'checked ':'')+' data-list-id="'+l.id+'" style="accent-color:var(--accent);cursor:pointer;width:14px;height:14px;flex-shrink:0">';
+      html+='<div style="flex:1;min-width:0">';
+      html+='<div style="font-size:12px;font-weight:600;color:var(--text)">'+l.name+'</div>';
+      html+='<div style="font-size:10px;color:var(--muted2)">'+l.playerIds.length+' player'+(l.playerIds.length!==1?'s':'')+'</div>';
+      html+='</div></label>';
+    });
+    opts.innerHTML=html;
+  }
+  document.getElementById('addToListModal').style.display='flex';
+}
+
+function confirmAddToList(){
+  if(!_atlPlayerId) return;
+  const cbs=document.querySelectorAll('#atlOptions input[type=checkbox]');
+  cbs.forEach(cb=>{
+    const list=LISTS.find(l=>l.id===cb.dataset.listId);
+    if(!list) return;
+    if(cb.checked&&!list.playerIds.includes(_atlPlayerId)) list.playerIds.push(_atlPlayerId);
+    else if(!cb.checked) list.playerIds=list.playerIds.filter(id=>id!==_atlPlayerId);
+  });
+  // Update banner if currently in one of the modified lists
+  if(ST._activeListId) _updateListBanner();
+  _saveLists();
+  closeModal('addToListModal');
+  if(ST._activeListId) renderTable();
+  showToast('Lists updated','success');
 }
 
 function initSliders(){
@@ -7881,27 +7971,28 @@ if(!ST.players.length)document.getElementById('emptyState').style.display='flex'
 })();
 </script>
 
-<!-- Lists Modal -->
+
+<!-- ── Lists Manager Modal ───────────────────────────────── -->
 <div class="modal-overlay" id="listsModal" style="display:none" onclick="if(event.target===this)closeModal('listsModal')">
-  <div class="modal-box" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column">
+  <div class="modal-box" style="max-width:460px;max-height:82vh;display:flex;flex-direction:column">
     <div class="modal-hdr">
-      <span id="listsModalTitle">My Lists</span>
+      <span>My Lists</span>
       <button class="modal-close" onclick="closeModal('listsModal')">✕</button>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:16px" id="listsModalBody"></div>
+    <div style="padding:16px;flex:1;overflow-y:auto" id="listsModalBody"></div>
   </div>
 </div>
 
-<!-- Add to List Modal -->
+<!-- ── Add to List Modal (from + button) ─────────────────── -->
 <div class="modal-overlay" id="addToListModal" style="display:none" onclick="if(event.target===this)closeModal('addToListModal')">
-  <div class="modal-box" style="max-width:380px">
+  <div class="modal-box" style="max-width:360px">
     <div class="modal-hdr">
       <span>Add to List</span>
       <button class="modal-close" onclick="closeModal('addToListModal')">✕</button>
     </div>
     <div style="padding:16px">
-      <div id="addToListPlayerName" style="font-weight:600;margin-bottom:12px;color:var(--text)"></div>
-      <div id="addToListOptions" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;margin-bottom:16px"></div>
+      <div id="atlPlayerName" style="font-weight:600;font-size:13px;color:var(--text);margin-bottom:14px"></div>
+      <div id="atlOptions" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;margin-bottom:16px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-ghost" onclick="closeModal('addToListModal')">Cancel</button>
         <button class="btn btn-gold" onclick="confirmAddToList()">Add to Selected</button>
@@ -7909,5 +8000,5 @@ if(!ST.players.length)document.getElementById('emptyState').style.display='flex'
     </div>
   </div>
 </div>
+
 </body>
-</html> 
