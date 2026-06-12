@@ -1319,7 +1319,16 @@ async function loadFromGitHub(skipCacheBuild=false){
     const data = await resp.json();
     if(data.players && data.players.length){
       ST.players = data.players;
-      if(data.lists) LISTS=data.lists; // restore lists from GitHub
+      if(data.lists){
+        // Merge: localStorage is more recent (written immediately), GitHub may lag.
+        // For lists present in both, prefer localStorage version.
+        // For lists only on GitHub (other device/session), add them.
+        const localIds=new Set(LISTS.map(l=>l.id));
+        const ghOnly=data.lists.filter(l=>!localIds.has(l.id));
+        if(ghOnly.length) LISTS=[...LISTS,...ghOnly];
+        // If localStorage has no lists at all, fall back to GitHub fully
+        if(!LISTS.length) LISTS=data.lists;
+      }
       ST.selectedIds = new Set();
       // One-off migration: convert legacy nationality string → nationalities array
       let migrated=false;
