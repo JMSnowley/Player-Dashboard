@@ -391,6 +391,23 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 .dual-wrap input[type=range]::-webkit-slider-runnable-track{height:3px;background:transparent}
 .range-track{position:absolute;top:50%;transform:translateY(-50%);height:3px;left:0;right:0;background:var(--surface3);border-radius:2px;pointer-events:none}
 .range-fill{position:absolute;height:100%;background:var(--accent);border-radius:2px}
+
+  /* Confederation sidebar groups */
+  .nav-conf-group { margin-bottom: 2px; }
+  .nav-conf-header {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+    color: var(--muted2); text-transform: uppercase;
+    padding: 6px 12px 4px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    user-select: none;
+  }
+  .nav-conf-header::after {
+    content: '▸'; margin-left: auto; font-size: 9px;
+    transition: transform 0.15s; color: var(--muted2);
+  }
+  .nav-conf-header.open::after { transform: rotate(90deg); }
+  .nav-conf-items { display: none; }
+  .nav-conf-items.open { display: block; }
 </style>
 </head>
 <body>
@@ -491,6 +508,22 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div class="sb-toggle" onclick="toggleSb('roleFilters',this)"><span>Role Profiles</span><span class="sb-arrow">›</span></div>
       <div class="sb-content" id="roleFilters">
         <div id="roleSliders"></div>
+      </div>
+    </div>
+    <!-- xTV slider -->
+    <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('xtvFilters',this)"><span>xTV</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="xtvFilters">
+        <div id="xtvSliderWrap" style="padding:6px 12px 10px">
+          <div class="range-lbl">xTV (£M) <em id="xtvRangeLabel">£0 – £200M</em></div>
+          <div class="dual-wrap">
+            <div class="range-track"><div class="range-fill" id="xtvRangeFill"></div></div>
+            <input type="range" id="xtvRangeA" min="0" max="100" value="0" step="1"
+              oninput="updateXtvSlider()" style="position:absolute;width:100%;pointer-events:none;opacity:0">
+            <input type="range" id="xtvRangeB" min="0" max="100" value="100" step="1"
+              oninput="updateXtvSlider()" style="position:absolute;width:100%;pointer-events:none;opacity:0">
+          </div>
+        </div>
       </div>
     </div>
     <!-- Metric sliders -->
@@ -1543,11 +1576,53 @@ function toggleSb(contentId,toggleEl){
 // ═══════════════════════════════════
 let SLIDER_STATE={
   rating:[0,100],potential:[0,100],ptPriority:[0,100],leaguePct:[0,100],age:[15,45],
+  xtv:[0,100],
   roles:{},metrics:{},physMetrics:{},skills:{},
 };
 
 // Safe ID from any string
 function safeId(str){return str.replace(/[^a-zA-Z0-9_-]/g,'_');}
+
+
+// xTV non-linear slider: position 0-100 maps to £0-200M via power curve
+// pos=50→£35M, pos=90→£154M — gives fine resolution for the dense £0-20M range
+function xtvPosToVal(pos){ return Math.round(200*Math.pow(pos/100,2.5)*10)/10; }
+function xtvValToPos(val){ return Math.round(100*Math.pow(Math.max(0,val)/200,1/2.5)); }
+
+function formatXtvLabel(v){
+  if(v<=0) return '£0';
+  if(v>=200) return '£200M+';
+  if(v>=100) return '£'+Math.round(v)+'M';
+  if(v>=10)  return '£'+v.toFixed(0)+'M';
+  if(v>=1)   return '£'+v.toFixed(1)+'M';
+  return '£'+Math.round(v*1000)+'k';
+}
+
+function updateXtvSlider(){
+  const ra=document.getElementById('xtvRangeA');
+  const rb=document.getElementById('xtvRangeB');
+  const fill=document.getElementById('xtvRangeFill');
+  const lbl=document.getElementById('xtvRangeLabel');
+  if(!ra||!rb) return;
+  let a=parseInt(ra.value), b=parseInt(rb.value);
+  if(a>b){const tmp=a;a=b;b=tmp;}
+  const pct=(v,mx)=>v/mx*100;
+  if(fill){ fill.style.left=pct(a,100)+'%'; fill.style.width=(pct(b,100)-pct(a,100))+'%'; }
+  const vA=xtvPosToVal(a), vB=xtvPosToVal(b);
+  if(lbl) lbl.textContent=formatXtvLabel(vA)+' – '+formatXtvLabel(vB);
+  SLIDER_STATE.xtv=[a,b];
+  ST.currentPage=0; renderTable();
+}
+
+function initXtvSlider(){
+  const ra=document.getElementById('xtvRangeA');
+  const rb=document.getElementById('xtvRangeB');
+  if(ra) ra.style.pointerEvents='auto';
+  if(rb) rb.style.pointerEvents='auto';
+  // Make both inputs stack correctly
+  const wrap=document.querySelector('.dual-wrap');
+  updateXtvSlider();
+}
 
 function initSliders(){
   // Rating sliders
@@ -1567,7 +1642,7 @@ function initSliders(){
       return`<div style="border-bottom:1px solid var(--border)">
         <div class="sb-toggle" style="padding:5px 13px;font-size:8px" onclick="toggleSb('${sid}',this)"><span>${pos} — ${conf.label}</span><span class="sb-arrow">›</span></div>
         <div class="sb-content" id="${sid}">
-          ${conf.roles.map(r=>`<div id="rs_${safeId(r)}"></div>`).join('')}
+          ${conf.roles.map(r=>`<div id="rs_${pos}_${safeId(r)}"></div>`).join('')}
         </div>
       </div>`;
     }).join('');
@@ -1575,7 +1650,7 @@ function initSliders(){
       const conf=POS_CONFIG[pos];if(!conf)return;
       conf.roles.forEach(r=>{
         SLIDER_STATE.roles[r]=[0,100];
-        renderRangeSlider('rs_'+safeId(r),r.replace(' %',''),'role:'+r,0,100);
+        renderRangeSlider('rs_'+pos+'_'+safeId(r),r.replace(' %',''),'role:'+r,0,100);
       });
     });
   }
@@ -1714,7 +1789,9 @@ function initSliders(){
       renderRangeSlider('phys_sl_'+key,label,slKey,0,100);
     });
   }
+  initXtvSlider();
 }
+
 
 function renderRangeSlider(containerId,label,key,mn,mx){
   const el=document.getElementById(containerId);
@@ -2187,6 +2264,12 @@ function getFiltered(){
   if(rlo>0||rhi<100)list=list.filter(p=>{ const dr=displayRating(p)??0; return dr>=rlo&&dr<=rhi; });
   if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
   if(tlo>0||thi<100)list=list.filter(p=>{const dt=displayPTP(p)??0;return dt>=tlo&&dt<=thi;});
+  // xTV non-linear filter
+  const [xtvA,xtvB]=SLIDER_STATE.xtv||[0,100];
+  if(xtvA>0||xtvB<100){
+    const xtvLo=xtvPosToVal(xtvA), xtvHi=xtvPosToVal(xtvB);
+    list=list.filter(p=>{const v=calcPlayerValue(p,3.0)??0; return v>=xtvLo&&v<=xtvHi;});
+  }
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
   if(alo>15||ahi<45)list=list.filter(p=>p.age!=null&&p.age>=alo&&p.age<=ahi);
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
@@ -2276,6 +2359,102 @@ function renderAll(){
   renderSidebar();renderStatsStrip();renderTable();
 }
 
+
+const LEAGUE_CONF={
+  // UEFA — Europe
+  'England 1':'UEFA','England 2':'UEFA','England 3':'UEFA','England 4':'UEFA','England 5':'UEFA',
+  'Scotland 1':'UEFA','Scotland 2':'UEFA','Scotland 3':'UEFA','Scotland 4':'UEFA',
+  'Wales 1':'UEFA','Northern Ireland 1':'UEFA','Ireland 1':'UEFA',
+  'Germany 1':'UEFA','Germany 2':'UEFA','Germany 3':'UEFA',
+  'Spain 1':'UEFA','Spain 2':'UEFA','France 1':'UEFA','France 2':'UEFA','France 3':'UEFA',
+  'Italy 1':'UEFA','Italy 2':'UEFA','Portugal 1':'UEFA',
+  'Netherlands 1':'UEFA','Netherlands 2':'UEFA','Belgium 1':'UEFA',
+  'Austria 1':'UEFA','Switzerland 1':'UEFA','Denmark 1':'UEFA',
+  'Sweden 1':'UEFA','Norway 1':'UEFA','Finland 1':'UEFA',
+  'Poland 1':'UEFA','Czech Republic 1':'UEFA','Slovakia 1':'UEFA','Slovenia 1':'UEFA',
+  'Hungary 1':'UEFA','Romania 1':'UEFA','Bulgaria 1':'UEFA','Croatia 1':'UEFA',
+  'Serbia 1':'UEFA','Greece 1':'UEFA','Turkey 1':'UEFA',
+  'Ukraine 1':'UEFA','Russia 1':'UEFA','Belarus 1':'UEFA',
+  'Israel 1':'UEFA','Georgia 1':'UEFA','Latvia 1':'UEFA',
+  'Kosovo 1':'UEFA','Azerbaijan 1':'UEFA','Albania 1':'UEFA',
+  'Bosnia & Herzegovina 1':'UEFA','North Macedonia 1':'UEFA','Montenegro 1':'UEFA',
+  'Cyprus 1':'UEFA','Malta 1':'UEFA','Luxembourg 1':'UEFA','Faroe Islands 1':'UEFA',
+  // CONMEBOL — South America
+  'Brazil 1':'CONMEBOL','Argentina 1':'CONMEBOL','Colombia 1':'CONMEBOL',
+  'Chile 1':'CONMEBOL','Ecuador 1':'CONMEBOL','Uruguay 1':'CONMEBOL',
+  'Peru 1':'CONMEBOL','Paraguay 1':'CONMEBOL','Bolivia 1':'CONMEBOL','Venezuela 1':'CONMEBOL',
+  // CONCACAF — North/Central America & Caribbean
+  'USA 1':'CONCACAF','Mexico 1':'CONCACAF','Canada 1':'CONCACAF',
+  'Costa Rica 1':'CONCACAF','Guatemala 1':'CONCACAF','Honduras 1':'CONCACAF',
+  'El Salvador 1':'CONCACAF','Panama 1':'CONCACAF','Jamaica 1':'CONCACAF',
+  // CAF — Africa
+  'Morocco 1':'CAF','South Africa 1':'CAF','Egypt 1':'CAF',
+  'Nigeria 1':'CAF','Ghana 1':'CAF','Tunisia 1':'CAF','Algeria 1':'CAF',
+  'Ivory Coast 1':'CAF','Senegal 1':'CAF','Cameroon 1':'CAF',
+  // AFC — Asia (incl. Middle East — all AFC in FIFA terms)
+  'Saudi Arabia 1':'AFC','Qatar 1':'AFC','United Arab Emirates 1':'AFC',
+  'Japan 1':'AFC','South Korea 1':'AFC','China 1':'AFC','Iran 1':'AFC',
+  'Australia 1':'AFC','India 1':'AFC','Uzbekistan 1':'AFC',
+  // OFC — Oceania
+  'New Zealand 1':'OFC',
+};
+
+const CONF_LABEL={'UEFA':'🌍 Europe','CONMEBOL':'🌎 South America',
+  'CONCACAF':'🌎 N/C America','CAF':'🌍 Africa','AFC':'🌏 Asia & Middle East','OFC':'🌏 Oceania'};
+const CONF_ORDER=['UEFA','CONMEBOL','CONCACAF','CAF','AFC','OFC'];
+
+// Nationality → confederation (for natNav grouping)
+const NAT_CONF={
+  // UEFA
+  'England':'UEFA','Scotland':'UEFA','Wales':'UEFA','Northern Ireland':'UEFA','Ireland':'UEFA',
+  'Germany':'UEFA','Spain':'UEFA','France':'UEFA','Italy':'UEFA','Portugal':'UEFA',
+  'Netherlands':'UEFA','Belgium':'UEFA','Austria':'UEFA','Switzerland':'UEFA',
+  'Denmark':'UEFA','Sweden':'UEFA','Norway':'UEFA','Finland':'UEFA',
+  'Poland':'UEFA','Czech Republic':'UEFA','Slovakia':'UEFA','Slovenia':'UEFA',
+  'Hungary':'UEFA','Romania':'UEFA','Bulgaria':'UEFA','Croatia':'UEFA',
+  'Serbia':'UEFA','Greece':'UEFA','Turkey':'UEFA','Ukraine':'UEFA','Russia':'UEFA',
+  'Belarus':'UEFA','Israel':'UEFA','Georgia':'UEFA','Latvia':'UEFA','Lithuania':'UEFA',
+  'Estonia':'UEFA','Kosovo':'UEFA','Azerbaijan':'UEFA','Albania':'UEFA',
+  'Bosnia & Herzegovina':'UEFA','North Macedonia':'UEFA','Montenegro':'UEFA',
+  'Cyprus':'UEFA','Malta':'UEFA','Luxembourg':'UEFA','Iceland':'UEFA',
+  'Moldova':'UEFA','Armenia':'UEFA','Faroe Islands':'UEFA','Gibraltar':'UEFA',
+  'Andorra':'UEFA','Liechtenstein':'UEFA','San Marino':'UEFA',
+  // CONMEBOL
+  'Brazil':'CONMEBOL','Argentina':'CONMEBOL','Colombia':'CONMEBOL','Chile':'CONMEBOL',
+  'Ecuador':'CONMEBOL','Uruguay':'CONMEBOL','Peru':'CONMEBOL','Paraguay':'CONMEBOL',
+  'Bolivia':'CONMEBOL','Venezuela':'CONMEBOL',
+  // CONCACAF
+  'USA':'CONCACAF','Mexico':'CONCACAF','Canada':'CONCACAF','Jamaica':'CONCACAF',
+  'Costa Rica':'CONCACAF','Honduras':'CONCACAF','Guatemala':'CONCACAF',
+  'El Salvador':'CONCACAF','Panama':'CONCACAF','Trinidad & Tobago':'CONCACAF',
+  'Haiti':'CONCACAF','Cuba':'CONCACAF','Curaçao':'CONCACAF',
+  'St. Kitts and Nevis':'CONCACAF','Dominican Republic':'CONCACAF','Antigua & Barbuda':'CONCACAF',
+  // CAF
+  'Morocco':'CAF','South Africa':'CAF','Egypt':'CAF','Nigeria':'CAF','Ghana':'CAF',
+  'Tunisia':'CAF','Algeria':'CAF','Ivory Coast':'CAF','Senegal':'CAF','Cameroon':'CAF',
+  'Mali':'CAF','Burkina Faso':'CAF','Guinea':'CAF','DR Congo':'CAF','Congo':'CAF',
+  'Gabon':'CAF','Benin':'CAF','Cape Verde':'CAF','Gambia':'CAF','Mauritania':'CAF',
+  'Sierra Leone':'CAF','Zimbabwe':'CAF','Zambia':'CAF','Uganda':'CAF','Kenya':'CAF',
+  'Tanzania':'CAF','Ethiopia':'CAF','Mozambique':'CAF','Angola':'CAF','Namibia':'CAF',
+  'Libya':'CAF','Sudan':'CAF','Somalia':'CAF','Togo':'CAF','Niger':'CAF',
+  'Rwanda':'CAF','Burundi':'CAF','Equatorial Guinea':'CAF','Comoros':'CAF',
+  // AFC
+  'Saudi Arabia':'AFC','Qatar':'AFC','United Arab Emirates':'AFC','Bahrain':'AFC',
+  'Kuwait':'AFC','Jordan':'AFC','Iraq':'AFC','Iran':'AFC','Syria':'AFC','Lebanon':'AFC',
+  'Palestine':'AFC','Oman':'AFC','Yemen':'AFC',
+  'Japan':'AFC','South Korea':'AFC','China':'AFC','Australia':'AFC',
+  'Uzbekistan':'AFC','Kazakhstan':'AFC','Kyrgyzstan':'AFC','Tajikistan':'AFC',
+  'Turkmenistan':'AFC','Afghanistan':'AFC','Pakistan':'AFC','India':'AFC',
+  'Bangladesh':'AFC','Sri Lanka':'AFC','Nepal':'AFC','Myanmar':'AFC',
+  'Thailand':'AFC','Vietnam':'AFC','Indonesia':'AFC','Philippines':'AFC',
+  'Malaysia':'AFC','Singapore':'AFC','Cambodia':'AFC',
+  'North Korea':'AFC','Hong Kong':'AFC','Macau':'AFC','Taiwan':'AFC',
+  'Mongolia':'AFC','Maldives':'AFC','Bhutan':'AFC',
+  // OFC
+  'New Zealand':'OFC','Fiji':'OFC','Papua New Guinea':'OFC','Solomon Islands':'OFC',
+  'Vanuatu':'OFC','Samoa':'OFC','Tonga':'OFC',
+};
+
 function renderSidebar(){
   // Build counts from context-filtered players (exclude each dimension's own filter)
   // so sidebar options reflect what's available given other active filters
@@ -2302,14 +2481,50 @@ function renderSidebar(){
   document.getElementById('posNav').innerHTML=posOrder.filter(k=>pc[k]).map(k=>`
     <div class="nav-item ${ST.filterPos.includes(k)?'active':''}" onclick="toggleFilter('pos','${k}')">
       <span class="nav-icon">${k}</span>${POS_CONFIG[k].label}<span class="nav-count">${pc[k]}</span></div>`).join('');
-  // Leagues alphabetical
-  document.getElementById('leagueNav').innerHTML=Object.keys(lc).sort().map(l=>`
-    <div class="nav-item ${ST.filterLeague.includes(l)?'active':''}" onclick="toggleFilter('league','${encodeURIComponent(l)}')">
-      <span class="nav-icon" style="font-size:13px">${leagueFlag(l)}</span>${l}<span class="nav-count">${lc[l]}</span></div>`).join('');
-  // Nationality alphabetical with flags
-  document.getElementById('natNav').innerHTML=Object.keys(nc).sort().map(n=>`
-    <div class="nav-item ${ST.filterNat.includes(n)?'active':''}" onclick="toggleFilter('nat','${encodeURIComponent(n)}')">
-      <span class="nav-icon" style="font-size:14px">${natFlag(n)}</span>${n}<span class="nav-count">${nc[n]}</span></div>`).join('');
+  // Leagues grouped by confederation
+  {
+    const groups={};
+    Object.keys(lc).forEach(l=>{
+      const conf=LEAGUE_CONF[l]||'Other';
+      if(!groups[conf]) groups[conf]=[];
+      groups[conf].push(l);
+    });
+    const confOrder=[...CONF_ORDER,'Other'];
+    let html='';
+    confOrder.forEach(conf=>{
+      if(!groups[conf]||!groups[conf].length) return;
+      const label=CONF_LABEL[conf]||conf;
+      const isOpen=groups[conf].some(l=>ST.filterLeague.includes(l));
+      html+=`<div class="nav-conf-group">
+        <div class="nav-conf-header${isOpen?' open':''}" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">${label}</div>
+        <div class="nav-conf-items${isOpen?' open':''}">
+          ${groups[conf].sort().map(l=>`<div class="nav-item ${ST.filterLeague.includes(l)?'active':''}" onclick="toggleFilter('league','${encodeURIComponent(l)}')"><span class="nav-icon" style="font-size:13px">${leagueFlag(l)}</span>${l}<span class="nav-count">${lc[l]}</span></div>`).join('')}
+        </div></div>`;
+    });
+    document.getElementById('leagueNav').innerHTML=html;
+  }
+  // Nationality grouped by confederation
+  {
+    const groups={};
+    Object.keys(nc).forEach(n=>{
+      const conf=NAT_CONF[n]||'Other';
+      if(!groups[conf]) groups[conf]=[];
+      groups[conf].push(n);
+    });
+    const confOrder=[...CONF_ORDER,'Other'];
+    let html='';
+    confOrder.forEach(conf=>{
+      if(!groups[conf]||!groups[conf].length) return;
+      const label=CONF_LABEL[conf]||conf;
+      const isOpen=groups[conf].some(n=>ST.filterNat.includes(n));
+      html+=`<div class="nav-conf-group">
+        <div class="nav-conf-header${isOpen?' open':''}" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">${label}</div>
+        <div class="nav-conf-items${isOpen?' open':''}">
+          ${groups[conf].sort().map(n=>`<div class="nav-item ${ST.filterNat.includes(n)?'active':''}" onclick="toggleFilter('nat','${encodeURIComponent(n)}')"><span class="nav-icon" style="font-size:14px">${natFlag(n)}</span>${n}<span class="nav-count">${nc[n]}</span></div>`).join('')}
+        </div></div>`;
+    });
+    document.getElementById('natNav').innerHTML=html;
+  }
   // Teams alphabetical
   document.getElementById('teamNav').innerHTML=Object.keys(tc).sort().map(t=>`
     <div class="nav-item ${ST.filterTeam.includes(t)?'active':''}" onclick="toggleFilter('team','${encodeURIComponent(t)}')">
@@ -2875,14 +3090,18 @@ function runHypTransfer(pid){
     </tr></thead><tbody>`;
   combined.forEach((p,i)=>{
     const isSubject=p.id===player.id;
-    const isSamePos=!isSubject&&p.pos===player.pos;
+    const _MF=['DM','CM','AM'];
+    const isSamePos=!isSubject&&(
+      p.pos===player.pos ||
+      (_MF.includes(p.pos)&&_MF.includes(player.pos))
+    );
     let rowStyle='';
     if(isSubject) rowStyle='background:rgba(245,200,66,0.18)';
     else if(isSamePos) rowStyle='background:rgba(0,212,255,0.1)';
     html+=`<tr style="${rowStyle}">
       <td class="ht-rank">${i+1}</td>
       <td><div style="font-weight:600">${p.name}${isSubject?` <span style="color:var(--gold);font-size:10px">★</span>`:''}</div><div style="font-size:10px;color:var(--muted2)">${isSubject?p.team+' (current)':p.team}</div></td>
-      <td><span class="pos-tag">${p.pos}</span></td>
+      <td><span class="pos-tag">${['DM','CM','AM'].includes(p.pos)?'MF':p.pos}</span></td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.age||'—'}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       ${htRingCell(displayRating(p),allRatings)}
@@ -7162,7 +7381,7 @@ function buildFOClubRank(p){
       const col=xdr>=80?'#00e599':xdr>=70?'#7fd97f':xdr>=60?'#f5c842':'#ff8c42';
       return`<div class="fo-rank-row" style="${isCurrent?'background:var(--accent-dim);border-radius:4px;padding:2px 4px;margin:2px -4px':''}">
         <div class="fo-rank-num" style="${isCurrent?'color:var(--accent)':''}">${start+i+1}</div>
-        <div class="fo-rank-name" style="${isCurrent?'color:var(--accent);font-weight:700':''}"><span class="pos-tag" style="font-size:7px;margin-right:3px">${x.pos}</span>${x.name.split(' ').pop()}</div>
+        <div class="fo-rank-name" style="${isCurrent?'color:var(--accent);font-weight:700':''}"><span class="pos-tag" style="font-size:7px;margin-right:3px">${['DM','CM','AM'].includes(x.pos)?'MF':x.pos}</span>${x.name.split(' ').pop()}</div>
         <div class="fo-rank-val" style="color:${col}">${xdr.toFixed(1)}</div>
       </div>`;
     }).join('')}
@@ -7306,6 +7525,7 @@ function clearAllFilters(){
   // Reset all sliders to defaults
   SLIDER_STATE.rating=[0,100];
   SLIDER_STATE.potential=[0,100];
+  SLIDER_STATE.xtv=[0,100];
   SLIDER_STATE.ptPriority=[0,100];
   SLIDER_STATE.leaguePct=[0,100];
   SLIDER_STATE.age=[15,45];
@@ -7316,6 +7536,7 @@ function clearAllFilters(){
   const si=document.getElementById('searchInput');if(si)si.value='';
   // Re-init sliders to reset their visual handles
   initSliders();
+  SLIDER_STATE.xtv=[0,100]; updateXtvSlider();
   // Reset nav highlight
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const navAll=document.getElementById('nav-all');if(navAll)navAll.classList.add('active');
