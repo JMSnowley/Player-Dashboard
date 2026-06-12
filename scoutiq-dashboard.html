@@ -1319,6 +1319,7 @@ async function loadFromGitHub(skipCacheBuild=false){
     const data = await resp.json();
     if(data.players && data.players.length){
       ST.players = data.players;
+      if(data.lists) LISTS=data.lists; // restore lists from GitHub
       ST.selectedIds = new Set();
       // One-off migration: convert legacy nationality string → nationalities array
       let migrated=false;
@@ -1447,7 +1448,7 @@ async function saveToGitHub(){
   // Strip _metricBonus before saving — it's recalculated fresh on every load
   // and thresholds shift as the player pool changes, so storing it causes stale display values
   const savePlayers=ST.players.map(({_metricBonus,...rest})=>rest);
-  const payload=JSON.stringify({players:savePlayers,savedAt:new Date().toISOString()});
+  const payload=JSON.stringify({players:savePlayers,lists:LISTS,savedAt:new Date().toISOString()});
   const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
   const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
 
@@ -3392,7 +3393,7 @@ function runHypTransfer(pid){
   document.getElementById('htTitle').textContent=title;
   // Build table
   const allRatings=combined.filter(p=>displayRating(p)!=null).map(p=>displayRating(p));
-  const allPots=combined.filter(p=>p.potential!=null).map(p=>p.potential);
+  const allPots=combined.filter(p=>displayPotential(p)!=null).map(p=>displayPotential(p));
   const htRingCell=(val,allVals)=>{
     if(val==null)return`<td style="text-align:center">—</td>`;
     const rank=allVals.filter(v=>v<=val).length/allVals.length;
@@ -3429,7 +3430,7 @@ function runHypTransfer(pid){
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.age||'—'}</td>
       <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.minutes?Math.round(p.minutes).toLocaleString():'—'}</td>
       ${htRingCell(displayRating(p),allRatings)}
-      ${htRingCell(p.potential,allPots)}
+      ${htRingCell(displayPotential(p),allPots)}
     </tr>`;
   });
   html+='</tbody></table>';
@@ -6352,8 +6353,8 @@ function buildFORecommendedClubs(p){
     // Younger players with high potential get more weight on potential
     const dp=displayPotential(p)??dr;
     const age=p.age||25;
-    // Projection weight on potential: 0.6 at 20, 0.4 at 23, 0.2 at 27, 0.0 at 30+
-    const potWeight=Math.max(0,Math.min(0.6,(30-age)/16.67));
+    // Potential weight curve: age 17→90%, 20→80%, 23→65%, 27→50%, 30→30%, 33→15%, 36→0%
+    const potWeight=age<=17?0.90:age<=20?0.90-((age-17)/3)*0.10:age<=23?0.80-((age-20)/3)*0.15:age<=27?0.65-((age-23)/4)*0.15:age<=30?0.50-((age-27)/3)*0.20:age<=33?0.30-((age-30)/3)*0.15:age<=36?0.15-((age-33)/3)*0.15:0;
     // Reverse position score adjustments so all positions compare on equal footing
     const _POS_ADJ={GK:-1.5,CB:-1,FB:-2,DM:-0.5,CM:-1.5,AM:-2,WF:0,CF:0.5};
     const projRatingNeutral=dr-(_POS_ADJ[playerPos]||0);
@@ -6367,7 +6368,8 @@ function buildFORecommendedClubs(p){
       const xdp=displayPotential(x)??xdr;
       const xpos=x.pos||'';
       const xAge=x.age||25;
-      const xPotW=Math.max(0,Math.min(0.6,(30-xAge)/16.67))*0.4;
+      // Same curve as player, but incumbents assessed at 40% of that weight
+      const xPotW=(xAge<=17?0.90:xAge<=20?0.90-((xAge-17)/3)*0.10:xAge<=23?0.80-((xAge-20)/3)*0.15:xAge<=27?0.65-((xAge-23)/4)*0.15:xAge<=30?0.50-((xAge-27)/3)*0.20:xAge<=33?0.30-((xAge-30)/3)*0.15:xAge<=36?0.15-((xAge-33)/3)*0.15:0)*0.4;
       const neutral=xdr-(_POS_ADJ[xpos]||0);
       const neutralPot=xdp-(_POS_ADJ[xpos]||0);
       return neutral*(1-xPotW)+neutralPot*xPotW;
@@ -6436,9 +6438,10 @@ function buildFORecommendedClubs(p){
     if(squadRank<=2) playingTimeScore=steppingUp?72:50;
     else if(squadRank<=4) playingTimeScore=88;
     else if(squadRank<=8) playingTimeScore=100;
-    else if(squadRank<=12) playingTimeScore=Math.max(20,70-(squadRank-8)*12);
-    else if(squadRank<=18) playingTimeScore=steppingDown?55:Math.max(20,70-(squadRank-8)*12);
-    else playingTimeScore=steppingDown?35:10;
+    else if(squadRank<=12) playingTimeScore=Math.max(40,100-((squadRank-8)*8)); // 8→100, 9→92, 10→84, 11→76, 12→68
+    else if(squadRank<=16) playingTimeScore=Math.max(30,68-((squadRank-12)*8)); // 13→60, 14→52, 15→44, 16→36
+    else if(squadRank<=20) playingTimeScore=steppingDown?50:Math.max(20,36-((squadRank-16)*4));
+    else playingTimeScore=steppingDown?35:15;
     // Apply league percentile as a floor — a player competitive within the league
     // gets a minimum playing time score regardless of squad rank
     const leaguePctFloor=leaguePctRank>=60?65:leaguePctRank>=40?55:leaguePctRank>=25?42:leaguePctRank>=10?28:10;
@@ -6605,12 +6608,18 @@ function buildFORecommendedClubs(p){
     const clubMeta=LEAGUE_META[club.league]||{country:null,lang:[],region:null};
     const playerNats=(p.nationalities||[]);
     const playerCurrentMeta=LEAGUE_META[p.leagueTag]||{country:null,lang:[],region:null};
+    // History leagues from previous captures (excluding current season)
+    const playerHistoryLeagues=[...new Set((p.history||[])
+      .filter(h=>h.leagueTag&&h.leagueTag!==p.leagueTag)
+      .map(h=>h.leagueTag))];
+    const playerHistoryCountries=[...new Set(playerHistoryLeagues
+      .map(lt=>(LEAGUE_META[lt]||{}).country).filter(Boolean))];
     const playerLangs=[...new Set([...playerCurrentMeta.lang,...playerNats.flatMap(n=>(NAT_META[n]||{lang:[]}).lang)])];
     const playerNatCountries=playerNats.map(n=>(NAT_META[n]||{}).country).filter(Boolean);
 
     // Cultural fit score (0-100)
     let culturalScore=30; // baseline
-    // Same country as nationality
+    // Same country as nationality (strongest signal)
     if(playerNatCountries.includes(clubMeta.country)) culturalScore+=40;
     // Same country as current league
     else if(clubMeta.country===playerCurrentMeta.country) culturalScore+=30;
@@ -6619,6 +6628,12 @@ function buildFORecommendedClubs(p){
       const borders=BORDER_BONUS[playerCurrentMeta.country]||[];
       const natBorders=playerNatCountries.flatMap(c=>BORDER_BONUS[c]||[]);
       if(borders.includes(clubMeta.country)||natBorders.includes(clubMeta.country)) culturalScore+=20;
+    }
+    // Previously played in this country (smaller weight)
+    if(!playerNatCountries.includes(clubMeta.country)&&
+       clubMeta.country!==playerCurrentMeta.country&&
+       playerHistoryCountries.includes(clubMeta.country)){
+      culturalScore=Math.min(culturalScore+10,culturalScore+10); // +10 for prior country
     }
     // Shared language
     const langMatch=clubMeta.lang.some(l=>playerLangs.includes(l));
@@ -6755,29 +6770,82 @@ function buildFORecommendedClubs(p){
       else if(contextGap>-5) qualityCap=Math.min(qualityCap,92);
     }
 
-    // ── Financial affordability check ────────────────────────────
-    // Use wage budget as proxy for whether club can realistically afford this player
-    // A club can typically spend ~15x weekly wage budget on a single transfer
+    // ── Financial affordability — three-tier hierarchy ──────────
+    // Tier 1: Club has wage data → use directly (most accurate)
+    // Tier 2: No wage data, but club is in CIES_REFERENCE for its league →
+    //         rank club by CIES within its league, apply quartile multiplier
+    //         to league transfer baseline. Self-calibrating: top quartile of
+    //         any league (e.g. Rangers in Scotland 1) gets 2.5× baseline,
+    //         bottom gets 0.5×. Correctly differentiates Celtic from St Mirren.
+    // Tier 3: Neither wage nor CIES data → use league transfer baseline directly
+    //         (true median club for that league).
     const playerXTV=calcPlayerValue(p)||0.5;
     const clubWage=CLUB_WAGE_BUDGET[club.team]||0;
-    // Fallback: estimate max spend from league LVM when no wage data exists
-    // LVM roughly correlates with league financial power; scale to a wage equivalent
-    const LVM_TO_WAGE={'England 1':2500000,'England 2':500000,'England 3':130000,'England 4':60000,
-      'Germany 1':1200000,'Germany 2':250000,'Spain 1':1100000,'Spain 2':200000,
-      'Italy 1':900000,'Italy 2':150000,'France 1':700000,'France 2':80000,
-      'Netherlands 1':200000,'Belgium 1':180000,'Portugal 1':400000,
-      'Scotland 1':80000,'Scotland 2':20000,'Scotland 3':5000,'Scotland 4':2000,
-      'Austria 1':90000,'Switzerland 1':100000,'Denmark 1':120000,'Sweden 1':60000,
-      'Norway 1':50000,'Czech Republic 1':50000,'Turkey 1':200000,'Greece 1':150000,
-      'Poland 1':60000,'Romania 1':50000,'Bulgaria 1':40000,'Croatia 1':60000,
-      'Brazil 1':180000,'Argentina 1':80000,'Colombia 1':30000,'Ecuador 1':25000,
-      'USA 1':80000,'MLS':80000,'Saudi Arabia 1':300000,
-    };
-    const leagueWageFallback=LVM_TO_WAGE[club.league]||30000;
-    const effectiveWage=clubWage>0?clubWage:leagueWageFallback;
-    // Elite clubs can stretch significantly for marquee signings — use 25x for top spenders
-    const spendMultiplier=effectiveWage>=2000000?25:effectiveWage>=500000?20:15;
-    const clubMaxSpend=effectiveWage*spendMultiplier/1e6; // £M
+
+    let clubMaxSpend;
+    if(clubWage>0){
+      // ── Tier 1: Wage data available ──────────────────────────────
+      const spendMultiplier=clubWage>=2000000?25:clubWage>=500000?20:15;
+      clubMaxSpend=clubWage*spendMultiplier/1e6;
+    } else {
+      // ── Tier 2 + 3: No wage data — use CIES rank within league ──
+      // Get league transfer baseline from XTV_TRANSFER_PROFILES
+      const _prof=XTV_TRANSFER_PROFILES[club.league];
+      const leagueBaseline=_prof?_prof.bl:2.0; // fallback £2M for unknown leagues
+
+      // Build ranked list of clubs in this league from CIES_REFERENCE
+      const _ciLeague=CIES_REFERENCE[club.league]||[];
+      let clubMult=1.0; // default: true median club
+      if(_ciLeague.length>=2){
+        // Normalise club name for CIES lookup (same function as in calcPlayerValue)
+        const _norm=s=>{
+          let n=s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+          n=n.replace(/(fc|cf|sc|ac|bk|if|fk|sk|gd|cd|ud|sd|rcd|ssd|afc|fca|hb|ob|ik|bf|jong)/g,'');
+          n=n.replace(/(da|de|do|di|del|el|la|los|las|the|al|af|van|von)/g,'');
+          return n.replace(/[.\s\-'\/]/g,'').trim();
+        };
+        const _tn=_norm(club.team);
+        const clubCies=_ciLeague.find(e=>{
+          const kn=_norm(e[0]);
+          return kn===_tn||(kn.length>=3&&_tn.length>=3&&(kn.includes(_tn)||_tn.includes(kn)));
+        });
+
+        if(clubCies){
+          // Club found in CIES — rank it within the league
+          const sortedCies=[..._ciLeague].sort((a,b)=>b[1]-a[1]);
+          const rank=sortedCies.findIndex(e=>e[0]===clubCies[0])+1;
+          const rankPct=rank/sortedCies.length;
+          // Quartile multipliers: top 25%→2.5×, 25-50%→1.5×, 50-75%→0.9×, bottom 25%→0.5×
+          clubMult=rankPct<=0.25?2.5:rankPct<=0.50?1.5:rankPct<=0.75?0.9:0.5;
+        } else {
+          // Not in CIES — use DB avg rating to estimate within-league position
+          // Clubs with above-median avg rating get a slight uplift
+          const leagueClubRatings={};
+          ST.players.filter(x=>x.leagueTag===club.league&&x.rating&&(x.minutes||0)>=300)
+            .forEach(x=>{
+              if(!leagueClubRatings[x.team]) leagueClubRatings[x.team]={sum:0,n:0};
+              leagueClubRatings[x.team].sum+=x.rating;
+              leagueClubRatings[x.team].n++;
+            });
+          const allAvgs=Object.values(leagueClubRatings).map(v=>v.sum/v.n);
+          const leagueMedianRating=allAvgs.length?allAvgs.sort((a,b)=>a-b)[Math.floor(allAvgs.length/2)]:65;
+          const thisClubAvg=leagueClubRatings[club.team];
+          const clubAvg=thisClubAvg?thisClubAvg.sum/thisClubAvg.n:leagueMedianRating;
+          const ratingGap=clubAvg-leagueMedianRating;
+          // Rating gap maps to multiplier: +3 above median → 1.5×, at median → 1×, -3 → 0.7×
+          clubMult=ratingGap>=3?1.5:ratingGap>=1?1.2:ratingGap>=-1?1.0:ratingGap>=-3?0.8:0.6;
+        }
+      } else if(_ciLeague.length===1&&_norm){
+        // Only one CIES entry — assume it's the dominant club (top tier)
+        const _norm2=s=>{let n=s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');n=n.replace(/(fc|cf|sc|ac|bk|fk|gd)/g,'');return n.replace(/[.\s\-'\/]/g,'').trim();};
+        const _tn2=_norm2(club.team);
+        const e=_ciLeague[0];
+        const kn=_norm2(e[0]);
+        if(kn===_tn2||kn.includes(_tn2)||_tn2.includes(kn)) clubMult=2.0;
+      }
+
+      clubMaxSpend=leagueBaseline*clubMult;
+    }
     let affordabilityScore=50;
     let affordabilityCap=100;
     if(playerXTV<=clubMaxSpend*0.4)      {affordabilityScore=100;}
@@ -6864,7 +6932,10 @@ function buildFORecommendedClubs(p){
       <div style="flex:1;min-width:0">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${c.team}</div>
-          <div style="font-family:'Archivo Black',sans-serif;font-size:14px;color:${scoreCol};flex-shrink:0;margin-left:6px">${c.score}</div>
+          <div style="flex-shrink:0;margin-left:6px;text-align:right">
+            <div style="font-family:'Archivo Black',sans-serif;font-size:14px;color:${scoreCol}">${c.score}</div>
+            <div style="font-size:9px;color:${scoreCol};font-family:'JetBrains Mono',monospace;letter-spacing:.02em">${c.score>=80?'Strong':c.score>=65?'Good':c.score>=50?'Medium':c.score>=35?'Poor':'Very Poor'}</div>
+          </div>
         </div>
         <div style="font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:5px">${c.league} · ${c.season}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px">
