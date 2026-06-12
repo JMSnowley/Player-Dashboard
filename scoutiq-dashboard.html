@@ -498,6 +498,12 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     </div>
     <!-- Skill filters -->
     <div class="sb-section">
+      <div class="sb-toggle" onclick="toggleSb('xtvFilters',this)"><span>xTV</span><span class="sb-arrow">›</span></div>
+      <div class="sb-content" id="xtvFilters">
+        <div id="xtvSliderContainer"></div>
+      </div>
+    </div>
+    <div class="sb-section">
       <div class="sb-toggle" onclick="toggleSb('skillFilters',this)"><span>Skills</span><span class="sb-arrow">›</span></div>
       <div class="sb-content" id="skillFilters">
         <div id="skillSliders"></div>
@@ -510,23 +516,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <div id="roleSliders"></div>
       </div>
     </div>
-    <!-- xTV slider -->
-    <div class="sb-section">
-      <div class="sb-toggle" onclick="toggleSb('xtvFilters',this)"><span>xTV</span><span class="sb-arrow">›</span></div>
-      <div class="sb-content" id="xtvFilters">
-        <div id="xtvSliderWrap" style="padding:6px 12px 10px">
-          <div class="range-lbl">xTV (£M) <em id="xtvRangeLabel">£0 – £200M</em></div>
-          <div class="dual-wrap">
-            <div class="range-track"><div class="range-fill" id="xtvRangeFill"></div></div>
-            <input type="range" id="xtvRangeA" min="0" max="100" value="0" step="1"
-              oninput="updateXtvSlider()" style="position:absolute;width:100%;pointer-events:none;opacity:0">
-            <input type="range" id="xtvRangeB" min="0" max="100" value="100" step="1"
-              oninput="updateXtvSlider()" style="position:absolute;width:100%;pointer-events:none;opacity:0">
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- Metric sliders -->
+    <!-- xTV slider — positioned between Ratings and Skills -->
     <div class="sb-section">
       <div class="sb-toggle" onclick="toggleSb('metricFilters',this)"><span>Metrics</span><span class="sb-arrow">›</span></div>
       <div class="sb-content" id="metricFilters">
@@ -1584,44 +1574,18 @@ let SLIDER_STATE={
 function safeId(str){return str.replace(/[^a-zA-Z0-9_-]/g,'_');}
 
 
-// xTV non-linear slider: position 0-100 maps to £0-200M via power curve
-// pos=50→£35M, pos=90→£154M — gives fine resolution for the dense £0-20M range
+
+// xTV non-linear scale helpers: slider pos 0-100 → £M value via power curve
+// pos=20→£3.6M, pos=50→£35M, pos=90→£154M — dense resolution in low range
 function xtvPosToVal(pos){ return Math.round(200*Math.pow(pos/100,2.5)*10)/10; }
 function xtvValToPos(val){ return Math.round(100*Math.pow(Math.max(0,val)/200,1/2.5)); }
-
-function formatXtvLabel(v){
+function _fmtXtv(v){
   if(v<=0) return '£0';
   if(v>=200) return '£200M+';
   if(v>=100) return '£'+Math.round(v)+'M';
   if(v>=10)  return '£'+v.toFixed(0)+'M';
   if(v>=1)   return '£'+v.toFixed(1)+'M';
   return '£'+Math.round(v*1000)+'k';
-}
-
-function updateXtvSlider(){
-  const ra=document.getElementById('xtvRangeA');
-  const rb=document.getElementById('xtvRangeB');
-  const fill=document.getElementById('xtvRangeFill');
-  const lbl=document.getElementById('xtvRangeLabel');
-  if(!ra||!rb) return;
-  let a=parseInt(ra.value), b=parseInt(rb.value);
-  if(a>b){const tmp=a;a=b;b=tmp;}
-  const pct=(v,mx)=>v/mx*100;
-  if(fill){ fill.style.left=pct(a,100)+'%'; fill.style.width=(pct(b,100)-pct(a,100))+'%'; }
-  const vA=xtvPosToVal(a), vB=xtvPosToVal(b);
-  if(lbl) lbl.textContent=formatXtvLabel(vA)+' – '+formatXtvLabel(vB);
-  SLIDER_STATE.xtv=[a,b];
-  ST.currentPage=0; renderTable();
-}
-
-function initXtvSlider(){
-  const ra=document.getElementById('xtvRangeA');
-  const rb=document.getElementById('xtvRangeB');
-  if(ra) ra.style.pointerEvents='auto';
-  if(rb) rb.style.pointerEvents='auto';
-  // Make both inputs stack correctly
-  const wrap=document.querySelector('.dual-wrap');
-  updateXtvSlider();
 }
 
 function initSliders(){
@@ -1649,8 +1613,8 @@ function initSliders(){
     posOrder.forEach(pos=>{
       const conf=POS_CONFIG[pos];if(!conf)return;
       conf.roles.forEach(r=>{
-        SLIDER_STATE.roles[r]=[0,100];
-        renderRangeSlider('rs_'+pos+'_'+safeId(r),r.replace(' %',''),'role:'+r,0,100);
+        SLIDER_STATE.roles[r+'::'+pos]=[0,100];
+        renderRangeSlider('rs_'+pos+'_'+safeId(r),r.replace(' %',''),'role:'+r+'::'+pos,0,100);
       });
     });
   }
@@ -1789,7 +1753,12 @@ function initSliders(){
       renderRangeSlider('phys_sl_'+key,label,slKey,0,100);
     });
   }
-  initXtvSlider();
+  // xTV slider — uses standard renderRangeSlider (0-100 positions, non-linear labels)
+  SLIDER_STATE.xtv=[0,100];
+  renderRangeSlider('xtvSliderContainer','xTV (£M)','xtv',0,100);
+  // Override label to show £M values instead of raw 0-100
+  const _xtvLbl=document.getElementById('rv_xtv');
+  if(_xtvLbl) _xtvLbl.textContent='£0–£200M';
 }
 
 
@@ -1819,6 +1788,11 @@ function updateSlider(sk,side,val,key,mn,mx){
   else if(key.startsWith('phys::')) SLIDER_STATE.physMetrics[key]=[loF,hiF];
   else if(key.startsWith('metric:')) SLIDER_STATE.metrics[key.slice(7)]=[loF,hiF];
   else SLIDER_STATE[key]=[loF,hiF];
+  // Update xTV label with non-linear £M values
+  if(key==='xtv'){
+    const lbl=document.getElementById('rv_xtv');
+    if(lbl) lbl.textContent=_fmtXtv(xtvPosToVal(loF))+'–'+_fmtXtv(xtvPosToVal(hiF));
+  }
   renderTable();
 }
 
@@ -2273,7 +2247,8 @@ function getFiltered(){
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
   if(alo>15||ahi<45)list=list.filter(p=>p.age!=null&&p.age>=alo&&p.age<=ahi);
   Object.entries(SLIDER_STATE.roles).forEach(([role,[lo,hi]])=>{
-    if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[role]!=null?p.roles[role]:null;return v!=null&&v>=lo&&v<=hi;});
+    const realRole=role.includes('::')?role.split('::')[0]:role;
+    if(lo>0||hi<100)list=list.filter(p=>{const v=p.roles&&p.roles[realRole]!=null?p.roles[realRole]:null;return v!=null&&v>=lo&&v<=hi;});
   });
   Object.entries(SLIDER_STATE.metrics).forEach(([key,[lo,hi]])=>{
     if(lo===0&&hi===100) return;
@@ -2450,9 +2425,62 @@ const NAT_CONF={
   'Malaysia':'AFC','Singapore':'AFC','Cambodia':'AFC',
   'North Korea':'AFC','Hong Kong':'AFC','Macau':'AFC','Taiwan':'AFC',
   'Mongolia':'AFC','Maldives':'AFC','Bhutan':'AFC',
+  // Côte d’Ivoire — curly apostrophe variant as used in DB
+  'Côte d’Ivoire':'CAF',
   // OFC
   'New Zealand':'OFC','Fiji':'OFC','Papua New Guinea':'OFC','Solomon Islands':'OFC',
   'Vanuatu':'OFC','Samoa':'OFC','Tonga':'OFC',
+
+  // Additional FIFA-registered nationalities
+  'Antigua and Barbuda':'CONCACAF',
+  'Aruba':'CONCACAF',
+  'Barbados':'CONCACAF',
+  'Belize':'CONCACAF',
+  'Bermuda':'CONCACAF',
+  'Bonaire':'CONCACAF',
+  'Bosnia and Herzegovina':'UEFA',
+  'Cape Verde Islands':'CAF',
+  'Central African Republic':'CAF',
+  'Chad':'CAF',
+  'China PR':'AFC',
+  'Congo DR':'CAF',
+  'Côte d\'Ivoire':'CAF',
+  'Djibouti':'CAF',
+  'Dominica':'CONCACAF',
+  'Eritrea':'CAF',
+  'Eswatini':'CAF',
+  'French Guiana':'CONCACAF',
+  'Great Britain':'UEFA',
+  'Grenada':'CONCACAF',
+  'Guadeloupe':'CONCACAF',
+  'Guernsey':'UEFA',
+  'Guinea-Bissau':'CAF',
+  'Guyana':'CONCACAF',
+  'Isle of Man':'UEFA',
+  'Jersey':'UEFA',
+  'Korea DPR':'AFC',
+  'Korea Republic':'AFC',
+  'Lesotho':'CAF',
+  'Liberia':'CAF',
+  'Madagascar':'CAF',
+  'Malawi':'CAF',
+  'Martinique':'CONCACAF',
+  'Mauritius':'CAF',
+  'Monaco':'UEFA',
+  'Montserrat':'CONCACAF',
+  'Nicaragua':'CONCACAF',
+  'Puerto Rico':'CONCACAF',
+  'Republic of Ireland':'UEFA',
+  'Réunion':'CAF',
+  'Sint Maarten':'CONCACAF',
+  'South Sudan':'CAF',
+  'St. Lucia':'CONCACAF',
+  'Suriname':'CONCACAF',
+  'São Tomé e Príncipe':'CAF',
+  'Trinidad and Tobago':'CONCACAF',
+  'Türkiye':'UEFA',
+  'United States':'CONCACAF',
+
 };
 
 function renderSidebar(){
@@ -7536,7 +7564,9 @@ function clearAllFilters(){
   const si=document.getElementById('searchInput');if(si)si.value='';
   // Re-init sliders to reset their visual handles
   initSliders();
-  SLIDER_STATE.xtv=[0,100]; updateXtvSlider();
+  SLIDER_STATE.xtv=[0,100];
+  const _xrvEl=document.getElementById('rv_xtv');
+  if(_xrvEl) _xrvEl.textContent='£0–£200M';
   // Reset nav highlight
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const navAll=document.getElementById('nav-all');if(navAll)navAll.classList.add('active');
