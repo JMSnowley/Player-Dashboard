@@ -6170,8 +6170,7 @@ function calcPlayerValue(p){
   const _posPeak={WF:23,CF:24,AM:25,CM:25,DM:25,FB:26,CB:26,GK:27};
   const _posDecline={WF:0.0944,CF:0.1000,AM:0.1143,CM:0.1143,DM:0.1143,FB:0.1250,CB:0.1167,GK:0.1200};
   const _posFloor={WF:0.05,CF:0.06,AM:0.06,CM:0.06,DM:0.06,FB:0.08,CB:0.10,GK:0.15};
-  const effectivePeak=(_posPeak[pos]||25)+
-    (0>=0.70?-1:0<=0.30?1:0); // no youngPct without league profile — no adjustment
+  const effectivePeak=_posPeak[pos]||25; // no league profile — no youngPct adjustment
   const _declineRate=_posDecline[pos]||0.1143;
   const _floorVal=_posFloor[pos]||0.06;
   let ageFactor;
@@ -6183,6 +6182,7 @@ function calcPlayerValue(p){
   }
 
   // ── 3. Minutes factor (league-relative, age-scaled floor) ────────────────
+  const {maxMins,effMins}=getMinsMaps();
   const _leagueSeasonKey=league+'|'+season;
   const _lgMaxMins=Math.max(300,(maxMins||{})[_leagueSeasonKey]||3000);
   const _playerMins=Math.min(mins,(effMins||{})[p.id]||mins);
@@ -6196,22 +6196,27 @@ function calcPlayerValue(p){
   // Normalise: baseline=64 means anything below 64 is worth nothing above the floor
   // Range: 64→0, 100→1. Exponent=4.0 gives steep drop-off below 75,
   // large premiums above 85.
-  const PERF_BASELINE=64.0;
+  const PERF_BASELINE=66.0;
   const norm=Math.max(0,(perfScore-PERF_BASELINE)/(100.0-PERF_BASELINE));
-  const EXPONENT=4.0;
-  const ANCHOR=427.0; // calibrated: 25yo CF perf=92.5 → £150M at peak age/mins
+  const EXPONENT=3.5; // flatter at top: Mbappe/Bellingham closer to Haaland
+  const ANCHOR=451.75; // calibrated: Haaland (perf=92.5) → £170M
   const rawPerf=Math.pow(norm,EXPONENT)*ANCHOR;
 
   // ── 5. Physical multiplier (young players only) ───────────────────────────
   // Physical score (40-100 scale) gives a modest boost for young players.
   // Fades linearly from max effect at age 16 to zero effect at age 27.
   // A physically elite 18yo WF is more valuable than an identical technical twin.
-  const physScore=p.physicalScore||null;
+  // Physical score is on the PHYS snapshot, not directly on p
+  // Look it up only for young players (age<27) to keep it fast
   let physMult=1.0;
-  if(physScore!==null&&age<27){
-    const ageGate=Math.max(0,(27-age)/(27-16)); // 1.0 at 16, 0 at 27
-    const normPhys=Math.max(0,Math.min(1,(physScore-40)/60)); // 40→0, 100→1
-    physMult=1.0+0.30*normPhys*ageGate;
+  if(age<27&&p.hasPhysical&&window.PHYS&&PHYS.snapshots){
+    const _snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+    const physScore=_snap?_snap.physicalScore:null;
+    if(physScore!==null){
+      const ageGate=Math.max(0,(27-age)/(27-16)); // 1.0 at 16, 0 at 27
+      const normPhys=Math.max(0,Math.min(1,(physScore-40)/60)); // 40→0, 100→1
+      physMult=1.0+0.30*normPhys*ageGate;
+    }
   }
 
   // ── 6. Assemble ──────────────────────────────────────────────────────────
