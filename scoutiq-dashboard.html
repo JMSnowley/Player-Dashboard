@@ -1,3 +1,68 @@
+  const _prof=XTV_TRANSFER_PROFILES[league];
+  if(!_prof){
+    // ── Rating-proximity inference for unknown leagues ───────────
+    // Find the XTP league whose avg player rating is closest to this league.
+    // Use that league's transfer profile as a proxy, with a 0.85 liquidity penalty
+    // (unknown leagues have thinner transfer markets than the reference set).
+    //
+    // League avg rating is computed live from ST.players — self-updating as you
+    // capture more players. Falls back to XTP_LEAGUE_AVG_RATING (pre-computed from
+    // DB at build time) for XTP leagues used as reference points.
+    const _leaguePlayers=window.ST&&ST.players
+      ?ST.players.filter(x=>x.leagueTag===league&&x.rating&&(x.minutes||0)>=300)
+      :[];
+    const _thisAvg=_leaguePlayers.length>=5
+      ?_leaguePlayers.reduce((s,x)=>s+x.rating,0)/_leaguePlayers.length
+      :null;
+    // If we can't compute a live avg (too few players), fall back to LVM-based estimate
+    if(_thisAvg===null){
+      const lv=LEAGUE_VALUE_MULT[league]||0.3;
+      const _am={16:0.65,17:0.70,18:0.75,19:0.80,20:0.85,21:0.90,22:0.95,23:1.0,24:1.0,25:1.0,26:1.0,
+                 27:0.92,28:0.82,29:0.70,30:0.58,31:0.45,32:0.32,33:0.20}[age]||(age>34?0.05:0.55);
+      const _raw=Math.pow(Math.max(0,effectiveDr-62),2.5)*lv*_am*(0.9+0.25*(leaguePct/100))*0.00305;
+      return Math.round(Math.max(0.05,_raw)*10)/10;
+    }
+    // Find closest XTP league by avg rating distance
+    let _bestLg=null, _bestDist=Infinity;
+    Object.entries(XTP_LEAGUE_AVG_RATING).forEach(([lg,avg])=>{
+      const dist=Math.abs(avg-_thisAvg);
+      if(dist<_bestDist){_bestDist=dist;_bestLg=lg;}
+    });
+    const _proxyProf=_bestLg?XTV_TRANSFER_PROFILES[_bestLg]:null;
+    if(!_proxyProf){
+      return Math.round(Math.max(0.05, Math.pow(Math.max(0,effectiveDr-62),2.5)*0.3*0.00305)*10)/10;
+    }
+    // Use proxy profile with 0.85 liquidity penalty — unknown leagues are less liquid
+    // meaning fees realised are typically below what the ratings would suggest
+    const _penalisedProf={..._proxyProf, bl:_proxyProf.bl*0.85};
+    // Re-enter the main calculation with the proxy profile
+    // (inline rather than recursive to avoid stack issues)
+    {
+      const bl=_penalisedProf.bl, pk=_penalisedProf.pk, yw=_penalisedProf.yw, cn=_penalisedProf.cn;
+      const _rawTier=getClubRating(p.team||'',league)>=76?1.8:getClubRating(p.team||'',league)>=68?1.3:getClubRating(p.team||'',league)>=60?1.0:0.75;
+      const _tier=1.0+(_rawTier-1.0)*(1.0-cn*0.70);
+      const _ybs_s=Math.min(1.0,bl/50.0), _ybs_mc=0.45*_ybs_s;
+      const _ybs_atp=age<pk?Math.max(0,pk-age)/Math.max(1,pk-16):0;
+      const _ybs=Math.max(0.45,1.0-_ybs_mc*_ybs_atp);
+      const _bta=bl*_tier*_ybs;
+      let _af; if(age<=pk){const t=Math.max(0,(age-16)/(pk-16));_af=Math.max(0.30,0.45+0.55*t-Math.max(0,pk-age)*Math.max(0,1-yw)*0.025);}
+      else{_af=Math.max(0.12,1.0-(age-pk)*(yw>=0.70?0.065:0.050));}
+      const _lgKey=`${league}|${season}`;
+      const _lgMax=Math.max(300,(maxMins||{})[_lgKey]||3000);
+      const _mp=Math.min(1.0,Math.max(0,(p.minutes||0)/_lgMax));
+      const _mf=Math.max(0.55,0.80-Math.max(0,age-16)*0.025)+_mp*(1.0-Math.max(0.55,0.80-Math.max(0,age-16)*0.025));
+      const _pm=Math.max(0.5,Math.pow(leaguePct/75,0.40));
+      const _posW={WF:1.08,CF:1.10,AM:1.05,CM:1.0,DM:0.98,FB:0.92,CB:0.90,GK:0.82}[pos]||1.0;
+      const _posCap={GK:60,CB:110,FB:90,DM:130,CM:150,AM:170,WF:190,CF:190}[pos]||140;
+      const _rExp=60+(leaguePct/100)*18;
+      const _rf=Math.max(0.65,Math.min(1.50,Math.pow(effectiveDr/Math.max(1,_rExp),0.50)));
+      const _proxy=_bta*_af*_mf*_pm*_posW;
+      const _xTV=Math.min(_proxy*_rf,_posCap);
+      const _T=_posCap*0.60,_ceil=_posCap*1.50;
+      return Math.round((_xTV<=_T?_xTV:_T+Math.pow(Math.min(1,(_xTV-_T)/(_ceil-_T)),1.30)*(_ceil-_T))*10)/10;
+    }
+  }
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2574,7 +2639,7 @@ function getFiltered(){
   const [xtvA,xtvB]=SLIDER_STATE.xtv||[0,100];
   if(xtvA>0||xtvB<100){
     const xtvLo=xtvPosToVal(xtvA), xtvHi=xtvPosToVal(xtvB);
-    list=list.filter(p=>{const v=calcPlayerValue(p,3.0)??0; return v>=xtvLo&&v<=xtvHi;});
+    list=list.filter(p=>{const v=calcPlayerValue(p)??0; return v>=xtvLo&&v<=xtvHi;});
   }
   if(llo>0||lhi<100)list=list.filter(p=>p.leaguePct!=null&&p.leaguePct>=llo&&p.leaguePct<=lhi);
   if(alo>15||ahi<45)list=list.filter(p=>p.age!=null&&p.age>=alo&&p.age<=ahi);
@@ -2642,7 +2707,7 @@ function getFiltered(){
       return ST.sortDir*((displayRating(b)??-Infinity)-(displayRating(a)??-Infinity));
     }
     if(sk==='xtv'){
-      const av=calcPlayerValue(a,3.0), bv=calcPlayerValue(b,3.0);
+      const av=calcPlayerValue(a), bv=calcPlayerValue(b);
       return ST.sortDir*(bv-av);
     }
     if(NUMERIC_FIELDS.has(sk)){
@@ -3018,7 +3083,7 @@ function renderTable(){
       <td>${ringCell(r,ratingScaleColor)}</td>
       <td>${ringCell(displayPotential(p),potColor)}</td>
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
-      <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00d4ff;white-space:nowrap">${formatValue(calcPlayerValue(p,3.0))}</td>
+      <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00d4ff;white-space:nowrap">${formatValue(calcPlayerValue(p))}</td>
       <td style="min-width:110px">
         <div class="top3-skills">${(()=>{
           const ss=_getSkillScore(p);
@@ -5799,16 +5864,10 @@ function buildFullOverview(p){
           return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
         }).join('')}
         ${(()=>{
-          const v3=calcPlayerValue(p,3.0);
-          const v4=calcPlayerValue(p,4.0);
-          const v2=calcPlayerValue(p,2.0);
-          const v1=calcPlayerValue(p,1.0);
-          const v6m=calcPlayerValue(p,0.5);
-          const tooltip=`4+ yrs: ${formatValue(v4)} | 2 yrs: ${formatValue(v2)} | 1 yr: ${formatValue(v1)} | 6 mo: ${formatValue(v6m)}`;
-          return`<div class="fo-score-card" title="${tooltip}" style="cursor:default;flex:1.2">
-            <div class="fo-score-val" style="color:#00d4ff;font-size:22px">${formatValue(v3)}</div>
+          const v=calcPlayerValue(p);
+          return`<div class="fo-score-card" style="cursor:default;flex:1.2">
+            <div class="fo-score-val" style="color:#00d4ff;font-size:22px">${formatValue(v)}</div>
             <div class="fo-score-lbl">xTV</div>
-            <div style="font-size:8px;color:var(--muted);margin-top:2px">(3yr · hover for range)</div>
           </div>`;
         })()}
       </div>
@@ -6070,6 +6129,8 @@ function getClubRating(team, league){
   return 35+Math.min(1,w/15000)*5;
 }
 
+const XTP_LEAGUE_AVG_RATING={'Argentina 1':63.8,'Australia 1':58.3,'Austria 1':64.6,'Belgium 1':69.8,'Brazil 1':67.0,'Bulgaria 1':58.5,'Colombia 1':62.4,'Croatia 1':63.9,'Cyprus 1':61.8,'Czech Republic 1':62.8,'Denmark 1':68.5,'Ecuador 1':62.5,'England 1':77.6,'England 2':69.3,'England 3':65.3,'England 4':61.2,'England 5':54.1,'France 1':71.8,'France 2':61.9,'France 3':57.7,'Germany 1':73.5,'Germany 2':62.9,'Germany 3':58.5,'Greece 1':62.1,'Hungary 1':61.9,'Ireland 1':57.1,'Israel 1':59.4,'Italy 1':72.6,'Italy 2':61.3,'Japan 1':59.9,'Latvia 1':54.2,'Mexico 1':62.1,'Morocco 1':60.4,'Netherlands 1':67.4,'Netherlands 2':54.1,'Norway 1':64.1,'Paraguay 1':64.9,'Poland 1':63.9,'Portugal 1':65.8,'Portugal 2':59.0,'Qatar 1':56.7,'Romania 1':61.2,'Russia 1':63.1,'Saudi Arabia 1':60.8,'Scotland 1':64.7,'Scotland 2':56.5,'Scotland 3':48.7,'Scotland 4':42.3,'Serbia 1':58.5,'Slovakia 1':59.3,'Slovenia 1':60.3,'South Africa 1':59.2,'Spain 1':72.9,'Spain 2':63.4,'Sweden 1':62.7,'Switzerland 1':64.1,'Turkey 1':63.9,'USA 1':63.9,'Ukraine 1':59.5};
+
 const XTV_TRANSFER_PROFILES={
   'Argentina 1':{_s:new Set(['Boca Juniors','Independiente','Newell\'s','River Plate','San Lorenzo','Vélez Sarsfield']),bl:12.214,pk:20.0,yw:0.85,qm:3.339,cn:0.85},
   'Australia 1':{_s:new Set(['Adelaide United','Central Coast','Gold Coast Utd.','Melb. Victory','Melbourne City','Newcastle','Sydney FC','Wellington','Western Sydney']),bl:0.819,pk:23.1,yw:0.65,qm:1.84,cn:0.55},
@@ -6144,7 +6205,7 @@ function formatValue(v){
   return '£'+Math.round(v*1000)+'k';
 }
 
-function calcPlayerValue(p, yearsRemaining=3.0){
+function calcPlayerValue(p){
   // ── NEW MARKET-ANCHORED xTV MODEL ───────────────────────────────────────
   // Architecture: baseline (from transfer data) × club tier × age × mins ×
   //               quality (pct) × rating correction × potential uplift
@@ -6176,13 +6237,77 @@ function calcPlayerValue(p, yearsRemaining=3.0){
   // ── Fallback: old model for leagues with no transfer profile ────────────
   const _prof=XTV_TRANSFER_PROFILES[league];
   if(!_prof){
-    // Minimal fallback using LVM
+    // ── Peer-group inference for unknown leagues ──────────────────
+    // Strategy: find the XTP league whose average player rating (computed
+    // live from ST.players) is closest to this unknown league's avg rating.
+    // Use that league's full transfer profile as a proxy, with a 0.85
+    // liquidity penalty — unknown leagues have thinner transfer markets.
+    // This means a 65-rated CB in Georgia 1 is benchmarked against similar
+    // players in the closest known league by ratings distribution (e.g.
+    // England 5 / Scotland 3) rather than a flat LVM multiplier.
+    //
+    // Compute live avg rating for the unknown league
+    const _lgPlyrs = (window.ST&&ST.players
+      ? ST.players.filter(x=>x.leagueTag===league&&x.rating&&(x.minutes||0)>=300)
+      : []);
+    const _thisAvg = _lgPlyrs.length>=5
+      ? _lgPlyrs.reduce((s,x)=>s+x.rating,0)/_lgPlyrs.length
+      : null;
+
+    if(_thisAvg!==null){
+      // Find closest XTP reference league by avg rating distance
+      let _bestLg=null,_bestDist=Infinity;
+      Object.entries(XTP_LEAGUE_AVG_RATING).forEach(([lg,avg])=>{
+        const d=Math.abs(avg-_thisAvg);
+        if(d<_bestDist){_bestDist=d;_bestLg=lg;}
+      });
+      const _refProf=_bestLg?XTV_TRANSFER_PROFILES[_bestLg]:null;
+      if(_refProf){
+        // Proxy profile with 0.85 penalty on baseline
+        const bl=_refProf.bl*0.85,pk=_refProf.pk,yw=_refProf.yw,cn=_refProf.cn,
+              qm=_refProf.qm,_s=_refProf._s;
+        const _cr=getClubRating(p.team||'',league);
+        const _rawT=_cr>=76?1.8:_cr>=68?1.3:_cr>=60?1.0:0.75;
+        const _tier=1.0+(_rawT-1.0)*(1.0-cn*0.70);
+        const _ybs_mc=0.45*Math.min(1.0,bl/50.0);
+        const _ybs_atp=age<pk?Math.max(0,pk-age)/Math.max(1,pk-16):0;
+        const _ybs=Math.max(0.45,1.0-_ybs_mc*_ybs_atp);
+        const _bta=bl*_tier*_ybs;
+        const _ppk=({WF:23,CF:24,AM:25,CM:25,DM:25,FB:26,CB:26,GK:27})[pos]||25;
+        const _pdr=({WF:0.0944,CF:0.1000,AM:0.1143,CM:0.1143,DM:0.1143,FB:0.1250,CB:0.1167,GK:0.1200})[pos]||0.1143;
+        const _pfl=({WF:0.05,CF:0.06,AM:0.06,CM:0.06,DM:0.06,FB:0.08,CB:0.10,GK:0.15})[pos]||0.06;
+        const _effPk=_ppk+(yw>=0.70?-1:yw<=0.30?1:0);
+        let _af;
+        if(age<=_effPk){
+          const t=Math.max(0,(age-16)/Math.max(1,_effPk-16));
+          _af=Math.min(1.0,0.70+0.30*t);
+        } else {
+          _af=Math.max(_pfl,1.0-(age-_effPk)*_pdr);
+        }
+        const _lgKey=league+'|'+season;
+        const _lgMax=Math.max(300,(maxMins||{})[_lgKey]||3000);
+        const _mp=Math.min(1.0,Math.max(0,(p.minutes||0)/_lgMax));
+        const _mfFloor=Math.max(0.55,0.80-Math.max(0,age-16)*0.025);
+        const _mf=_mfFloor+_mp*(1.0-_mfFloor);
+        const _pm=Math.max(0.5,Math.pow(leaguePct/75,0.40));
+        const _posW={WF:1.08,CF:1.10,AM:1.05,CM:1.0,DM:0.98,FB:0.92,CB:0.90,GK:0.82}[pos]||1.0;
+        const _posCap={GK:60,CB:110,FB:90,DM:130,CM:150,AM:170,WF:190,CF:190}[pos]||140;
+        const _rExp=60+(leaguePct/100)*18;
+        const _rf=Math.max(0.65,Math.min(1.50,Math.pow(effectiveDr/Math.max(1,_rExp),0.50)));
+        const _raw=_bta*_af*_mf*_pm*_posW*_rf;
+        const _T=_posCap*0.60,_ceil=_posCap*1.50;
+        const _val=_raw<=_T?_raw:_T+Math.pow(Math.min(1,(_raw-_T)/(_ceil-_T)),1.30)*(_ceil-_T);
+        return Math.round(Math.max(0.05,Math.min(_val,_posCap))*10)/10;
+      }
+    }
+
+    // Final fallback: <5 players in league or no ref profile found
+    // Use a simple rating-based estimate anchored to the global LVM
     const lv=LEAGUE_VALUE_MULT[league]||0.3;
-    const _mktBase=0.05||0.05;
     const _am={16:0.65,17:0.70,18:0.75,19:0.80,20:0.85,21:0.90,22:0.95,23:1.0,24:1.0,25:1.0,26:1.0,
                27:0.92,28:0.82,29:0.70,30:0.58,31:0.45,32:0.32,33:0.20}[age]||(age>34?0.05:0.55);
-    const _raw=Math.pow(Math.max(0,effectiveDr-62),2.5)*lv*_am*(0.9+0.25*(leaguePct/100))*0.00305;
-    return Math.round(Math.max(_mktBase,_raw)*10)/10;
+    const _raw2=Math.pow(Math.max(0,effectiveDr-62),2.5)*lv*_am*(0.9+0.25*(leaguePct/100))*0.00305;
+    return Math.round(Math.max(0.05,_raw2)*10)/10;
   }
 
   // ── 1. League baseline from transfer data ──────────────────────────────
@@ -6238,17 +6363,22 @@ function calcPlayerValue(p, yearsRemaining=3.0){
     if(ciesAnchorCapped>baseTierAdj){ effBaseline=ciesAnchorCapped; ciesWon=true; }
   }
 
-  // ── 5. Age factor (league-specific peak, smooth) ───────────────────────
+  // ── 5. Age factor (position-specific peak, decline, floor) ─────────────
+  // Peak ages: WF(23) < CF(24) < MF(25) < FB/CB(26) < GK(27)
+  // Decline rates back-calculated from target values at age 32 and 36
+  // youngPct shifts effective peak ±1yr for youth/mature leagues
+  const _posPeak={WF:23,CF:24,AM:25,CM:25,DM:25,FB:26,CB:26,GK:27};
+  const _posDecline={WF:0.0944,CF:0.1000,AM:0.1143,CM:0.1143,DM:0.1143,FB:0.1250,CB:0.1167,GK:0.1200};
+  const _posFloor={WF:0.05,CF:0.06,AM:0.06,CM:0.06,DM:0.06,FB:0.08,CB:0.10,GK:0.15};
+  const effectivePeak=(_posPeak[pos]||25)+(youngPct>=0.70?-1:youngPct<=0.30?1:0);
+  const _declineRate=_posDecline[pos]||0.1143;
+  const _floorVal=_posFloor[pos]||0.06;
   let ageFactor;
-  if(age<=peak){
-    const t=Math.max(0,(age-16)/(peak-16));
-    const baseAF=0.45+0.55*t;
-    // Extra compression for young players in mature (low youngPct) markets
-    const penalty=Math.max(0,peak-age)*Math.max(0,1-youngPct)*0.025;
-    ageFactor=Math.max(0.30,baseAF-penalty);
+  if(age<=effectivePeak){
+    const t=Math.max(0,(age-16)/Math.max(1,effectivePeak-16));
+    ageFactor=Math.min(1.0,0.70+0.30*t);
   } else {
-    const fall=youngPct>=0.70?0.065:0.050;
-    ageFactor=Math.max(0.12,1.0-(age-peak)*fall);
+    ageFactor=Math.max(_floorVal,1.0-(age-effectivePeak)*_declineRate);
   }
 
   // ── 6. Minutes factor (league-relative, age-scaled floor) ─────────────
