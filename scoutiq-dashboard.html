@@ -6474,7 +6474,7 @@ const TRANSFER_CORRIDORS={
   'Paraguay 1':{'Argentina 1':0.5,'Brazil 1':0.3,'Spain 1':0.2},
   'Uruguay 1':{'Argentina 1':0.5,'Brazil 1':0.3,'Spain 1':0.2,'Italy 1':0.2},
 };
-function buildFORecommendedClubs(p){
+function buildFORecommendedClubs(p, _foLimit=5){
   const dr=displayRating(p)??0;
   const MFG=['DM','CM','AM'];
   const MF_POOL=['DM','CM']; // DM+CM grouped for complementarity
@@ -7169,12 +7169,18 @@ function buildFORecommendedClubs(p){
     const ageW=0.08;
     const affordW=0.15; // always applies — uses real wage or league fallback
     const wSum=cultW+compW+playW+ageW+affordW;
+    // Club level decisiveness modifier:
+    // When playingTimeScore < 70, apply a non-linear penalty to the total score.
+    // Above 70 → no change. Below 70 → penalty scales as (cl/70)^1.5.
+    // This makes a club level of 61 reduce the total by ~19%, and 30 by ~72%,
+    // without penalising clubs that already have a strong club level fit.
+    const _clMod=playingTimeScore>=70?1.0:Math.pow(playingTimeScore/70,1.5);
     const totalScore=Math.min(affordabilityCap,Math.min(qualityCap,Math.round(
-      playingTimeScore*(playW/wSum)+
+      (playingTimeScore*(playW/wSum)+
       complementScore*(compW/wSum)+
       culturalScore*(cultW/wSum)+
       ageFitScore*(ageW/wSum)+
-      affordabilityScore*(affordW/wSum)
+      affordabilityScore*(affordW/wSum))*_clMod
     )));
     scored.push({
       team:club.team,league:club.league,season:club.season,
@@ -7190,7 +7196,9 @@ function buildFORecommendedClubs(p){
     });
   });
 
-  const top=scored.sort((a,b)=>b.score-a.score).slice(0,5);
+  const _allScored=scored.sort((a,b)=>b.score-a.score);
+  const top=_allScored.slice(0,_foLimit);
+  const _hasMore=_allScored.length>5;
   if(!top.length) return '<div style="color:var(--muted);font-size:11px;padding:8px 0">No club recommendations available</div>';
 
   const scoreBar=(v,col)=>`<div style="height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:2px">
@@ -7234,10 +7242,13 @@ function buildFORecommendedClubs(p){
     </div>`;
   }).join('');
 
-  return`<div style="margin-top:4px">
-    
-    ${rows}
-  </div>`;
+  // Show more / show less button — only shown when >5 clubs available
+  const _btnLabel=_foLimit>5?'\u25b2 Show less':'\u25bc Show all '+_allScored.length+' clubs';
+  const _showMoreBtn=_hasMore
+    ?'<button onclick="(function(){var c=this.closest(\'.fo-rec-wrap\');var p=ST.players.find(function(x){return x.id===\''+p.id+'\';});if(p){var e=c.dataset.expanded===\'1\';c.dataset.expanded=e?\'0\':\'1\';c.innerHTML=buildFORecommendedClubs(p,e?5:20);}}).call(this)" style="margin-top:8px;width:100%;padding:5px 0;background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:9px;cursor:pointer;letter-spacing:.04em">'+_btnLabel+'</button>'
+    :'';
+
+  return '<div class="fo-rec-wrap" style="margin-top:4px" data-expanded="'+((_foLimit>5)?'1':'0')+'">'+rows+_showMoreBtn+'</div>';
 }
 
 const LEAGUE_QUALITY={
