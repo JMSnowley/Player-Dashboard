@@ -6656,6 +6656,19 @@ function buildFORecommendedClubs(p){
                       squadRank>12?Math.min(clubQualityScore,_youngStepUp?80:65):
                       clubQualityScore;
     playingTimeScore=Math.round(playingTimeScore*0.60+effectiveCQ*0.40);
+
+    // ── Squad depth multiplier (smooth, not binary) ───────────────────────
+    // Penalises clubs where the player would sit very deep in the squad,
+    // relative to squad size. A rank-13 in a 13-person squad is very different
+    // from rank-13 in a 25-person squad. Penalty starts at 70% of squad depth,
+    // reaches floor of ×0.50 at 100% depth.
+    // onset=0.70: no penalty until player is in bottom 30% of squad
+    // steepness=2.0: each 10% deeper costs ×0.20
+    // floor=0.50: even bottom-of-squad still registers, just heavily suppressed
+    const _squadSize=club.players.filter(x=>x.pos!=='GK').length+1;
+    const _depthFrac=squadRank/_squadSize;
+    const _depthMult=Math.max(0.50,1.0-Math.max(0,_depthFrac-0.70)*2.0);
+    playingTimeScore=Math.round(playingTimeScore*_depthMult);
     // leagueTag → {country, language, region}
     const LEAGUE_META={
       // British Isles
