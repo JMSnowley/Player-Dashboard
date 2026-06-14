@@ -6251,18 +6251,25 @@ function calcPlayerValue(p){
   const minsMult=minsFloor+(1.0-minsFloor)*minsPct;
 
   // ── 4. Performance score (exponential curve) ─────────────────────────────
-  // Blend: 60% potential + 25% rating + 15% league percentile signal
-  // leaguePct lifts players performing well in their league (e.g. a 90th-pct CB
-  // in Scotland 1 is more valuable than raw rating alone suggests).
-  // leaguePct maps 0→60, 50→80, 100→100 (scaled to rating-comparable range).
+  // Potential gap cap: potential only counts up to 8 points above current rating.
+  // Prevents unrealised potential in young/weaker-league players from dominating.
+  const MAX_POT_GAP=8.0;
+  const effectiveDpCapped=Math.min(effectiveDp, effectiveDr+MAX_POT_GAP);
+
+  // Potential taper by age: 30% at 16, rises to 60% at 27+ (was 24+ before).
+  // Extended taper means mid-20s players in weaker leagues don't get full pot weight.
+  const _potW=Math.min(0.60, 0.30+Math.max(0,age-16)/11*0.30);
+  const _ratW=1.0-_potW-0.15;
+
+  // leaguePct: within-league rank signal (unchanged)
   const _lpScore=60+(leaguePct/100)*40;
-  const perfScore=0.60*effectiveDp+0.25*effectiveDr+0.15*_lpScore;
+  const perfScore=_potW*effectiveDpCapped+_ratW*effectiveDr+0.15*_lpScore;
+
   // Exponential curve: baseline=67, exp=3.5
-  // Below 67 → near-zero; 75 → £2-4M range; 85+ → elite territory
   const PERF_BASELINE=67.0;
   const norm=Math.max(0,(perfScore-PERF_BASELINE)/(100.0-PERF_BASELINE));
   const EXPONENT=3.5;
-  const ANCHOR=401.87; // calibrated: Haaland (perf≈93.6) → £170M
+  const ANCHOR=417.85; // recalibrated: Haaland (perf≈93.3) → £170M
   const rawPerf=Math.pow(norm,EXPONENT)*ANCHOR;
 
   // ── 5. Physical multiplier (young players only) ───────────────────────────
@@ -6282,7 +6289,28 @@ function calcPlayerValue(p){
     }
   }
 
-  // ── 6. Club quality adjustment ───────────────────────────────────────────
+  // ── 6. Tier floor ────────────────────────────────────────────────────────
+  // Every professional has a minimum market value based on which tier they play in.
+  // Activates when the exponential curve returns near-zero (low-rated players in
+  // recognised leagues). Scaled by age × minutes so bench/youth players get less.
+  // T1=£0.8M, T2=£0.4M, T3=£0.15M, T4+=£0.05M at prime age + full minutes.
+  const _tierFloorBase=(()=>{
+    const _t1EU=['England 1','Germany 1','Spain 1','Italy 1','France 1'];
+    const _t2EU=['England 2','Germany 2','Spain 2','Italy 2','France 2',
+                 'Netherlands 1','Portugal 1','Belgium 1','Turkey 1'];
+    const _t3EU=['Scotland 1','Austria 1','Czech Republic 1','Poland 1','Romania 1',
+                 'Hungary 1','Sweden 1','Slovakia 1','Russia 1','France 3',
+                 'Portugal 2','England 3','Germany 3','Denmark 1','Norway 1',
+                 'Switzerland 1','Croatia 1','Serbia 1','Greece 1','Slovenia 1',
+                 'Bulgaria 1','Israel 1','Cyprus 1','Morocco 1'];
+    if(_t1EU.includes(league)) return 0.80;
+    if(_t2EU.includes(league)) return 0.40;
+    if(_t3EU.includes(league)) return 0.15;
+    return 0.05; // T4+ (Scotland 2-4, lower English, Americas, Asia/ME etc)
+  })();
+  const _tierFloor=_tierFloorBase*ageFactor*minsMult;
+
+  // ── 7. Club quality adjustment ───────────────────────────────────────────
   // Two signals, each capped, combined multiplicatively:
   // Signal 1 — player vs their team: below team avg → small boost (underperforming
   //   relative to peers, likely worth more elsewhere); above → small discount.
@@ -6297,14 +6325,28 @@ function calcPlayerValue(p){
     const _leaguePct=_cq.league_pct||50;
     // Signal 1: player vs team (inverted — below avg = positive adj)
     const _adj1=Math.max(-0.10,Math.min(0.10,-(effectiveDr-_teamAvg)/30.0));
-    // Signal 2: team league percentile (50th = neutral), ±75% range
-    const _adj2=Math.max(-0.75,Math.min(0.75,(_leaguePct-50.0)/50.0*0.75));
+    // Signal 2: team league percentile — max range scales by league tier
+    // Top clubs in England get ±75% but top clubs in Scotland only ±40%
+    // This prevents dominant clubs in weak leagues (Celtic, Rangers) from
+    // being over-amplified relative to their actual global market context.
+    const _t1=['England 1','Germany 1','Spain 1','Italy 1','France 1'];
+    const _t2=['England 2','Germany 2','Spain 2','Italy 2','France 2',
+               'Netherlands 1','Portugal 1','Belgium 1','Turkey 1'];
+    const _t3=['Scotland 1','Austria 1','Czech Republic 1','Poland 1','Romania 1',
+               'Hungary 1','Sweden 1','Slovakia 1','Russia 1','France 3',
+               'Portugal 2','England 3','Germany 3','Denmark 1','Norway 1',
+               'Switzerland 1','Croatia 1','Serbia 1','Greece 1','Slovenia 1',
+               'Bulgaria 1','Israel 1','Cyprus 1','Morocco 1'];
+    const _s2Max=_t1.includes(league)?0.75:_t2.includes(league)?0.60:_t3.includes(league)?0.40:0.25;
+    const _adj2=Math.max(-_s2Max,Math.min(_s2Max,(_leaguePct-50.0)/50.0*_s2Max));
     clubMult=Math.max(0.25,Math.min(1.75,(1.0+_adj1)*(1.0+_adj2)));
   }
 
-  // ── 7. Assemble ──────────────────────────────────────────────────────────
-  const MIN_VAL=0.1; // every professional has at least £0.1M fair value
-  let xTV=Math.max(MIN_VAL,rawPerf*ageFactor*minsMult*posW*physMult*clubMult);
+  // ── 8. Assemble ──────────────────────────────────────────────────────────
+  // Use tier floor as minimum (replaces flat £0.1M floor)
+  const MIN_VAL=0.05; // absolute minimum for any registered player
+  const _perfVal=rawPerf*ageFactor*minsMult*posW*physMult*clubMult;
+  let xTV=Math.max(Math.max(MIN_VAL,_tierFloor),_perfVal);
 
   // Soft cap above 60% of position cap
   const _T=posCap*0.60,_ceil=posCap*1.50;
