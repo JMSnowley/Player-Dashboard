@@ -6651,47 +6651,86 @@ function buildFORecommendedClubs(p){
     playingTimeScore=Math.round(playingTimeScore*0.60+effectiveCQ*0.40);
     // leagueTag → {country, language, region}
     const LEAGUE_META={
+      // British Isles
       'England 1':{country:'England',lang:['English'],region:'British Isles'},
       'England 2':{country:'England',lang:['English'],region:'British Isles'},
       'England 3':{country:'England',lang:['English'],region:'British Isles'},
       'England 4':{country:'England',lang:['English'],region:'British Isles'},
+      'England 5':{country:'England',lang:['English'],region:'British Isles'},
       'Scotland 1':{country:'Scotland',lang:['English'],region:'British Isles'},
       'Scotland 2':{country:'Scotland',lang:['English'],region:'British Isles'},
       'Scotland 3':{country:'Scotland',lang:['English'],region:'British Isles'},
       'Scotland 4':{country:'Scotland',lang:['English'],region:'British Isles'},
+      'Wales 1':{country:'Wales',lang:['English'],region:'British Isles'},
+      'Northern Ireland 1':{country:'Northern Ireland',lang:['English'],region:'British Isles'},
+      'Ireland 1':{country:'Ireland',lang:['English'],region:'British Isles'},
+      // Western Europe
       'Germany 1':{country:'Germany',lang:['German'],region:'Central Europe'},
       'Germany 2':{country:'Germany',lang:['German'],region:'Central Europe'},
-      'Spain 1':{country:'Spain',lang:['Spanish'],region:'Iberia'},
-      'Spain 2':{country:'Spain',lang:['Spanish'],region:'Iberia'},
-      'Italy 1':{country:'Italy',lang:['Italian'],region:'Mediterranean'},
-      'Italy 2':{country:'Italy',lang:['Italian'],region:'Mediterranean'},
-      'France 1':{country:'France',lang:['French'],region:'Western Europe'},
-      'France 2':{country:'France',lang:['French'],region:'Western Europe'},
-      'Belgium 1':{country:'Belgium',lang:['French','Dutch'],region:'Western Europe'},
-      'Netherlands 1':{country:'Netherlands',lang:['Dutch'],region:'Western Europe'},
-      'Portugal 1':{country:'Portugal',lang:['Portuguese'],region:'Iberia'},
-      'Portugal 2':{country:'Portugal',lang:['Portuguese'],region:'Iberia'},
-      'Turkey 1':{country:'Turkey',lang:['Turkish'],region:'Eastern Europe'},
+      'Germany 3':{country:'Germany',lang:['German'],region:'Central Europe'},
       'Austria 1':{country:'Austria',lang:['German'],region:'Central Europe'},
       'Switzerland 1':{country:'Switzerland',lang:['German','French','Italian'],region:'Central Europe'},
-      'Czech Republic 1':{country:'Czech Republic',lang:['Czech'],region:'Central Europe'},
+      'France 1':{country:'France',lang:['French'],region:'Western Europe'},
+      'France 2':{country:'France',lang:['French'],region:'Western Europe'},
+      'France 3':{country:'France',lang:['French'],region:'Western Europe'},
+      'Belgium 1':{country:'Belgium',lang:['French','Dutch'],region:'Western Europe'},
+      'Netherlands 1':{country:'Netherlands',lang:['Dutch'],region:'Western Europe'},
+      'Netherlands 2':{country:'Netherlands',lang:['Dutch'],region:'Western Europe'},
+      // Iberia
+      'Spain 1':{country:'Spain',lang:['Spanish'],region:'Iberia'},
+      'Spain 2':{country:'Spain',lang:['Spanish'],region:'Iberia'},
+      'Portugal 1':{country:'Portugal',lang:['Portuguese'],region:'Iberia'},
+      'Portugal 2':{country:'Portugal',lang:['Portuguese'],region:'Iberia'},
+      // Mediterranean
+      'Italy 1':{country:'Italy',lang:['Italian'],region:'Mediterranean'},
+      'Italy 2':{country:'Italy',lang:['Italian'],region:'Mediterranean'},
       'Greece 1':{country:'Greece',lang:['Greek'],region:'Mediterranean'},
-      'Croatia 1':{country:'Croatia',lang:['Croatian'],region:'Balkans'},
-      'Serbia 1':{country:'Serbia',lang:['Serbian'],region:'Balkans'},
-      'Saudi Arabia 1':{country:'Saudi Arabia',lang:['Arabic'],region:'Middle East'},
-      'UAE 1':{country:'United Arab Emirates',lang:['Arabic'],region:'Middle East'},
+      'Cyprus 1':{country:'Cyprus',lang:['Greek'],region:'Mediterranean'},
+      // Nordics
+      'Norway 1':{country:'Norway',lang:['Norwegian'],region:'Scandinavia'},
+      'Sweden 1':{country:'Sweden',lang:['Swedish'],region:'Scandinavia'},
+      'Denmark 1':{country:'Denmark',lang:['Danish'],region:'Scandinavia'},
+      // Eastern Europe
+      'Poland 1':{country:'Poland',lang:['Polish'],region:'Eastern Europe'},
+      'Czech Republic 1':{country:'Czech Republic',lang:['Czech'],region:'Central Europe'},
+      'Slovakia 1':{country:'Slovakia',lang:['Slovak'],region:'Central Europe'},
+      'Hungary 1':{country:'Hungary',lang:['Hungarian'],region:'Eastern Europe'},
+      'Romania 1':{country:'Romania',lang:['Romanian'],region:'Eastern Europe'},
       'Bulgaria 1':{country:'Bulgaria',lang:['Bulgarian'],region:'Eastern Europe'},
       'Ukraine 1':{country:'Ukraine',lang:['Ukrainian'],region:'Eastern Europe'},
-      'Croatia 1':{country:'Croatia',lang:['Croatian'],region:'Eastern Europe'},
+      'Russia 1':{country:'Russia',lang:['Russian'],region:'Eastern Europe'},
+      'Latvia 1':{country:'Latvia',lang:['Latvian'],region:'Eastern Europe'},
+      'Georgia 1':{country:'Georgia',lang:['Georgian'],region:'Eastern Europe'},
+      // Balkans
+      'Croatia 1':{country:'Croatia',lang:['Croatian'],region:'Balkans'},
+      'Serbia 1':{country:'Serbia',lang:['Serbian'],region:'Balkans'},
+      'Slovenia 1':{country:'Slovenia',lang:['Slovenian'],region:'Balkans'},
+      'Turkey 1':{country:'Turkey',lang:['Turkish'],region:'Balkans'},
+      'Israel 1':{country:'Israel',lang:['Hebrew'],region:'Middle East'},
+      // Middle East
+      'Saudi Arabia 1':{country:'Saudi Arabia',lang:['Arabic'],region:'Middle East'},
+      'United Arab Emirates 1':{country:'United Arab Emirates',lang:['Arabic'],region:'Middle East'},
+      'UAE 1':{country:'United Arab Emirates',lang:['Arabic'],region:'Middle East'},
+      'Qatar 1':{country:'Qatar',lang:['Arabic'],region:'Middle East'},
+      'Morocco 1':{country:'Morocco',lang:['Arabic','French'],region:'North Africa'},
+      // Asia-Pacific
+      'Japan 1':{country:'Japan',lang:['Japanese'],region:'East Asia'},
+      'South Korea 1':{country:'South Korea',lang:['Korean'],region:'East Asia'},
+      'Australia 1':{country:'Australia',lang:['English'],region:'Oceania'},
+      'South Africa 1':{country:'South Africa',lang:['English'],region:'Africa'},
+      // South America
+      'Brazil 1':{country:'Brazil',lang:['Portuguese'],region:'South America'},
       'Brazil 2':{country:'Brazil',lang:['Portuguese'],region:'South America'},
+      'Argentina 1':{country:'Argentina',lang:['Spanish'],region:'South America'},
       'Colombia 1':{country:'Colombia',lang:['Spanish'],region:'South America'},
       'Ecuador 1':{country:'Ecuador',lang:['Spanish'],region:'South America'},
       'Chile 1':{country:'Chile',lang:['Spanish'],region:'South America'},
       'Uruguay 1':{country:'Uruguay',lang:['Spanish'],region:'South America'},
-      'MLS':{country:'USA',lang:['English','Spanish'],region:'North America'},
+      'Paraguay 1':{country:'Paraguay',lang:['Spanish'],region:'South America'},
+      // North America
+      'Mexico 1':{country:'Mexico',lang:['Spanish'],region:'North America'},
       'USA 1':{country:'USA',lang:['English','Spanish'],region:'North America'},
-      'Brazil 1':{country:'Brazil',lang:['Portuguese'],region:'South America'},
-      'Argentina 1':{country:'Argentina',lang:['Spanish'],region:'South America'},
+      'MLS':{country:'USA',lang:['English','Spanish'],region:'North America'},
     };
     // Nationality → {lang, country}
     const NAT_META={
@@ -6872,7 +6911,25 @@ function buildFORecommendedClubs(p){
       const romanBonus=Math.round(Math.max(4,Math.min(10,4+(dp-65)*0.3)));
       culturalScore+=romanBonus;
     }
-    // Same region
+    // Confederation — same football confederation as current league = smooth transition
+    // Different confederation = meaningfully harder cultural/logistical adjustment
+    // UEFA covers all Europe; CONMEBOL=South America; CONCACAF=North America;
+    // AFC=Middle East+Asia+Oceania; CAF=Africa
+    const _CONF_MAP={
+      'British Isles':'UEFA','Central Europe':'UEFA','Western Europe':'UEFA',
+      'Eastern Europe':'UEFA','Iberia':'UEFA','Mediterranean':'UEFA',
+      'Balkans':'UEFA','Scandinavia':'UEFA',
+      'South America':'CONMEBOL','North America':'CONCACAF',
+      'Middle East':'AFC','East Asia':'AFC','Oceania':'AFC',
+      'Africa':'CAF','North Africa':'CAF',
+    };
+    const playerConfederation=_CONF_MAP[playerCurrentMeta.region]||null;
+    const clubConfederation=_CONF_MAP[clubMeta.region]||null;
+    if(playerConfederation&&clubConfederation){
+      if(playerConfederation===clubConfederation) culturalScore+=8;  // same confederation
+      else culturalScore-=8;                                         // cross-confederation move
+    }
+
     // Anglosphere: UK, Ireland, Australia, NZ, USA, Canada share deep cultural ties
     // despite geographic distance — add on top of language match, not instead of it
     const ANGLOSPHERE_COUNTRIES=new Set(['England','Scotland','Wales','Ireland','Northern Ireland',
@@ -6881,7 +6938,7 @@ function buildFORecommendedClubs(p){
       ANGLOSPHERE_COUNTRIES.has(playerCurrentMeta.country);
     const clubAnglosphere=ANGLOSPHERE_COUNTRIES.has(clubMeta.country);
     if(playerAnglosphere&&clubAnglosphere) culturalScore+=12; // stacks with language bonus
-    culturalScore=Math.min(100,culturalScore);
+    culturalScore=Math.min(100,Math.max(0,culturalScore)); // floor at 0 too
 
     // ── Score 2: Skill Complementarity (30%) ─────────────────────
     // Rank-based: find club's relative skill gaps, score how much player outperforms there
