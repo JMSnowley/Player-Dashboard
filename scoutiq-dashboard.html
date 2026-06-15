@@ -4452,6 +4452,10 @@ function openCompare(){
 }
 function closeCompare(){
   document.getElementById('compareModal').classList.remove('open');
+  // Clear selection so the "N selected" bar doesn't persist after compare
+  ST.selectedIds.clear();
+  document.querySelectorAll('.player-row.selected,.player-card.selected').forEach(el=>el.classList.remove('selected'));
+  updateSelBar();
 }
 function setCmpMode(mode,el){
   _cmpMode=mode;
