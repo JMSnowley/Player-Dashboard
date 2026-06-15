@@ -4764,14 +4764,11 @@ function buildRadar(pA,pB,mode,radarType,colA,colB){
   }).join('');
 
   // Group legend
-  const skillOrder=pA.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
-  const groupsInUse=isPhys
-    ?[...new Set(PHYS_METRICS.map(m=>m.group))]
-    :[...new Set(axes.map(a=>a.group))];
+  const groupsInUse=[...new Set(axes.map(a=>a.group))];
   const legendItems=groupsInUse.map(g=>{
     const col=SECTOR_COLORS[g]||'rgba(255,255,255,0.1)';
     const solidCol=col.replace(/[\d.]+\)$/,'0.5)');
-    const labelText=isPhys?{speed:'Speed',explosive:'Explosive',distance:'Distance',tip:'In Poss.',otip:'Out of Poss.'}[g]||g:g;
+    const labelText=g;
     return`<div style="display:flex;align-items:center;gap:4px;font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted2)">
       <div style="width:10px;height:10px;border-radius:2px;background:${solidCol};flex-shrink:0"></div>${labelText}
     </div>`;
