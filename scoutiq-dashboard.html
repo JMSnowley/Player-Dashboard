@@ -6548,10 +6548,7 @@ function buildFORecommendedClubs(p, _foLimit=5){
     const _POS_ADJ={GK:-1.5,CB:-1,FB:-2,DM:-0.5,CM:-1.5,AM:-2,WF:0,CF:0.5};
     const projRatingNeutral=dr-(_POS_ADJ[playerPos]||0);
     const projPotNeutral=dp-(_POS_ADJ[playerPos]||0);
-    // League %ile bonus: top performers in their league get a small projected rating uplift
-    // 70th %ile → +0, 80th → +1, 90th → +2, 100th → +3 (linear, applied to both rating+potential)
-    const _lpBonus=Math.max(0,((p.leaguePct??0)-70)/30*3);
-    const projRating=projRatingNeutral*(1-potWeight)+projPotNeutral*potWeight+_lpBonus;
+    const projRating=projRatingNeutral*(1-potWeight)+projPotNeutral*potWeight;
 
     // Project incumbents with reduced potential weight (~40% of player's potWeight)
     // Clubs assess current squad quality, not their ceiling.
@@ -6652,6 +6649,13 @@ function buildFORecommendedClubs(p, _foLimit=5){
                       squadRank>12?Math.min(clubQualityScore,_youngStepUp?80:65):
                       clubQualityScore;
     playingTimeScore=Math.round(playingTimeScore*0.60+effectiveCQ*0.40);
+
+    // League %ile bonus: top performers get a small club level uplift
+    // 70th %ile → +0, 80th → +2, 90th → +4, 100th → +6
+    // Applied after the squad rank/CQ blend, before depth multiplier
+    // Scaled to 0–6 so it's visible through the coarse band structure
+    const _lpBonus=Math.max(0,((p.leaguePct??0)-70)/30*6);
+    playingTimeScore=Math.min(100,Math.round(playingTimeScore+_lpBonus));
 
     // ── Squad depth multiplier (smooth, not binary) ───────────────────────
     // Penalises clubs where the player would sit very deep in the squad,
