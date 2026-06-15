@@ -6657,6 +6657,14 @@ function buildFORecommendedClubs(p, _foLimit=5){
     const _lpBonus=Math.max(0,((p.leaguePct??0)-70)/30*6);
     playingTimeScore=Math.min(100,Math.round(playingTimeScore+_lpBonus));
 
+    // ── Tier-upgrade bonus ────────────────────────────────────────────────
+    // Moving to a higher tier (e.g. Scotland 1 → England 2, tier3→tier2) gets
+    // a flat +8 on playingTimeScore. This ensures tier differences are decisive
+    // even when squad rank bands produce similar raw scores across adjacent tiers.
+    const _playerTierNum=LEAGUE_QUALITY[p.leagueTag]?.tier??99;
+    const _clubTierNum=LEAGUE_QUALITY[club.league]?.tier??99;
+    if(_clubTierNum<_playerTierNum) playingTimeScore=Math.min(100,playingTimeScore+8);
+
     // ── Squad depth multiplier (smooth, not binary) ───────────────────────
     // Penalises clubs where the player would sit very deep in the squad,
     // relative to squad size. A rank-13 in a 13-person squad is very different
