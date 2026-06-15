@@ -6616,9 +6616,8 @@ function buildFORecommendedClubs(p, _foLimit=5){
         else clubQualityScore=35;                    // was 30
       } else if(clubAvgRating>0){
         // Cross-league: rank the target club within its OWN league by avg rating.
-        // Top 25% → 100, top 50% → 85, top 75% → 68, bottom 25% → 50.
-        // This means Ajax (top of Ned1) scores much higher than Volendam (bottom),
-        // even though raw rating gaps are tiny within a single league.
+        // Tighter bands (top 10% = 100, not top 20%) to better distinguish
+        // e.g. PSV from Volendam within Netherlands 1, or Castellón from FC Andorra in Spain 2.
         const _leagueAvgs=Object.entries(leagueClubs)
           .filter(([,v])=>v.n>=2)
           .map(([t,v])=>({team:t,avg:v.sum/v.n}))
@@ -6627,12 +6626,18 @@ function buildFORecommendedClubs(p, _foLimit=5){
         const _targetLeagueRank=_leagueAvgs.findIndex(x=>x.team===club.team)+1;
         const _targetLeaguePct=_nLeagueClubs>0
           ?Math.round((1-(_targetLeagueRank-1)/_nLeagueClubs)*100):50;
-        // Map within-league percentile to CQ score
-        if(_targetLeaguePct>=80) clubQualityScore=100;       // top 20% of their league
-        else if(_targetLeaguePct>=60) clubQualityScore=88;   // top 40%
-        else if(_targetLeaguePct>=40) clubQualityScore=72;   // mid-table
-        else if(_targetLeaguePct>=20) clubQualityScore=55;   // bottom 40%
-        else clubQualityScore=38;                             // bottom 20%
+        // Tighter percentile bands
+        if(_targetLeaguePct>=90) clubQualityScore=100;       // top 10%
+        else if(_targetLeaguePct>=75) clubQualityScore=88;   // top 25%
+        else if(_targetLeaguePct>=55) clubQualityScore=75;   // top 45%
+        else if(_targetLeaguePct>=35) clubQualityScore=60;   // mid-lower
+        else if(_targetLeaguePct>=15) clubQualityScore=45;   // bottom 35%
+        else clubQualityScore=30;                             // bottom 15%
+        // Hard cap: if player's projected rating far exceeds club's best player,
+        // the club is clearly too easy regardless of within-league position.
+        const _clubBestRating=Math.max(...club.players.filter(x=>x.pos!=='GK'&&x.rating).map(x=>x.rating),0);
+        if(_clubBestRating>0&&projRating-_clubBestRating>6) clubQualityScore=Math.min(clubQualityScore,40);
+        else if(_clubBestRating>0&&projRating-_clubBestRating>3) clubQualityScore=Math.min(clubQualityScore,62);
       }
     }
 
@@ -7279,87 +7284,73 @@ function buildFORecommendedClubs(p, _foLimit=5){
 }
 
 const LEAGUE_QUALITY={
-  'England 1':    {tier:1,name:'Premier League',      good:75,top:82,elite:87},
-  'Germany 1':    {tier:1,name:'Bundesliga',           good:70,top:78,elite:83},
-  'Spain 1':      {tier:1,name:'La Liga',              good:70,top:77,elite:83},
-  'Italy 1':      {tier:1,name:'Serie A',              good:70,top:76,elite:82},
-  'France 1':     {tier:1,name:'Ligue 1',              good:69,top:76,elite:81},
-  'Belgium 1':    {tier:2,name:'Belgian Pro League',   good:66,top:73,elite:78},
-  'England 2':    {tier:2,name:'Championship',         good:66,top:72,elite:77},
-  'Denmark 1':    {tier:2,name:'Danish Superliga',     good:65,top:72,elite:77},
+  'England 1':{tier:1,name:'Premier League',      good:75,top:82,elite:87},
+  'Germany 1':{tier:1,name:'Bundesliga',           good:70,top:78,elite:83},
+  'Spain 1':{tier:1,name:'La Liga',              good:70,top:77,elite:83},
+  'Italy 1':{tier:1,name:'Serie A',              good:70,top:76,elite:82},
+  'France 1':{tier:1,name:'Ligue 1',              good:69,top:76,elite:81},
+  'Belgium 1':{tier:2,name:'Belgian Pro League',   good:66,top:73,elite:78},
+  'England 2':{tier:2,name:'Championship',         good:66,top:72,elite:77},
+  'Denmark 1':{tier:2,name:'Danish Superliga',     good:65,top:72,elite:77},
   'Netherlands 1':{tier:2,name:'Eredivisie',           good:64,top:72,elite:77},
-  'Portugal 1':   {tier:2,name:'Primeira Liga',        good:63,top:70,elite:75},
-  'Brazil 1':     {tier:2,name:'Brasileirão',          good:64,top:70,elite:75},
-  'Austria 1':    {tier:3,name:'Austrian Bundesliga',  good:62,top:68,elite:73},
-  'Scotland 1':   {tier:3,name:'Scottish Premiership',  good:60,top:67,elite:72},
-  'Scotland 2':   {tier:4,name:'Scottish Championship', good:55,top:62,elite:67},
-  'Scotland 3':   {tier:5,name:'Scottish League One',   good:48,top:55,elite:60},
-  'Scotland 4':   {tier:6,name:'Scottish League Two',   good:42,top:48,elite:54},
+  'Portugal 1':{tier:2,name:'Primeira Liga',        good:63,top:70,elite:75},
+  'Brazil 1':{tier:2,name:'Brasileirão',          good:64,top:70,elite:75},
+  'Ukraine 1':{tier:2,name:'Ukrainian Premier League',good:63,top:70,elite:75},
+  'France 2':{tier:2,name:'Ligue 2',                  good:63,top:69,elite:74},
+  'Germany 2':{tier:2,name:'2. Bundesliga',            good:64,top:70,elite:75},
+  'Italy 2':{tier:2,name:'Serie B',                  good:62,top:68,elite:73},
+  'Spain 2':{tier:2,name:'La Liga 2',                good:62,top:68,elite:73},
+  'Argentina 1':{tier:2,name:'Liga Profesional',         good:63,top:70,elite:75},
+  'Turkey 1':{tier:2,name:'Süper Lig',                good:63,top:69,elite:74},
+  'Austria 1':{tier:3,name:'Austrian Bundesliga',  good:62,top:68,elite:73},
+  'Scotland 1':{tier:3,name:'Scottish Premiership',  good:60,top:67,elite:72},
   'Switzerland 1':{tier:3,name:'Swiss Super League',   good:61,top:68,elite:73},
-  'Poland 1':     {tier:3,name:'Ekstraklasa',          good:61,top:67,elite:72},
-  'USA 1':        {tier:3,name:'MLS',                  good:61,top:67,elite:72},
-  'Australia 1':  {tier:4,name:'A-League',             good:55,top:61,elite:66},
-  'England 3':    {tier:3,name:'League One',           good:62,top:67,elite:72},
-  'England 4':    {tier:4,name:'League Two',           good:59,top:64,elite:68},
-  'England 5':    {tier:4,name:'National League',      good:57,top:62,elite:66},
+  'Poland 1':{tier:3,name:'Ekstraklasa',          good:61,top:67,elite:72},
+  'USA 1':{tier:3,name:'MLS',                  good:61,top:67,elite:72},
+  'England 3':{tier:3,name:'League One',           good:62,top:67,elite:72},
   'Saudi Arabia 1':{tier:3,name:'Saudi Pro League',    good:59,top:66,elite:72},
-  'Bulgaria 1':   {tier:3,name:'Bulgarian First League',good:60,top:66,elite:71},
-  'Ukraine 1':    {tier:2,name:'Ukrainian Premier League',good:63,top:70,elite:75},
-  'Croatia 1':    {tier:3,name:'HNL',                  good:60,top:66,elite:71},
-  'UAE 1':        {tier:3,name:'UAE Pro League',        good:59,top:65,elite:71},
-  'Brazil 2':     {tier:3,name:'Série B',               good:60,top:65,elite:70},
-  'Colombia 1':   {tier:3,name:'Categoría Primera A',   good:59,top:64,elite:69},
-  'Ecuador 1':    {tier:3,name:'Liga Pro',              good:58,top:63,elite:68},
-  'Chile 1':      {tier:3,name:'Primera División',      good:58,top:63,elite:68},
-  'Uruguay 1':    {tier:3,name:'Primera División',      good:59,top:64,elite:69},
-  'Cyprus 1':    {tier:7,name:'Cyprus First Division',  good:55,top:63,elite:71},
-  // British Isles lower tiers
-  'Wales 1':             {tier:5,name:'Welsh Premier League',     good:46,top:52,elite:57},
-  'Northern Ireland 1':  {tier:5,name:'NIFL Premiership',         good:47,top:53,elite:58},
-  'Ireland 1':           {tier:5,name:'League of Ireland',        good:48,top:54,elite:59},
-  // Nordic
-  'Norway 1':            {tier:3,name:'Eliteserien',              good:60,top:67,elite:72},
-  'Sweden 1':            {tier:3,name:'Allsvenskan',              good:59,top:65,elite:70},
-  'Denmark 1':           {tier:2,name:'Danish Superliga',         good:65,top:72,elite:77},
-  // Eastern Europe
-  'Romania 1':           {tier:3,name:'SuperLiga',                good:58,top:64,elite:69},
-  'Hungary 1':           {tier:4,name:'OTP Bank Liga',            good:55,top:61,elite:66},
-  'Slovakia 1':          {tier:4,name:'Fortuna Liga',             good:54,top:60,elite:65},
-  'Serbia 1':            {tier:3,name:'SuperLiga',                good:59,top:65,elite:70},
-  'Croatia 1':           {tier:3,name:'HNL',                      good:60,top:66,elite:71},
-  'Slovenia 1':          {tier:4,name:'PrvaLiga',                 good:55,top:61,elite:66},
-  'Bulgaria 1':          {tier:3,name:'efbet Liga',               good:57,top:63,elite:68},
-  'Greece 1':            {tier:3,name:'Super League',             good:58,top:65,elite:70},
-  'Israel 1':            {tier:4,name:'Israeli Premier League',   good:55,top:62,elite:67},
-  'Latvia 1':            {tier:5,name:'Latvian Higher League',    good:46,top:52,elite:57},
-  'Georgia 1':           {tier:5,name:'Erovnuli Liga',            good:46,top:52,elite:57},
-  // Asia / Oceania
-  'Japan 1':             {tier:3,name:'J1 League',                good:59,top:65,elite:70},
-  'South Korea 1':       {tier:3,name:'K League 1',               good:57,top:63,elite:68},
-  'Morocco 1':           {tier:4,name:'Botola Pro',               good:55,top:61,elite:66},
-  'South Africa 1':      {tier:4,name:'PSL',                      good:54,top:60,elite:65},
-  // Americas
-  'Colombia 1':          {tier:3,name:'Categoría Primera A',      good:59,top:64,elite:69},
-  'Mexico 1':            {tier:3,name:'Liga MX',                  good:60,top:66,elite:71},
-  'Paraguay 1':          {tier:4,name:'División Profesional',     good:54,top:60,elite:65},
-  'France 2':            {tier:2,name:'Ligue 2',                  good:63,top:69,elite:74},
-  'Germany 2':           {tier:2,name:'2. Bundesliga',            good:64,top:70,elite:75},
-  'Italy 2':             {tier:2,name:'Serie B',                  good:62,top:68,elite:73},
-  'Spain 2':             {tier:2,name:'La Liga 2',                good:62,top:68,elite:73},
-  'England 2':           {tier:2,name:'Championship',             good:66,top:72,elite:77},
-  'England 3':           {tier:3,name:'League One',               good:62,top:67,elite:72},
-  'England 4':           {tier:4,name:'League Two',               good:59,top:64,elite:68},
-  'England 5':           {tier:4,name:'National League',          good:57,top:62,elite:66},
-  'Portugal 2':          {tier:3,name:'Liga Portugal 2',          good:60,top:66,elite:71},
-  'France 3':            {tier:4,name:'National',                 good:56,top:62,elite:67},
-  'Germany 3':           {tier:4,name:'3. Liga',                  good:58,top:63,elite:68},
-  'Netherlands 2':       {tier:3,name:'Eerste Divisie',           good:58,top:64,elite:69},
+  'Bulgaria 1':{tier:3,name:'Bulgarian First League',good:60,top:66,elite:71},
+  'Croatia 1':{tier:3,name:'HNL',                  good:60,top:66,elite:71},
+  'UAE 1':{tier:3,name:'UAE Pro League',        good:59,top:65,elite:71},
+  'Brazil 2':{tier:3,name:'Série B',               good:60,top:65,elite:70},
+  'Colombia 1':{tier:3,name:'Categoría Primera A',   good:59,top:64,elite:69},
+  'Ecuador 1':{tier:3,name:'Liga Pro',              good:58,top:63,elite:68},
+  'Chile 1':{tier:3,name:'Primera División',      good:58,top:63,elite:68},
+  'Uruguay 1':{tier:3,name:'Primera División',      good:59,top:64,elite:69},
+  'Norway 1':{tier:3,name:'Eliteserien',              good:60,top:67,elite:72},
+  'Sweden 1':{tier:3,name:'Allsvenskan',              good:59,top:65,elite:70},
+  'Romania 1':{tier:3,name:'SuperLiga',                good:58,top:64,elite:69},
+  'Serbia 1':{tier:3,name:'SuperLiga',                good:59,top:65,elite:70},
+  'Greece 1':{tier:3,name:'Super League',             good:58,top:65,elite:70},
+  'Japan 1':{tier:3,name:'J1 League',                good:59,top:65,elite:70},
+  'South Korea 1':{tier:3,name:'K League 1',               good:57,top:63,elite:68},
+  'Mexico 1':{tier:3,name:'Liga MX',                  good:60,top:66,elite:71},
+  'Portugal 2':{tier:3,name:'Liga Portugal 2',          good:60,top:66,elite:71},
+  'Netherlands 2':{tier:3,name:'Eerste Divisie',           good:58,top:64,elite:69},
   'United Arab Emirates 1':{tier:3,name:'UAE Pro League',         good:59,top:65,elite:71},
-  'Qatar 1':             {tier:4,name:'Qatar Stars League',       good:56,top:62,elite:67},
-  'Argentina 1':         {tier:2,name:'Liga Profesional',         good:63,top:70,elite:75},
-  'Czech Republic 1':    {tier:3,name:'Czech First League',       good:59,top:65,elite:70},
-  'Russia 1':            {tier:3,name:'Russian Premier League',   good:60,top:66,elite:71},
-  'Turkey 1':            {tier:2,name:'Süper Lig',                good:63,top:69,elite:74},
+  'Czech Republic 1':{tier:3,name:'Czech First League',       good:59,top:65,elite:70},
+  'Russia 1':{tier:3,name:'Russian Premier League',   good:60,top:66,elite:71},
+  'Scotland 2':{tier:4,name:'Scottish Championship', good:55,top:62,elite:67},
+  'Australia 1':{tier:4,name:'A-League',             good:55,top:61,elite:66},
+  'England 4':{tier:4,name:'League Two',           good:59,top:64,elite:68},
+  'England 5':{tier:4,name:'National League',      good:57,top:62,elite:66},
+  'Hungary 1':{tier:4,name:'OTP Bank Liga',            good:55,top:61,elite:66},
+  'Slovakia 1':{tier:4,name:'Fortuna Liga',             good:54,top:60,elite:65},
+  'Slovenia 1':{tier:4,name:'PrvaLiga',                 good:55,top:61,elite:66},
+  'Israel 1':{tier:4,name:'Israeli Premier League',   good:55,top:62,elite:67},
+  'Morocco 1':{tier:4,name:'Botola Pro',               good:55,top:61,elite:66},
+  'South Africa 1':{tier:4,name:'PSL',                      good:54,top:60,elite:65},
+  'Paraguay 1':{tier:4,name:'División Profesional',     good:54,top:60,elite:65},
+  'France 3':{tier:4,name:'National',                 good:56,top:62,elite:67},
+  'Germany 3':{tier:4,name:'3. Liga',                  good:58,top:63,elite:68},
+  'Qatar 1':{tier:4,name:'Qatar Stars League',       good:56,top:62,elite:67},
+  'Scotland 3':{tier:5,name:'Scottish League One',   good:48,top:55,elite:60},
+  'Wales 1':{tier:5,name:'Welsh Premier League',     good:46,top:52,elite:57},
+  'Northern Ireland 1':{tier:5,name:'NIFL Premiership',         good:47,top:53,elite:58},
+  'Ireland 1':{tier:5,name:'League of Ireland',        good:48,top:54,elite:59},
+  'Latvia 1':{tier:5,name:'Latvian Higher League',    good:46,top:52,elite:57},
+  'Georgia 1':{tier:5,name:'Erovnuli Liga',            good:46,top:52,elite:57},
+  'Scotland 4':{tier:6,name:'Scottish League Two',   good:42,top:48,elite:54},  'Cyprus 1':    {tier:3,name:'Cyprus First Division',  good:55,top:63,elite:71},
 };
 
 function ratingContext(dr,dp,leagueTag,age){
