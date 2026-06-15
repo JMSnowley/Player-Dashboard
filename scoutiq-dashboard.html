@@ -6448,7 +6448,7 @@ const TRANSFER_CORRIDORS={
   'Morocco 1':{'France 1':0.7,'Spain 1':0.3,'Belgium 1':0.3},
   'South Africa 1':{'England 1':0.4,'Belgium 1':0.3,'Netherlands 1':0.3},
   'Israel 1':{'Netherlands 1':0.4,'Germany 1':0.3,'Belgium 1':0.3},
-  'Cyprus 1':    {tier:7,name:'Cyprus First Division',  good:55,top:63,elite:71},
+  'Cyprus 1':    {tier:4,name:'Cyprus First Division',  good:55,top:63,elite:71},
   'UAE 1':{'England 1':0.4,'Spain 1':0.3},
   'Slovakia 1':{'Czech Republic 1':0.5,'Germany 1':0.3,'Austria 1':0.3},
   'Slovenia 1':{'Austria 1':0.5,'Germany 1':0.3,'Italy 1':0.3},
@@ -7012,6 +7012,9 @@ function buildFORecommendedClubs(p, _foLimit=5){
       const overlap=playerTopSkills.filter(s=>clubWeakSkills.includes(s)).length;
       if(overlap>0) complementScore=Math.min(100,complementScore+overlap*12);
     }
+    // Cap: complement can't exceed playingTimeScore+15
+    // Prevents weaker clubs scoring unrealistically high via skill gap signal
+    complementScore=Math.min(complementScore,playingTimeScore+15);
 
 
     // ── Combined score ────────────────────────────────────────────
@@ -7182,12 +7185,14 @@ function buildFORecommendedClubs(p, _foLimit=5){
     // cultW rises for low-pct players (weaker players care more about familiarity)
     const _cultBase=Math.max(0.05,Math.min(0.22,0.22-(pot-65)*0.01));
     const cultW=Math.min(0.28,_cultBase+(1-_pctAdj)*0.08);
-    // compW drops for low-pct players (their skill gaps are noisier signals)
-    const _compBase=Math.max(0.15,Math.min(0.22,0.15+(pot-65)*0.0035));
-    const compW=Math.max(0.10,_compBase*_pctAdj+0.10*(1-_pctAdj));
-    // Club Level is the non-negotiable constraint — weight raised significantly
-    // Stepping up: slightly lower (being top of a better squad is expected)
-    const playW=steppingUp?Math.max(0.40,Math.min(0.45,0.40+(pot-65)*0.0025)):Math.max(0.55,Math.min(0.65,0.55+(pot-65)*0.005));
+    // compW: capped lower so complement can't override club level signal.
+    // High-potential players at high-percentile get slightly more complement weight
+    // (their stats are more reliable) but it's kept modest — club quality is primary.
+    const _compBase=Math.max(0.10,Math.min(0.15,0.10+(pot-65)*0.002));
+    const compW=Math.max(0.08,_compBase*_pctAdj+0.08*(1-_pctAdj));
+    // Club Level: primary signal. Raised further so tier difference is decisive.
+    // Stepping up: 0.50-0.58 range (was 0.40-0.45).
+    const playW=steppingUp?Math.max(0.50,Math.min(0.58,0.50+(pot-65)*0.003)):Math.max(0.60,Math.min(0.70,0.60+(pot-65)*0.005));
     const ageW=0.08;
     const affordW=0.15; // always applies — uses real wage or league fallback
     const wSum=cultW+compW+playW+ageW+affordW;
