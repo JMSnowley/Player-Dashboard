@@ -6515,11 +6515,19 @@ function buildFORecommendedClubs(p, _foLimit=5){
     });
     if(samePosPlayers.length<2) return;
 
-    // ── League tier floor ─────────────────────────────────────────
-    // Players 30th+ percentile proven at their tier — don't recommend lower tiers
+    // ── Same-country downward filter ──────────────────────────────
+    // Players 30th+ percentile are not recommended lower divisions within the SAME country.
+    // Cross-country moves are always allowed regardless of tier — different markets entirely.
+    // e.g. Scotland 3 player (30th+ pct) won't be recommended Scotland 4,
+    // but can still be recommended Wales 1, Northern Ireland 1, or any foreign league.
     const playerTier=LEAGUE_QUALITY[p.leagueTag]?.tier;
     const clubTier=LEAGUE_QUALITY[club.league]?.tier;
-    if(playerTier&&clubTier&&clubTier>playerTier&&(p.leaguePct??50)>=30) return;
+    const playerCountry=(LEAGUE_META[p.leagueTag]||{}).country;
+    const clubCountry=(LEAGUE_META[club.league]||{}).country;
+    const sameCountryDowngrade=playerCountry&&clubCountry
+      &&playerCountry===clubCountry
+      &&clubTier&&playerTier&&clubTier>playerTier;
+    if(sameCountryDowngrade&&(p.leaguePct??50)>=30) return;
     // Map player age onto club avg age scale
     // Club avg ages range ~19-32, players 16-44 — different scales
     // A player of 18 ideally targets clubs with ~23 avg age (youngest clubs)
