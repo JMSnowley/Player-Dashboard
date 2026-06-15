@@ -7055,11 +7055,6 @@ function buildFORecommendedClubs(p, _foLimit=5){
     const playerXTV=calcPlayerValue(p)||0.5;
     let affordabilityScore=50;
     let affordabilityCap=100;
-    // Floor: any player worth ≤ £0.5M is affordable everywhere.
-    // Prevents micro transfer baselines in lower leagues triggering the cap.
-    if(playerXTV<=0.5){
-      affordabilityScore=85;
-    } else {
     const clubWage=CLUB_WAGE_BUDGET[club.team]||0;
 
     let clubMaxSpend;
@@ -7126,14 +7121,17 @@ function buildFORecommendedClubs(p, _foLimit=5){
 
       clubMaxSpend=leagueBaseline*clubMult;
     }
-    if(playerXTV<=clubMaxSpend*0.4)      {affordabilityScore=100;}
-    else if(playerXTV<=clubMaxSpend*0.7) {affordabilityScore=80;}
-    else if(playerXTV<=clubMaxSpend)     {affordabilityScore=60;}
-    else if(playerXTV<=clubMaxSpend*1.8) {affordabilityScore=35;affordabilityCap=58;}
-    else if(playerXTV<=clubMaxSpend*3.5) {affordabilityScore=15;affordabilityCap=38;}
-    else                                 {affordabilityScore=0; affordabilityCap=15;}
+    // For floor-value players (≤£0.5M), any club can afford them —
+    // prevent micro baselines from triggering the affordability cap.
+    const _effectiveMaxSpend=playerXTV<=0.5?Math.max(clubMaxSpend,playerXTV*4):clubMaxSpend;
+    if(playerXTV<=_effectiveMaxSpend*0.4)      {affordabilityScore=100;}
+    else if(playerXTV<=_effectiveMaxSpend*0.7) {affordabilityScore=80;}
+    else if(playerXTV<=_effectiveMaxSpend)     {affordabilityScore=60;}
+    else if(playerXTV<=_effectiveMaxSpend*1.8) {affordabilityScore=35;affordabilityCap=58;}
+    else if(playerXTV<=_effectiveMaxSpend*3.5) {affordabilityScore=15;affordabilityCap=38;}
+    else                                       {affordabilityScore=0; affordabilityCap=15;}
 
-    } // end affordability else (playerXTV > 0.5)
+
     // ── Corridor bonus ────────────────────────────────────────────
     // Historical transfer data tells us which leagues actually buy from which
     // A known corridor makes the move more realistic — boost cultural score
