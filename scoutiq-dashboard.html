@@ -537,12 +537,14 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       </div>
     </div>
     <!-- Skill filters -->
+    <!-- Fair TV sidebar section hidden
     <div class="sb-section">
       <div class="sb-toggle" onclick="toggleSb('xtvFilters',this)"><span>Fair TV</span><span class="sb-arrow">›</span></div>
       <div class="sb-content" id="xtvFilters">
         <div id="xtvSliderContainer"></div>
       </div>
     </div>
+    -->
     <div class="sb-section">
       <div class="sb-toggle" onclick="toggleSb('skillFilters',this)"><span>Skills</span><span class="sb-arrow">›</span></div>
       <div class="sb-content" id="skillFilters">
@@ -590,7 +592,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
       <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;margin-left:4px">
         <button class="btn btn-ghost" onclick="openXI('best')" style="font-size:10px;padding:4px 9px;white-space:nowrap">⚽ Best XI</button>
         <button class="btn btn-ghost" onclick="openXI('potential')" style="font-size:10px;padding:4px 9px;white-space:nowrap">⚽ Pot. XI</button>
-        <button class="btn btn-ghost" onclick="openXI('xtv')" style="font-size:10px;padding:4px 9px;white-space:nowrap">⚽ Fair TV XI</button>
+        <!-- Fair TV XI button hidden <button class="btn btn-ghost" onclick="openXI('xtv')" style="font-size:10px;padding:4px 9px;white-space:nowrap">⚽ Fair TV XI</button> -->
         <button class="btn btn-ghost" onclick="openTeamOverview()" style="font-size:10px;padding:4px 9px;white-space:nowrap">🏟 Teams</button>
         <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:10px;padding:4px 9px;white-space:nowrap">⇄ Compare</button>
         <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:10px;padding:4px 9px;white-space:nowrap">⇄ Compare</button>
@@ -643,7 +645,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
           <th data-sort="potential" onclick="setSort('potential')">Potential</th>
           
           <th data-sort="leaguePct" onclick="setSort('leaguePct')">League %ile</th>
-          <th data-sort="xtv" onclick="setSort('xtv')" class="r">Fair TV</th>
+          <!-- Fair TV column header hidden <th data-sort="xtv" onclick="setSort('xtv')" class="r">Fair TV</th> -->
           <th>Top Skills</th>
           <th data-sort="capturedAt" onclick="setSort('capturedAt')">Captured</th>
           <th></th>
@@ -2050,10 +2052,7 @@ function initSliders(){
   }
   // Fair TV slider — uses standard renderRangeSlider (0-100 positions, non-linear labels)
   SLIDER_STATE.xtv=[0,100];
-  renderRangeSlider('xtvSliderContainer','Fair TV (£M)','xtv',0,100);
-  // Override label to show £M values instead of raw 0-100
-  const _xtvLbl=document.getElementById('rv_xtv');
-  if(_xtvLbl) _xtvLbl.textContent='£0–£200M';
+  // renderRangeSlider('xtvSliderContainer','Fair TV (£M)','xtv',0,100); // Fair TV hidden
 }
 
 
@@ -3018,7 +3017,7 @@ function renderTable(){
       <td>${ringCell(r,ratingScaleColor)}</td>
       <td>${ringCell(displayPotential(p),potColor)}</td>
       <td>${ringCell(p.leaguePct,lgPctColor)}</td>
-      <td class="r" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#00d4ff;white-space:nowrap">${formatValue(calcPlayerValue(p))}</td>
+      <td class="r" style="display:none">${formatValue(calcPlayerValue(p))}</td>
       <td style="min-width:110px">
         <div class="top3-skills">${(()=>{
           const ss=_getSkillScore(p);
@@ -3416,7 +3415,7 @@ function renderToTable(){
     <th style="text-align:right" onclick="sortToTable('avgRating')">Avg Rating${arr('avgRating')}</th>
     <th style="text-align:right" onclick="sortToTable('avgPotential')">Avg Potential${arr('avgPotential')}</th>
     <th style="text-align:right" onclick="sortToTable('avgAge')">Avg Age${arr('avgAge')}</th>
-    <th style="text-align:right" onclick="sortToTable('avgXTV')">Avg Fair TV${arr('avgXTV')}</th>
+    <!-- Avg Fair TV hidden <th style="text-align:right" <!-- Avg Fair TV header hidden --> -->
     <th colspan="2" onclick="sortToTable('top')">Top Player${arr('top')}</th>
     <th colspan="2" onclick="sortToTable('topPot')">Top Potential${arr('topPot')}</th>
   </tr></thead><tbody>${rows.map((r,i)=>{
@@ -5798,13 +5797,7 @@ function buildFullOverview(p){
           const vals=[dr,dp,p.leaguePct];const v=vals[i];
           return`<div class="fo-score-card"><div class="fo-score-val" style="color:${rc(i===2?v/100*70+30:v??0)}">${v!=null?Math.round(v):'—'}</div><div class="fo-score-lbl">${lbl}</div></div>`;
         }).join('')}
-        ${(()=>{
-          const v=calcPlayerValue(p);
-          return`<div class="fo-score-card" style="cursor:default;flex:1.2">
-            <div class="fo-score-val" style="color:#00d4ff;font-size:22px">${formatValue(v)}</div>
-            <div class="fo-score-lbl">Fair TV</div>
-          </div>`;
-        })()}
+        <!-- Fair TV FO card hidden -->
       </div>
     </div>
     <div class="fo-insight" style="margin-bottom:28px">${insight}</div>
