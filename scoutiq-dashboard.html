@@ -7053,12 +7053,12 @@ function buildFORecommendedClubs(p, _foLimit=5){
     // Tier 3: Neither wage nor CIES data → use league transfer baseline directly
     //         (true median club for that league).
     const playerXTV=calcPlayerValue(p)||0.5;
-    // Floor: any player worth < £0.5M is affordable everywhere — skip the spend check.
-    // Prevents micro transfer baselines in lower leagues from triggering the affordability cap.
+    let affordabilityScore=50;
+    let affordabilityCap=100;
+    // Floor: any player worth ≤ £0.5M is affordable everywhere.
+    // Prevents micro transfer baselines in lower leagues triggering the cap.
     if(playerXTV<=0.5){
       affordabilityScore=85;
-      // affordabilityCap stays 100
-      // skip the rest of the affordability block
     } else {
     const clubWage=CLUB_WAGE_BUDGET[club.team]||0;
 
@@ -7126,8 +7126,6 @@ function buildFORecommendedClubs(p, _foLimit=5){
 
       clubMaxSpend=leagueBaseline*clubMult;
     }
-    let affordabilityScore=50;
-    let affordabilityCap=100;
     if(playerXTV<=clubMaxSpend*0.4)      {affordabilityScore=100;}
     else if(playerXTV<=clubMaxSpend*0.7) {affordabilityScore=80;}
     else if(playerXTV<=clubMaxSpend)     {affordabilityScore=60;}
