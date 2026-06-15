@@ -2567,7 +2567,7 @@ function getFiltered(){
   const [llo,lhi]=SLIDER_STATE.leaguePct||[0,100];
   const [alo,ahi]=SLIDER_STATE.age||[15,45];
   if(rlo>0||rhi<100)list=list.filter(p=>{ const dr=displayRating(p)??0; return dr>=rlo&&dr<=rhi; });
-  if(plo>0||phi<100)list=list.filter(p=>p.potential!=null&&p.potential>=plo&&p.potential<=phi);
+  if(plo>0||phi<100)list=list.filter(p=>{const dp_=displayPotential(p)??0;return dp_>=plo&&dp_<=phi;});
   if(tlo>0||thi<100)list=list.filter(p=>{const dt=displayPTP(p)??0;return dt>=tlo&&dt<=thi;});
   // Fair TV non-linear filter
   const [xtvA,xtvB]=SLIDER_STATE.xtv||[0,100];
@@ -3352,14 +3352,14 @@ let _toRows=[],_toSort={key:'avgRating',dir:-1};
 function openTeamOverview(){
   const {allFiltered}=getFiltered();
   const teamMap={};
-  allFiltered.forEach(p=>{if(!p.team)return;if(!teamMap[p.team])teamMap[p.team]=[];teamMap[p.team].push(p);});
+  allFiltered.forEach(p=>{if(!p.team)return;const _tk=p.team+'|'+(p.leagueTag||'');if(!teamMap[_tk])teamMap[_tk]=[];teamMap[_tk].push(p);});
   const wtAvg=(players,valFn)=>{
     const el=players.filter(p=>valFn(p)!=null&&p.minutes!=null&&p.minutes>0);
     if(!el.length){const all=players.filter(p=>valFn(p)!=null);return all.length?all.reduce((s,p)=>s+valFn(p),0)/all.length:null;}
     const tot=el.reduce((s,p)=>s+p.minutes,0);
     return el.reduce((s,p)=>s+(valFn(p)*p.minutes),0)/tot;
   };
-  _toRows=Object.entries(teamMap).map(([team,players])=>{
+  _toRows=Object.entries(teamMap).map(([_teamKey,players])=>{const team=players[0]?.team||_teamKey.split('|')[0];
     // Best 10 non-GK by rating + best GK for avg rating
     const nonGK=players.filter(p=>p.pos!=='GK').sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
     const gks=players.filter(p=>p.pos==='GK').sort((a,b)=>(displayRating(b)??0)-(displayRating(a)??0));
@@ -4490,19 +4490,20 @@ function renderCompare(){
     </div>
   </div>`;
 
-  // Build radars
-  const techRadar=buildRadar(pA,pB,_cmpMode,false,COL_A,COL_B);
-  const physRadar=buildRadar(pA,pB,_cmpMode,true,COL_A,COL_B);
+  // Build radars: In Possession (Passing, Dribbling, Goal Threat) and
+  // Out of Possession (Aerial, Defending) — replaces Technical/Physical split
+  const inPossRadar=buildRadar(pA,pB,_cmpMode,'inPoss',COL_A,COL_B);
+  const outPossRadar=buildRadar(pA,pB,_cmpMode,'outPoss',COL_A,COL_B);
 
   wrap.innerHTML=playerStrip+`
     <div style="display:flex;gap:80px;justify-content:center;align-items:flex-start;flex-wrap:wrap;padding:24px 60px">
       <div style="text-align:center">
-        <div class="radar-section-title">Technical</div>
-        ${techRadar}
+        <div class="radar-section-title">In Possession</div>
+        ${inPossRadar}
       </div>
       <div style="text-align:center">
-        <div class="radar-section-title">Physical</div>
-        ${physRadar}
+        <div class="radar-section-title">Out of Possession</div>
+        ${outPossRadar}
       </div>
     </div>
     ${buildCompareSwarms(pA,pB,COL_A,COL_B)}`;
@@ -4616,23 +4617,25 @@ function buildDualSwarms(pA,pB,peers,colA,colB,sScore){
   return`<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:4px 0">${cols}</div>`;
 }
 
-function buildRadar(pA,pB,mode,isPhys,colA,colB){
+function buildRadar(pA,pB,mode,radarType,colA,colB){
   const isAdj=mode==='padj';
   const R=210, CX=260, CY=260, N_RINGS=5;
   const SIZE=520;
 
+  // In Possession: Passing, Dribbling & Carrying, Goal Threat
+  // Out of Possession: Aerial, Defending
+  const IN_POSS_SKILLS=['Passing','Dribbling & Carrying','Goal Threat'];
+  const OUT_POSS_SKILLS=['Aerial','Defending'];
+
   // Get axes
   let axes=[];
-  if(isPhys){
-    axes=PHYS_METRICS.map(m=>({label:m.label,group:m.group,
-      valA:PHYS_PCT_CACHE[pA.id]?.[m.key]??null,
-      valB:PHYS_PCT_CACHE[pB.id]?.[m.key]??null}));
-  } else {
+  if(radarType==='inPoss'||radarType==='outPoss'){
     const posConf=POS_CONFIG[pA.pos]||POS_CONFIG[pB.pos];
     if(!posConf) return '<div style="color:var(--muted)">No data</div>';
     const metricList=isAdj?posConf.pm:posConf.nm;
     const skillMap=(METRIC_SKILLS[pA.pos]||METRIC_SKILLS[pB.pos]||{})[isAdj?'pm':'nm']||{};
-    const skillOrder=pA.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+    const filterSkills=radarType==='inPoss'?IN_POSS_SKILLS:OUT_POSS_SKILLS;
+    const skillOrder=(pA.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER).filter(s=>filterSkills.includes(s));
     // Group metrics by skill, then flatten in order
     const bySkill={};
     skillOrder.forEach(s=>{bySkill[s]=[];});
@@ -4651,7 +4654,7 @@ function buildRadar(pA,pB,mode,isPhys,colA,colB){
   }
 
   axes=axes.filter(a=>a.valA!=null||a.valB!=null);
-  if(!axes.length) return `<div style="color:var(--muted);font-size:12px;padding:20px">${isPhys?'No physical data':'No data'}</div>`;
+  if(!axes.length) return `<div style="color:var(--muted);font-size:12px;padding:20px">No data</div>`;
 
   const n=axes.length;
   const angleStep=2*Math.PI/n;
@@ -4659,14 +4662,14 @@ function buildRadar(pA,pB,mode,isPhys,colA,colB){
 
   // Sector background colours per group
   const SECTOR_COLORS={
-    'Passing':'rgba(124,111,205,0.08)','Dribbling & Carrying':'rgba(0,212,255,0.08)',
-    'Goal Threat':'rgba(245,200,66,0.08)','Aerial':'rgba(255,140,66,0.08)',
-    'Defending':'rgba(0,229,153,0.08)','Shot Stopping':'rgba(245,200,66,0.08)',
-    'Claims & Sweeping':'rgba(0,212,255,0.08)','Distribution':'rgba(124,111,205,0.08)',
+    'Passing':'rgba(124,111,205,0.16)','Dribbling & Carrying':'rgba(0,212,255,0.16)',
+    'Goal Threat':'rgba(245,200,66,0.16)','Aerial':'rgba(255,140,66,0.16)',
+    'Defending':'rgba(0,229,153,0.16)','Shot Stopping':'rgba(245,200,66,0.16)',
+    'Claims & Sweeping':'rgba(0,212,255,0.16)','Distribution':'rgba(124,111,205,0.16)',
     // Physical groups
-    'speed':'rgba(0,212,255,0.08)','explosive':'rgba(245,200,66,0.08)',
-    'distance':'rgba(0,229,153,0.08)','tip':'rgba(204,112,64,0.08)',
-    'otip':'rgba(112,96,168,0.08)',
+    'speed':'rgba(0,212,255,0.16)','explosive':'rgba(245,200,66,0.16)',
+    'distance':'rgba(0,229,153,0.16)','tip':'rgba(204,112,64,0.16)',
+    'otip':'rgba(112,96,168,0.16)',
   };
 
   function ptAtVal(i,val,r=R){
@@ -8286,7 +8289,11 @@ function clearAllFilters(){
   // Reset nav filters
   ST.filterPos=[];ST.filterLeague=[];ST.filterNat=[];ST.filterTeam=[];ST.filterSeason=[];
   ST.currentPage=0;
-  // Reset all sliders to defaults
+  // Re-init sliders to reset their visual handles first (before state reset
+  // to prevent onChange events firing with stale SLIDER_STATE mid-reset)
+  initSliders();
+  // Reset all slider state AFTER initSliders so any onChange events during
+  // slider init don't partially re-filter with mixed state
   SLIDER_STATE.rating=[0,100];
   SLIDER_STATE.potential=[0,100];
   SLIDER_STATE.xtv=[0,100];
@@ -8298,9 +8305,6 @@ function clearAllFilters(){
   Object.keys(SLIDER_STATE.physMetrics||{}).forEach(k=>SLIDER_STATE.physMetrics[k]=[0,100]);
   // Clear search box
   const si=document.getElementById('searchInput');if(si)si.value='';
-  // Re-init sliders to reset their visual handles
-  initSliders();
-  SLIDER_STATE.xtv=[0,100];
   const _xrvEl=document.getElementById('rv_xtv');
   if(_xrvEl) _xrvEl.textContent='£0–£200M';
   // Reset nav highlight
