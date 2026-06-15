@@ -6522,8 +6522,11 @@ function buildFORecommendedClubs(p, _foLimit=5){
     // but can still be recommended Wales 1, Northern Ireland 1, or any foreign league.
     const playerTier=LEAGUE_QUALITY[p.leagueTag]?.tier;
     const clubTier=LEAGUE_QUALITY[club.league]?.tier;
-    const playerCountry=(LEAGUE_META[p.leagueTag]||{}).country;
-    const clubCountry=(LEAGUE_META[club.league]||{}).country;
+    // Derive country from league tag by stripping trailing division number
+    // e.g. "Scotland 1" → "Scotland", "Northern Ireland 1" → "Northern Ireland"
+    const _lgCountry=lt=>lt?lt.replace(/\s+\d+$/, '').trim():'';
+    const playerCountry=_lgCountry(p.leagueTag);
+    const clubCountry=_lgCountry(club.league);
     const sameCountryDowngrade=playerCountry&&clubCountry
       &&playerCountry===clubCountry
       &&clubTier&&playerTier&&clubTier>playerTier;
