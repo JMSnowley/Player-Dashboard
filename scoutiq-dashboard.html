@@ -4490,21 +4490,49 @@ function renderCompare(){
     </div>
   </div>`;
 
-  // Build radars: In Possession (Passing, Dribbling, Goal Threat) and
-  // Out of Possession (Aerial, Defending) — replaces Technical/Physical split
-  const inPossRadar=buildRadar(pA,pB,_cmpMode,'inPoss',COL_A,COL_B);
-  const outPossRadar=buildRadar(pA,pB,_cmpMode,'outPoss',COL_A,COL_B);
+  // Check physical data via PHYS_PCT_CACHE (populated by buildPhysPercentileCache)
+  // AND PHYS.snapshots as a fallback — most reliable indicators
+  const _physCheckA=pA.pos!=='GK'&&(
+    (PHYS_PCT_CACHE[pA.id]&&Object.keys(PHYS_PCT_CACHE[pA.id]).length>0)||
+    PHYS.snapshots.some(s=>s.matchedPlayerId===pA.id&&s.physicalScore!=null)
+  );
+  const _physCheckB=pB.pos!=='GK'&&(
+    (PHYS_PCT_CACHE[pB.id]&&Object.keys(PHYS_PCT_CACHE[pB.id]).length>0)||
+    PHYS.snapshots.some(s=>s.matchedPlayerId===pB.id&&s.physicalScore!=null)
+  );
+  const _usePossSplit=!_physCheckA||!_physCheckB;
+
+  // GK: single technical radar
+  const _isGK=pA.pos==='GK'||pB.pos==='GK';
+
+  let _radarLeft,_radarRight,_labelLeft,_labelRight;
+  if(_isGK){
+    _radarLeft=buildRadar(pA,pB,_cmpMode,false,COL_A,COL_B);
+    _radarRight=null;
+    _labelLeft='Technical';
+    _labelRight=null;
+  } else if(_usePossSplit){
+    _radarLeft=buildRadar(pA,pB,_cmpMode,'inPoss',COL_A,COL_B);
+    _radarRight=buildRadar(pA,pB,_cmpMode,'outPoss',COL_A,COL_B);
+    _labelLeft='In Possession';
+    _labelRight='Out of Possession';
+  } else {
+    _radarLeft=buildRadar(pA,pB,_cmpMode,false,COL_A,COL_B);
+    _radarRight=buildRadar(pA,pB,_cmpMode,true,COL_A,COL_B);
+    _labelLeft='Technical';
+    _labelRight='Physical';
+  }
 
   wrap.innerHTML=playerStrip+`
     <div style="display:flex;gap:80px;justify-content:center;align-items:flex-start;flex-wrap:wrap;padding:24px 60px">
       <div style="text-align:center">
-        <div class="radar-section-title">In Possession</div>
-        ${inPossRadar}
+        <div class="radar-section-title">${_labelLeft}</div>
+        ${_radarLeft}
       </div>
-      <div style="text-align:center">
-        <div class="radar-section-title">Out of Possession</div>
-        ${outPossRadar}
-      </div>
+      ${_radarRight?`<div style="text-align:center">
+        <div class="radar-section-title">${_labelRight}</div>
+        ${_radarRight}
+      </div>`:''}
     </div>
     ${buildCompareSwarms(pA,pB,COL_A,COL_B)}`;
 }
