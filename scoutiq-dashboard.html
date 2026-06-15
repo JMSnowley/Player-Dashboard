@@ -6614,15 +6614,25 @@ function buildFORecommendedClubs(p, _foLimit=5){
         else if(rankDiff>=-3) clubQualityScore=68;  // was 55
         else if(rankDiff>=-5) clubQualityScore=52;  // was 42
         else clubQualityScore=35;                    // was 30
-      } else if(clubAvgRating>0&&playerClubAvgRating>0){
-        // Cross-league: use absolute avg rating gap
-        const ratingGap=clubAvgRating-playerClubAvgRating; // positive=target is better club
-        if(ratingGap>=2) clubQualityScore=100;       // meaningfully better club
-        else if(ratingGap>=-1) clubQualityScore=88;  // comparable
-        else if(ratingGap>=-3) clubQualityScore=72;  // slightly lower
-        else if(ratingGap>=-5) clubQualityScore=55;  // noticeably lower
-        else if(ratingGap>=-8) clubQualityScore=38;  // clearly weaker club
-        else clubQualityScore=22;                     // much weaker — very unlikely move
+      } else if(clubAvgRating>0){
+        // Cross-league: rank the target club within its OWN league by avg rating.
+        // Top 25% → 100, top 50% → 85, top 75% → 68, bottom 25% → 50.
+        // This means Ajax (top of Ned1) scores much higher than Volendam (bottom),
+        // even though raw rating gaps are tiny within a single league.
+        const _leagueAvgs=Object.entries(leagueClubs)
+          .filter(([,v])=>v.n>=2)
+          .map(([t,v])=>({team:t,avg:v.sum/v.n}))
+          .sort((a,b)=>b.avg-a.avg);
+        const _nLeagueClubs=_leagueAvgs.length;
+        const _targetLeagueRank=_leagueAvgs.findIndex(x=>x.team===club.team)+1;
+        const _targetLeaguePct=_nLeagueClubs>0
+          ?Math.round((1-(_targetLeagueRank-1)/_nLeagueClubs)*100):50;
+        // Map within-league percentile to CQ score
+        if(_targetLeaguePct>=80) clubQualityScore=100;       // top 20% of their league
+        else if(_targetLeaguePct>=60) clubQualityScore=88;   // top 40%
+        else if(_targetLeaguePct>=40) clubQualityScore=72;   // mid-table
+        else if(_targetLeaguePct>=20) clubQualityScore=55;   // bottom 40%
+        else clubQualityScore=38;                             // bottom 20%
       }
     }
 
