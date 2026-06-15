@@ -4629,7 +4629,35 @@ function buildRadar(pA,pB,mode,radarType,colA,colB){
 
   // Get axes
   let axes=[];
-  if(radarType==='inPoss'||radarType==='outPoss'){
+  if(radarType===true||radarType===false){
+    // Legacy boolean: true=Physical, false=Technical
+    const isPhys=radarType;
+    if(isPhys){
+      axes=PHYS_METRICS.map(m=>({label:m.label,group:m.group,
+        valA:PHYS_PCT_CACHE[pA.id]?.[m.key]??null,
+        valB:PHYS_PCT_CACHE[pB.id]?.[m.key]??null}));
+    } else {
+      const posConf=POS_CONFIG[pA.pos]||POS_CONFIG[pB.pos];
+      if(!posConf) return '<div style="color:var(--muted)">No data</div>';
+      const metricList=isAdj?posConf.pm:posConf.nm;
+      const skillMap=(METRIC_SKILLS[pA.pos]||METRIC_SKILLS[pB.pos]||{})[isAdj?'pm':'nm']||{};
+      const skillOrder=pA.pos==='GK'?GK_SKILL_ORDER:SKILL_ORDER;
+      const bySkill={};
+      skillOrder.forEach(s=>{bySkill[s]=[];});
+      metricList.forEach(m=>{
+        const s=skillMap[m]||skillOrder[0];
+        if(!bySkill[s]) bySkill[s]=[];
+        bySkill[s].push(m);
+      });
+      skillOrder.forEach(s=>{
+        (bySkill[s]||[]).forEach(m=>{
+          axes.push({label:m.replace(/^PAdj\s+/i,''),group:s,
+            valA:(pA[isAdj?'pm':'nm']||{})[m]??null,
+            valB:(pB[isAdj?'pm':'nm']||{})[m]??null});
+        });
+      });
+    }
+  } else if(radarType==='inPoss'||radarType==='outPoss'){
     const posConf=POS_CONFIG[pA.pos]||POS_CONFIG[pB.pos];
     if(!posConf) return '<div style="color:var(--muted)">No data</div>';
     const metricList=isAdj?posConf.pm:posConf.nm;
