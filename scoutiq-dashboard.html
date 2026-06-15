@@ -7044,7 +7044,8 @@ function buildFORecommendedClubs(p, _foLimit=5){
     else if(overshoot>15) qualityCap=55;
     else if(overshoot>10) qualityCap=68;
     else if(overshoot>5) qualityCap=82;
-    else if(overshoot>0) qualityCap=92;
+    // Small overshoot (0-5): no cap — player is just above elite threshold,
+    // which is normal for a good player. CQ differences can now show through.
     // Undershoot: clubs buy potential, use projected rating, wider tolerance
     const undershoot=clubLQ.good-projRating;
     // Scale undershoot tolerance with league percentile:
@@ -7217,13 +7218,21 @@ function buildFORecommendedClubs(p, _foLimit=5){
     // Above 70 → no change. Below 70 → penalty scales as (cl/70)^1.5.
     // This makes a club level of 61 reduce the total by ~19%, and 30 by ~72%,
     // without penalising clubs that already have a strong club level fit.
-    const _clMod=playingTimeScore>=70?1.0:Math.pow(playingTimeScore/70,1.5);
+    // cl_mod penalises low club-level scores non-linearly.
+    // For low-percentile players (<30th), their pts are already appropriately low
+    // — applying cl_mod on top doubly penalises them and makes even appropriate
+    // same-tier clubs score too low to surface as recommendations.
+    const _clMod=(playingTimeScore>=70||(p.leaguePct??50)<30)?1.0:Math.pow(playingTimeScore/70,1.5);
+    // CQ multiplier: applies a ±20% adjustment based on the club's within-league quality rank.
+    // This ensures PSV (top of Ned1) scores noticeably higher than Volendam (bottom)
+    // even when both produce similar pts from squad rank bands.
+    const _cqMult=0.80+0.20*(clubQualityScore/100);
     const totalScore=Math.min(affordabilityCap,Math.min(qualityCap,Math.round(
       (playingTimeScore*(playW/wSum)+
       complementScore*(compW/wSum)+
       culturalScore*(cultW/wSum)+
       ageFitScore*(ageW/wSum)+
-      affordabilityScore*(affordW/wSum))*_clMod
+      affordabilityScore*(affordW/wSum))*_clMod*_cqMult
     )));
     scored.push({
       team:club.team,league:club.league,season:club.season,
