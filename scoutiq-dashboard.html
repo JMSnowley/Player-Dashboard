@@ -6627,7 +6627,7 @@ function buildFORecommendedClubs(p, _foLimit=5){
     }
 
     let playingTimeScore;
-    if(squadRank<=2) playingTimeScore=steppingUp?72:50;
+    if(squadRank<=2) playingTimeScore=steppingUp?85:50; // was 72 — softened so top-2 step-ups score well
     else if(squadRank<=4) playingTimeScore=88;
     else if(squadRank<=8) playingTimeScore=100;
     else if(squadRank<=12) playingTimeScore=Math.max(40,100-((squadRank-8)*8)); // 8→100, 9→92, 10→84, 11→76, 12→68
