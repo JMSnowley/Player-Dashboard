@@ -4828,7 +4828,7 @@ function buildRadar(pA,pB,mode,radarType,colA,colB){
   const legendItems=groupsInUse.map(g=>{
     const col=SECTOR_COLORS[g]||'rgba(255,255,255,0.1)';
     const solidCol=col.replace(/[\d.]+\)$/,'0.5)');
-    const labelText=g;
+    const labelText={speed:'Speed',explosive:'Explosiveness',distance:'Distance',tip:'In Possession',otip:'Out of Possession'}[g]||g;
     return`<div style="display:flex;align-items:center;gap:4px;font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted2)">
       <div style="width:10px;height:10px;border-radius:2px;background:${solidCol};flex-shrink:0"></div>${labelText}
     </div>`;
