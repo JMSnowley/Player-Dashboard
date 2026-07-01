@@ -3434,7 +3434,8 @@ function renderToTable(){
     const avgPc=r.avgPotential!=null?(r.avgPotential>=80?'#00e599':r.avgPotential>=60?'#7fd97f':r.avgPotential>=40?'#f5c842':r.avgPotential>=20?'#ff8c42':'#ff4d6a'):'var(--muted)';
     return`<tr>
       <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">${i+1}</td>
-      <td style="font-weight:600;cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:3px" onclick="openClubScout(${i})">${r.team}</td>
+      <td style="font-weight:600;cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:3px" onclick="openClubScout(this)"
+  data-team="${r.team.replace(/"/g,'&quot;')}" data-league="${(r.leagueTag||'').replace(/"/g,'&quot;')}">${r.team}</td>
       <td style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px">${r.count}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgRc}">${fmt1(r.avgRating)}</td>
       <td style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${avgPc}">${fmt1(r.avgPotential)}</td>
@@ -3445,15 +3446,14 @@ function renderToTable(){
     </tr>`;
   }).join('')}</tbody></table>`;
 }
-function openClubScout(rowIdx){
-  const r=_toRows[rowIdx];
-  if(!r) return;
-  document.getElementById('clubScoutTitle').textContent='\u26bd '+r.team+' \u2014 Recommended Players';
+function openClubScout(el){
+  var clubName=el.getAttribute('data-team');
+  var clubLeague=el.getAttribute('data-league')||'';
+  document.getElementById('clubScoutTitle').textContent='⚽ '+clubName+' — Recommended Players';
   document.getElementById('clubScoutModal').classList.add('open');
   document.getElementById('clubScoutBody').innerHTML='<div style="color:var(--muted);padding:20px;text-align:center">Analysing candidates...</div>';
-  setTimeout(function(){ document.getElementById('clubScoutBody').innerHTML=buildClubScout(r.team,r.leagueTag); },30);
+  setTimeout(function(){ document.getElementById('clubScoutBody').innerHTML=buildClubScout(clubName,clubLeague); },30);
 }
-
 function closeClubScout(){
   document.getElementById('clubScoutModal').classList.remove('open');
 }
@@ -3489,9 +3489,10 @@ function buildClubScout(clubName,clubLeague){
     else if(rank<=16) pts=Math.max(30,68-((rank-12)*8));
     else pts=Math.max(15,36-((rank-16)*4));
     pts=Math.min(100,Math.round(pts*Math.max(0.50,1-Math.max(0,rank/sqSize-0.70)*2)+lp_bonus));
-    var pCmeta=LEAGUE_META[p.leagueTag]||{};
-    var cCmeta=LEAGUE_META[clubLeague]||{};
-    var cult=pCmeta.country===cCmeta.country?85:70;
+    // Derive country from league tag — avoids LEAGUE_META scope issue
+    var pCountry=(p.leagueTag||'').replace(/\s+\d+$/,'').trim();
+    var cCountry=(clubLeague||'').replace(/\s+\d+$/,'').trim();
+    var cult=pCountry===cCountry?85:70;
     var dr=displayRating(p)||0;
     var foScore=Math.min(99,Math.round(pts*0.55+cult*0.15+dr*0.30));
     return {p:p,pr:pr,rank:rank,sqSize:sqSize,pts:pts,foScore:foScore};
