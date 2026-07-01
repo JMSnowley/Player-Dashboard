@@ -3471,8 +3471,11 @@ function buildClubScout(clubName,clubLeague){
   // Score each candidate using buildFORecommendedClubs — identical logic to player expand
   var scored=[];
   candidates.forEach(function(p){
+    _lastFOScored=[]; // reset before each call — prevents stale results
     buildFORecommendedClubs(p,999); // populates _lastFOScored
-    var entry=_lastFOScored.find(function(r){return r.team===clubName&&r.league===clubLeague;});
+    var entry=clubLeague
+      ?_lastFOScored.find(function(r){return r.team===clubName&&r.league===clubLeague;})
+      :_lastFOScored.find(function(r){return r.team===clubName;});
     if(!entry) return; // club not in this player's recommendations (filtered/blocked)
     scored.push({p:p,score:entry.score,squadRank:entry.squadRank});
   });
