@@ -694,12 +694,33 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 
 <!-- CLUB SCOUT MODAL -->
 <div class="ht-modal" id="clubScoutModal" style="z-index:1100">
-  <div class="ht-panel" style="max-width:800px;width:96vw">
+  <div class="ht-panel" style="max-width:820px;width:96vw">
     <div class="ht-header">
       <span class="ht-title" id="clubScoutTitle">Club Scout</span>
       <button class="btn btn-ghost" style="font-size:11px" onclick="closeClubScout()">&#x2715; Close</button>
     </div>
-    <div class="ht-body" id="clubScoutBody" style="padding:16px 20px;overflow-y:auto;max-height:72vh"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--border2);background:var(--surface2)">
+      <span style="font-size:10px;color:var(--muted);white-space:nowrap;font-family:'JetBrains Mono',monospace">SCOUT FROM</span>
+      <select id="clubScoutLeagueFilter" onchange="runClubScout()"
+        style="flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;
+               color:var(--text);font-size:11px;padding:4px 8px;font-family:'JetBrains Mono',monospace">
+        <option value="">All players in DB</option><optgroup label="Tier 1"><option value="England 1">England 1</option><option value="France 1">France 1</option><option value="Germany 1">Germany 1</option><option value="Italy 1">Italy 1</option><option value="Spain 1">Spain 1</option></optgroup><optgroup label="Tier 2"><option value="Argentina 1">Argentina 1</option><option value="Belgium 1">Belgium 1</option><option value="Brazil 1">Brazil 1</option><option value="Denmark 1">Denmark 1</option><option value="England 2">England 2</option><option value="France 2">France 2</option><option value="Germany 2">Germany 2</option><option value="Italy 2">Italy 2</option><option value="Netherlands 1">Netherlands 1</option><option value="Portugal 1">Portugal 1</option><option value="Spain 2">Spain 2</option><option value="Turkey 1">Turkey 1</option><option value="Ukraine 1">Ukraine 1</option></optgroup><optgroup label="Tier 3"><option value="Austria 1">Austria 1</option><option value="Brazil 2">Brazil 2</option><option value="Bulgaria 1">Bulgaria 1</option><option value="Chile 1">Chile 1</option><option value="Colombia 1">Colombia 1</option><option value="Croatia 1">Croatia 1</option><option value="Cyprus 1">Cyprus 1</option><option value="Czech Republic 1">Czech Republic 1</option><option value="Ecuador 1">Ecuador 1</option><option value="England 3">England 3</option><option value="Greece 1">Greece 1</option><option value="Japan 1">Japan 1</option><option value="Mexico 1">Mexico 1</option><option value="Netherlands 2">Netherlands 2</option><option value="Norway 1">Norway 1</option><option value="Poland 1">Poland 1</option><option value="Portugal 2">Portugal 2</option><option value="Romania 1">Romania 1</option><option value="Russia 1">Russia 1</option><option value="Saudi Arabia 1">Saudi Arabia 1</option><option value="Scotland 1">Scotland 1</option><option value="Serbia 1">Serbia 1</option><option value="South Korea 1">South Korea 1</option><option value="Sweden 1">Sweden 1</option><option value="Switzerland 1">Switzerland 1</option><option value="UAE 1">UAE 1</option><option value="USA 1">USA 1</option><option value="United Arab Emirates 1">United Arab Emirates 1</option><option value="Uruguay 1">Uruguay 1</option></optgroup><optgroup label="Tier 4"><option value="Australia 1">Australia 1</option><option value="England 4">England 4</option><option value="England 5">England 5</option><option value="France 3">France 3</option><option value="Germany 3">Germany 3</option><option value="Hungary 1">Hungary 1</option><option value="Israel 1">Israel 1</option><option value="Morocco 1">Morocco 1</option><option value="Paraguay 1">Paraguay 1</option><option value="Qatar 1">Qatar 1</option><option value="Scotland 2">Scotland 2</option><option value="Slovakia 1">Slovakia 1</option><option value="Slovenia 1">Slovenia 1</option><option value="South Africa 1">South Africa 1</option></optgroup><optgroup label="Tier 5"><option value="Georgia 1">Georgia 1</option><option value="Ireland 1">Ireland 1</option><option value="Latvia 1">Latvia 1</option><option value="Northern Ireland 1">Northern Ireland 1</option><option value="Scotland 3">Scotland 3</option><option value="Wales 1">Wales 1</option></optgroup><optgroup label="Tier 6"><option value="Scotland 4">Scotland 4</option></optgroup>
+      </select>
+      <select id="clubScoutPosFilter" onchange="runClubScout()"
+        style="background:var(--surface3);border:1px solid var(--border2);border-radius:4px;
+               color:var(--text);font-size:11px;padding:4px 8px;font-family:'JetBrains Mono',monospace">
+        <option value="">All positions</option>
+        <option value="GK">GK</option>
+        <option value="CB">CB</option>
+        <option value="FB">FB</option>
+        <option value="DM">DM</option>
+        <option value="CM">CM</option>
+        <option value="AM">AM</option>
+        <option value="WF">WF</option>
+        <option value="CF">CF</option>
+      </select>
+    </div>
+    <div class="ht-body" id="clubScoutBody" style="padding:16px 20px;overflow-y:auto;max-height:65vh"></div>
   </div>
 </div>
 
@@ -3446,97 +3467,202 @@ function renderToTable(){
     </tr>`;
   }).join('')}</tbody></table>`;
 }
+var _clubScoutTarget={name:'',league:''};
 function openClubScout(el){
-  var clubName=el.getAttribute('data-team');
-  var clubLeague=el.getAttribute('data-league')||'';
-  document.getElementById('clubScoutTitle').textContent='⚽ '+clubName+' — Recommended Players';
+  _clubScoutTarget.name=el.getAttribute('data-team');
+  _clubScoutTarget.league=el.getAttribute('data-league')||'';
+  document.getElementById('clubScoutTitle').textContent='⚽ '+_clubScoutTarget.name+' — Club Scout';
+  // Reset filters
+  document.getElementById('clubScoutLeagueFilter').value='';
+  document.getElementById('clubScoutPosFilter').value='';
   document.getElementById('clubScoutModal').classList.add('open');
-  document.getElementById('clubScoutBody').innerHTML='<div style="color:var(--muted);padding:20px;text-align:center">Analysing candidates...</div>';
-  setTimeout(function(){ document.getElementById('clubScoutBody').innerHTML=buildClubScout(clubName,clubLeague); },30);
+  runClubScout();
+}
+function runClubScout(){
+  document.getElementById('clubScoutBody').innerHTML='<div style="color:var(--muted);padding:20px;text-align:center">Analysing candidates…</div>';
+  var leagueFilter=document.getElementById('clubScoutLeagueFilter').value;
+  var posFilter=document.getElementById('clubScoutPosFilter').value;
+  setTimeout(function(){
+    document.getElementById('clubScoutBody').innerHTML=buildClubScout(
+      _clubScoutTarget.name,_clubScoutTarget.league,leagueFilter,posFilter
+    );
+  },30);
 }
 function closeClubScout(){
   document.getElementById('clubScoutModal').classList.remove('open');
 }
 
-function buildClubScout(clubName,clubLeague){
-  var filtered=getFiltered().allFiltered;
-  var candidates=filtered.filter(function(p){return p.team!==clubName;});
-  if(!candidates.length) return '<div style="color:var(--muted);padding:20px">No players in current filter.</div>';
-  if(candidates.length>1000) return '<div style="color:var(--muted);padding:20px;line-height:1.6">'+
-    '<strong style="color:var(--text)">Too many candidates ('+candidates.length+')</strong><br>'+
-    'Apply filters first (e.g. by league, age, or position) to narrow the list down to a manageable set before running Club Scout.</div>';
+function buildClubScout(clubName,clubLeague,leagueFilter,posFilter){
+  // Candidate pool: ALL players in DB (not filtered), excluding the target club
+  // filtered by the scout-from league/pos selectors in the modal
+  var pool=ST.players.filter(function(p){
+    if(p.team===clubName&&p.leagueTag===clubLeague) return false; // exclude own squad
+    if(leagueFilter&&p.leagueTag!==leagueFilter) return false;
+    if(posFilter&&p.pos!==posFilter) return false;
+    return true;
+  });
+
+  if(!pool.length) return '<div style="color:var(--muted);padding:20px">No players match the current scout filter.</div>';
+  if(pool.length>2000) return '<div style="color:var(--muted);padding:20px;line-height:1.6">'+
+    '<strong style="color:var(--text)">Too many candidates ('+pool.length+')</strong><br>'+
+    'Select a specific league or position from the filters above.</div>';
 
   function ratingColor(v){return v>=80?'#00e599':v>=70?'#7fd97f':v>=60?'#f5c842':v>=50?'#ff8c42':'#ff4d6a';}
 
-  // Score each candidate using buildFORecommendedClubs — identical logic to player expand
+  // ── Lightweight scorer ────────────────────────────────────────────────
+  // Same signals as FO but computed for ONE club only — no full FO call needed.
+  // Skips complement score (requires all-club context) but keeps all quality logic.
+  var clubLQ=LEAGUE_QUALITY[clubLeague]||{good:60,top:67,elite:72,tier:3};
+  var playerLQ_cache={};
+
+  var POS_ADJ={GK:-1.5,CB:-1,FB:-2,DM:-0.5,CM:-1.5,AM:-2,WF:0,CF:0.5};
+  function potWeight(age){
+    return age<=17?0.90:age<=20?0.90-((age-17)/3)*0.10:age<=23?0.80-((age-20)/3)*0.15:
+           age<=27?0.65-((age-23)/4)*0.15:age<=30?0.50-((age-27)/3)*0.20:
+           age<=33?0.30-((age-30)/3)*0.15:age<=36?0.15-((age-33)/3)*0.15:0;
+  }
+  function projRateInc(p){
+    var dr=displayRating(p)||0,dp=displayPotential(p)||dr,age=p.age||25;
+    var pa=POS_ADJ[p.pos||'']||0,pw=potWeight(age)*0.40;
+    return (dr-pa)*(1-pw)+(dp-pa)*pw;
+  }
+
+  // Club's existing outfield squad projRates (position-neutral for rank comparison)
+  var clubSquad=ST.players.filter(function(p){
+    return p.team===clubName&&p.leagueTag===clubLeague&&p.pos!=='GK';
+  });
+  var squadPrs=clubSquad.map(projRateInc);
+
   var scored=[];
-  candidates.forEach(function(p){
-    _lastFOScored=[]; // reset before each call — prevents stale results
-    buildFORecommendedClubs(p,999); // populates _lastFOScored
-    var entry=clubLeague
-      ?_lastFOScored.find(function(r){return r.team===clubName&&r.league===clubLeague;})
-      :_lastFOScored.find(function(r){return r.team===clubName;});
-    if(!entry) return; // club not in this player's recommendations (filtered/blocked)
-    scored.push({p:p,score:entry.score,squadRank:entry.squadRank});
+  pool.forEach(function(p){
+    var age=p.age||25,pos=p.pos||'',pa=POS_ADJ[pos]||0;
+    var dr=displayRating(p)||0,dp=displayPotential(p)||dr;
+
+    // Full-potWeight projRating for quality cap check
+    var pw_full=potWeight(age);
+    var projRConst=(dr-pa)*(1-pw_full)+(dp-pa)*pw_full;
+    var overshoot=projRConst-clubLQ.elite;
+    var qualityCap=100;
+    if(overshoot>20) return;          // far too good — exclude
+    else if(overshoot>15) qualityCap=40;
+    else if(overshoot>10) qualityCap=55;
+    else if(overshoot>5)  qualityCap=70;
+
+    // Undershoot cap (player clearly below club's standard)
+    var plq=LEAGUE_QUALITY[p.leagueTag]||{good:55};
+    var lp=p.leaguePct||50;
+    var pctF=Math.min(1,Math.max(0,lp/70));
+    var ut=6+pctF*16;
+    var undershoot=clubLQ.good-projRConst;
+    if(undershoot>ut*1.4) qualityCap=Math.min(qualityCap,38);
+    else if(undershoot>ut) qualityCap=Math.min(qualityCap,58);
+
+    // Same-country downward block (mirror FO filter)
+    var pCountry=(p.leagueTag||'').replace(/\s+\d+$/,'').trim();
+    var cCountry=(clubLeague||'').replace(/\s+\d+$/,'').trim();
+    var playerTier=(LEAGUE_QUALITY[p.leagueTag]||{}).tier||3;
+    var clubTier=clubLQ.tier||3;
+    if(pCountry===cCountry&&clubTier>playerTier&&lp>=30) return;
+
+    // Squad rank (vs all outfield — same as FO)
+    var pr=projRateInc(p);
+    var rank=squadPrs.filter(function(cr){return cr>pr;}).length+1;
+    var sqSize=squadPrs.length+1;
+    var dm=Math.max(0.50,1-Math.max(0,rank/sqSize-0.70)*2.0);
+
+    // Playing time score
+    var su=clubLQ.good>plq.good,sd=clubLQ.good<plq.good;
+    var tierUp=clubTier<playerTier;
+    var lp_fl=lp>=60?65:lp>=40?55:lp>=25?42:lp>=10?28:10;
+    var pt_raw;
+    if(rank<=2) pt_raw=su?92:50;
+    else if(rank<=4) pt_raw=88;
+    else if(rank<=8) pt_raw=100;
+    else if(rank<=12) pt_raw=Math.max(40,100-((rank-8)*8));
+    else if(rank<=16) pt_raw=Math.max(30,68-((rank-12)*8));
+    else if(rank<=20) pt_raw=sd?50:Math.max(20,36-((rank-16)*4));
+    else pt_raw=15;
+    var pt_base=Math.round(Math.max(pt_raw,lp_fl)*0.60+Math.min(100,80)*0.40);
+    var lp_bonus=Math.max(0,(lp-70)/30*6);
+    var pts=Math.min(100,Math.round(pt_base*dm+lp_bonus));
+    if(tierUp) pts=Math.min(100,pts+8);
+
+    // Cultural fit
+    var cult=pCountry===cCountry?88:70;
+
+    // Weights (simplified — no complement)
+    var pot=dp; var pctAdj=Math.min(1,(lp/100)/0.70);
+    var cultBase=Math.max(0.05,Math.min(0.22,0.22-(pot-65)*0.01));
+    var cultW=Math.min(0.28,cultBase+(1-pctAdj)*0.08);
+    var playW=Math.max(0.50,Math.min(0.58,0.50+(pot-65)*0.003));
+    var ageW=0.08,affordW=0.15;
+    var wSum=cultW+playW+ageW+affordW;
+
+    // Age fit
+    var clubAges=clubSquad.map(function(x){return x.age||25;});
+    var caa=clubAges.length?clubAges.reduce(function(a,b){return a+b;},0)/clubAges.length:25;
+    var idealAge=Math.max(23,Math.min(29,23+(age-18)*0.35));
+    var ageFit=Math.max(20,100-Math.abs(caa-idealAge)*15);
+
+    var cl_mod=(pts>=70||lp<30)?1.0:Math.pow(pts/70,1.5);
+    var total=Math.round((pts*(playW/wSum)+cult*(cultW/wSum)+ageFit*(ageW/wSum)+75*(affordW/wSum))*cl_mod);
+    total=Math.min(qualityCap,Math.min(99,total));
+
+    if(total>0) scored.push({p:p,score:total,rank:rank});
   });
   scored.sort(function(a,b){return b.score-a.score;});
 
+  // ── Render ────────────────────────────────────────────────────────────
   var POS_GROUPS=[
-    {label:'GK',  positions:['GK']},
-    {label:'CB',  positions:['CB']},
-    {label:'FB',  positions:['FB']},
-    {label:'DM',  positions:['DM']},
-    {label:'CM',  positions:['CM']},
-    {label:'AM',  positions:['AM']},
-    {label:'WF',  positions:['WF']},
-    {label:'CF',  positions:['CF']},
+    {label:'GK',positions:['GK']},{label:'CB',positions:['CB']},
+    {label:'FB',positions:['FB']},{label:'DM',positions:['DM']},
+    {label:'CM',positions:['CM']},{label:'AM',positions:['AM']},
+    {label:'WF',positions:['WF']},{label:'CF',positions:['CF']},
   ];
+  if(posFilter) POS_GROUPS=POS_GROUPS.filter(function(g){return g.positions.includes(posFilter);});
 
   function renderRow(s){
-    var p=s.p;
-    var dr=(displayRating(p)||0).toFixed(1);
-    var dp=(displayPotential(p)||0).toFixed(1);
-    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border3);cursor:pointer" onclick="closeClubScout();openPanel(\''+p.id+'\')">'+
-      '<div style="font-size:12px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</div>'+
-      '<div style="font-size:10px;color:var(--muted);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis">'+(p.team||'')+'</div>'+
-      '<div style="font-family:JetBrains Mono,monospace;font-size:12px;font-weight:700;color:'+ratingColor(parseFloat(dr))+';min-width:32px;text-align:right">'+dr+'</div>'+
-      '<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:'+ratingColor(parseFloat(dp))+';min-width:32px;text-align:right">'+dp+'</div>'+
-      '<div style="font-family:JetBrains Mono,monospace;font-size:12px;font-weight:700;color:var(--accent);min-width:28px;text-align:right">'+s.score+'</div>'+
-      '<div style="font-size:10px;color:var(--muted2);min-width:28px;text-align:right">#'+s.squadRank+'</div>'+
-    '</div>';
+    var p=s.p,dr=(displayRating(p)||0).toFixed(1),dp2=(displayPotential(p)||0).toFixed(1);
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border3);cursor:pointer" onclick="closeClubScout();openPanel(\''+p.id+'\')">'
+      +'<div style="font-size:12px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+(p.team||'')+'</div>'
+      +'<div style="font-size:9px;color:var(--muted2);white-space:nowrap;max-width:80px;overflow:hidden;text-overflow:ellipsis">'+(p.leagueTag||'')+'</div>'
+      +'<div style="font-family:JetBrains Mono,monospace;font-size:12px;font-weight:700;color:'+ratingColor(parseFloat(dr))+';min-width:32px;text-align:right">'+dr+'</div>'
+      +'<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:'+ratingColor(parseFloat(dp2))+';min-width:32px;text-align:right">'+dp2+'</div>'
+      +'<div style="font-family:JetBrains Mono,monospace;font-size:12px;font-weight:700;color:var(--accent);min-width:28px;text-align:right">'+s.score+'</div>'
+      +'<div style="font-size:10px;color:var(--muted2);min-width:28px;text-align:right">#'+s.rank+'</div>'
+      +'</div>';
   }
 
-  var legend='<div style="display:flex;align-items:center;gap:10px;padding:0 0 8px;font-family:JetBrains Mono,monospace;font-size:9px;color:var(--muted2);border-bottom:1px solid var(--border2);margin-bottom:12px">'+
-    '<div style="flex:1">Player</div><div style="min-width:140px">Current Club</div>'+
-    '<div style="min-width:32px;text-align:right">Rtg</div><div style="min-width:32px;text-align:right">Pot</div>'+
-    '<div style="min-width:28px;text-align:right">Scr</div><div style="min-width:28px;text-align:right">Rank</div></div>';
+  var legend='<div style="display:flex;align-items:center;gap:10px;padding:0 0 8px;font-family:JetBrains Mono,monospace;font-size:9px;color:var(--muted2);border-bottom:1px solid var(--border2);margin-bottom:10px">'
+    +'<div style="flex:1">Player</div><div style="min-width:120px">Club</div>'
+    +'<div style="min-width:80px">League</div>'
+    +'<div style="min-width:32px;text-align:right">Rtg</div><div style="min-width:32px;text-align:right">Pot</div>'
+    +'<div style="min-width:28px;text-align:right">Scr</div><div style="min-width:28px;text-align:right">Rank</div></div>';
 
-  var html=legend;
-  var hasAny=false;
-
+  var out=legend,hasAny=false;
   POS_GROUPS.forEach(function(grp){
     var group=scored.filter(function(s){return grp.positions.includes(s.p.pos);});
     if(!group.length) return;
     hasAny=true;
-    var top=group.slice(0,5);
-    var rest=group.slice(5,20);
+    var top=group.slice(0,5),rest=group.slice(5,20);
     var gid='csg_'+grp.label;
-    html+='<div style="margin-bottom:18px">'+
-      '<div style="font-family:Archivo Black,sans-serif;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border2);padding-bottom:4px;margin-bottom:6px">'+grp.label+'</div>'+
-      '<div id="'+gid+'">'+top.map(renderRow).join('')+'</div>';
+    out+='<div style="margin-bottom:16px">'
+      +'<div style="font-family:Archivo Black,sans-serif;font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border2);padding-bottom:4px;margin-bottom:6px">'+grp.label+'</div>'
+      +'<div id="'+gid+'">'+top.map(renderRow).join('')+'</div>';
     if(rest.length){
-      html+=(function(){
-        var restHtml=rest.map(renderRow).join('');
-        html+='<button onclick="clubScoutExpand(this,\''+gid+'\')" data-ex="0" data-rest-html="'+encodeURIComponent(restHtml)+'" data-label="'+grp.label+'" data-total="'+group.length+'" '+
-          'style="margin-top:4px;width:100%;padding:4px 0;background:transparent;border:1px solid var(--border2);border-radius:4px;color:var(--muted);font-family:JetBrains Mono,monospace;font-size:9px;cursor:pointer">'+
-          '&#9660; Show all '+group.length+' '+grp.label+' players</button>';
-      })();
+      out+='<button onclick="clubScoutExpand(this,\''+gid+'\')" data-ex="0"'
+        +' data-rest-html="'+encodeURIComponent(rest.map(renderRow).join(''))+'"'
+        +' data-label="'+grp.label+'" data-total="'+group.length+'"'
+        +' style="margin-top:4px;width:100%;padding:4px 0;background:transparent;border:1px solid var(--border2);'
+        +'border-radius:4px;color:var(--muted);font-family:JetBrains Mono,monospace;font-size:9px;cursor:pointer">'
+        +'&#9660; Show all '+group.length+' '+grp.label+' players</button>';
     }
-    html+='</div>';
+    out+='</div>';
   });
 
-  if(!hasAny) return '<div style="color:var(--muted);padding:20px">No candidates found — try broadening the current filter.</div>';
-  return html;
+  if(!hasAny) return '<div style="color:var(--muted);padding:20px">No suitable candidates found.<br><span style="font-size:10px">Try a different league filter, or the player may be excluded by quality gap checks.</span></div>';
+  return out;
 }
 
 
