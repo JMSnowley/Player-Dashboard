@@ -701,11 +701,90 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     </div>
     <div style="display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--border2);background:var(--surface2)">
       <span style="font-size:10px;color:var(--muted);white-space:nowrap;font-family:'JetBrains Mono',monospace">SCOUT FROM</span>
-      <select id="clubScoutLeagueFilter" onchange="runClubScout()"
-        style="flex:1;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;
-               color:var(--text);font-size:11px;padding:4px 8px;font-family:'JetBrains Mono',monospace">
-        <option value="">All players in DB</option><optgroup label="Tier 1"><option value="England 1">England 1</option><option value="France 1">France 1</option><option value="Germany 1">Germany 1</option><option value="Italy 1">Italy 1</option><option value="Spain 1">Spain 1</option></optgroup><optgroup label="Tier 2"><option value="Argentina 1">Argentina 1</option><option value="Belgium 1">Belgium 1</option><option value="Brazil 1">Brazil 1</option><option value="Denmark 1">Denmark 1</option><option value="England 2">England 2</option><option value="France 2">France 2</option><option value="Germany 2">Germany 2</option><option value="Italy 2">Italy 2</option><option value="Netherlands 1">Netherlands 1</option><option value="Portugal 1">Portugal 1</option><option value="Spain 2">Spain 2</option><option value="Turkey 1">Turkey 1</option><option value="Ukraine 1">Ukraine 1</option></optgroup><optgroup label="Tier 3"><option value="Austria 1">Austria 1</option><option value="Brazil 2">Brazil 2</option><option value="Bulgaria 1">Bulgaria 1</option><option value="Chile 1">Chile 1</option><option value="Colombia 1">Colombia 1</option><option value="Croatia 1">Croatia 1</option><option value="Cyprus 1">Cyprus 1</option><option value="Czech Republic 1">Czech Republic 1</option><option value="Ecuador 1">Ecuador 1</option><option value="England 3">England 3</option><option value="Greece 1">Greece 1</option><option value="Japan 1">Japan 1</option><option value="Mexico 1">Mexico 1</option><option value="Netherlands 2">Netherlands 2</option><option value="Norway 1">Norway 1</option><option value="Poland 1">Poland 1</option><option value="Portugal 2">Portugal 2</option><option value="Romania 1">Romania 1</option><option value="Russia 1">Russia 1</option><option value="Saudi Arabia 1">Saudi Arabia 1</option><option value="Scotland 1">Scotland 1</option><option value="Serbia 1">Serbia 1</option><option value="South Korea 1">South Korea 1</option><option value="Sweden 1">Sweden 1</option><option value="Switzerland 1">Switzerland 1</option><option value="UAE 1">UAE 1</option><option value="USA 1">USA 1</option><option value="United Arab Emirates 1">United Arab Emirates 1</option><option value="Uruguay 1">Uruguay 1</option></optgroup><optgroup label="Tier 4"><option value="Australia 1">Australia 1</option><option value="England 4">England 4</option><option value="England 5">England 5</option><option value="France 3">France 3</option><option value="Germany 3">Germany 3</option><option value="Hungary 1">Hungary 1</option><option value="Israel 1">Israel 1</option><option value="Morocco 1">Morocco 1</option><option value="Paraguay 1">Paraguay 1</option><option value="Qatar 1">Qatar 1</option><option value="Scotland 2">Scotland 2</option><option value="Slovakia 1">Slovakia 1</option><option value="Slovenia 1">Slovenia 1</option><option value="South Africa 1">South Africa 1</option></optgroup><optgroup label="Tier 5"><option value="Georgia 1">Georgia 1</option><option value="Ireland 1">Ireland 1</option><option value="Latvia 1">Latvia 1</option><option value="Northern Ireland 1">Northern Ireland 1</option><option value="Scotland 3">Scotland 3</option><option value="Wales 1">Wales 1</option></optgroup><optgroup label="Tier 6"><option value="Scotland 4">Scotland 4</option></optgroup>
-      </select>
+      <div style="position:relative;flex:1;min-width:0">
+        <button id="csLeagueBtn" onclick="toggleLeagueDropdown(event)"
+          style="width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;
+                 color:var(--text);font-size:11px;padding:4px 8px;font-family:'JetBrains Mono',monospace;
+                 text-align:left;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          All leagues &#9660;
+        </button>
+        <div id="csLeagueDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:999;
+             background:var(--surface2);border:1px solid var(--border2);border-radius:4px;
+             max-height:220px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4);margin-top:2px">
+          <div style="padding:4px 8px;border-bottom:1px solid var(--border2);display:flex;gap:8px">
+            <span onclick="selectAllLeagues(true)" style="font-size:9px;color:var(--accent);cursor:pointer;font-family:'JetBrains Mono',monospace">All</span>
+            <span onclick="selectAllLeagues(false)" style="font-size:9px;color:var(--muted);cursor:pointer;font-family:'JetBrains Mono',monospace">None</span>
+          </div>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Argentina 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Argentina 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Australia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Australia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Austria 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Austria 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Belgium 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Belgium 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Brazil 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Brazil 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Brazil 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Brazil 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Bulgaria 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Bulgaria 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Chile 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Chile 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Colombia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Colombia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Croatia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Croatia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Cyprus 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Cyprus 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Czech Republic 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Czech Republic 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Denmark 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Denmark 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Ecuador 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Ecuador 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="England 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> England 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="England 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> England 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="England 3" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> England 3</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="England 4" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> England 4</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="England 5" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> England 5</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="France 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> France 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="France 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> France 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="France 3" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> France 3</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Georgia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Georgia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Germany 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Germany 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Germany 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Germany 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Germany 3" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Germany 3</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Greece 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Greece 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Hungary 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Hungary 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Ireland 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Ireland 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Israel 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Israel 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Italy 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Italy 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Italy 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Italy 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Japan 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Japan 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Latvia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Latvia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Mexico 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Mexico 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Morocco 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Morocco 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Netherlands 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Netherlands 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Netherlands 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Netherlands 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Northern Ireland 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Northern Ireland 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Norway 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Norway 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Paraguay 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Paraguay 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Poland 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Poland 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Portugal 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Portugal 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Portugal 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Portugal 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Qatar 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Qatar 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Romania 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Romania 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Russia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Russia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Saudi Arabia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Saudi Arabia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Scotland 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Scotland 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Scotland 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Scotland 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Scotland 3" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Scotland 3</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Scotland 4" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Scotland 4</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Serbia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Serbia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Slovakia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Slovakia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Slovenia 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Slovenia 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="South Africa 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> South Africa 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="South Korea 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> South Korea 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Spain 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Spain 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Spain 2" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Spain 2</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Sweden 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Sweden 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Switzerland 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Switzerland 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Turkey 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Turkey 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="UAE 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> UAE 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="USA 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> USA 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Ukraine 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Ukraine 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="United Arab Emirates 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> United Arab Emirates 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Uruguay 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Uruguay 1</label>
+<label style="display:flex;align-items:center;gap:6px;padding:3px 8px;cursor:pointer;white-space:nowrap;font-size:10px;color:var(--text)" onmousedown="event.preventDefault()"><input type="checkbox" value="Wales 1" onchange="updateLeagueFilter()" style="accent-color:var(--accent)"> Wales 1</label>
+        </div>
+      </div>
       <select id="clubScoutPosFilter" onchange="runClubScout()"
         style="background:var(--surface3);border:1px solid var(--border2);border-radius:4px;
                color:var(--text);font-size:11px;padding:4px 8px;font-family:'JetBrains Mono',monospace">
@@ -3473,14 +3552,16 @@ function openClubScout(el){
   _clubScoutTarget.league=el.getAttribute('data-league')||'';
   document.getElementById('clubScoutTitle').textContent='⚽ '+_clubScoutTarget.name+' — Club Scout';
   // Reset filters
-  document.getElementById('clubScoutLeagueFilter').value='';
+  document.querySelectorAll('#csLeagueDropdown input[type=checkbox]').forEach(function(cb){cb.checked=false;});
+  var btn=document.getElementById('csLeagueBtn');if(btn) btn.innerHTML='All leagues &#9660;';
   document.getElementById('clubScoutPosFilter').value='';
   document.getElementById('clubScoutModal').classList.add('open');
   runClubScout();
 }
 function runClubScout(){
   document.getElementById('clubScoutBody').innerHTML='<div style="color:var(--muted);padding:20px;text-align:center">Analysing candidates…</div>';
-  var leagueFilter=document.getElementById('clubScoutLeagueFilter').value;
+  var _checked=[...document.querySelectorAll('#csLeagueDropdown input:checked')].map(function(cb){return cb.value;});
+  var leagueFilter=_checked.length?_checked:null; // null = all leagues
   var posFilter=document.getElementById('clubScoutPosFilter').value;
   setTimeout(function(){
     document.getElementById('clubScoutBody').innerHTML=buildClubScout(
@@ -3488,6 +3569,29 @@ function runClubScout(){
     );
   },30);
 }
+
+function toggleLeagueDropdown(e){
+  e.stopPropagation();
+  var d=document.getElementById('csLeagueDropdown');
+  d.style.display=d.style.display==='none'?'block':'none';
+}
+function selectAllLeagues(val){
+  document.querySelectorAll('#csLeagueDropdown input[type=checkbox]').forEach(function(cb){cb.checked=val;});
+  updateLeagueFilter();
+}
+function updateLeagueFilter(){
+  var checked=[...document.querySelectorAll('#csLeagueDropdown input:checked')].map(function(cb){return cb.value;});
+  var btn=document.getElementById('csLeagueBtn');
+  if(!checked.length) btn.innerHTML='All leagues &#9660;';
+  else if(checked.length===1) btn.innerHTML=checked[0]+' &#9660;';
+  else btn.innerHTML=checked.length+' leagues selected &#9660;';
+  runClubScout();
+}
+// Close dropdown when clicking outside
+document.addEventListener('click',function(e){
+  var d=document.getElementById('csLeagueDropdown');
+  if(d&&!d.contains(e.target)&&e.target.id!=='csLeagueBtn') d.style.display='none';
+});
 function closeClubScout(){
   document.getElementById('clubScoutModal').classList.remove('open');
 }
@@ -3497,7 +3601,7 @@ function buildClubScout(clubName,clubLeague,leagueFilter,posFilter){
   // filtered by the scout-from league/pos selectors in the modal
   var pool=ST.players.filter(function(p){
     if(p.team===clubName&&p.leagueTag===clubLeague) return false; // exclude own squad
-    if(leagueFilter&&p.leagueTag!==leagueFilter) return false;
+    if(leagueFilter&&!leagueFilter.includes(p.leagueTag)) return false;
     if(posFilter&&p.pos!==posFilter) return false;
     return true;
   });
@@ -3637,6 +3741,7 @@ function buildClubScout(clubName,clubLeague,leagueFilter,posFilter){
   var legend='<div style="display:flex;align-items:center;gap:10px;padding:0 0 8px;font-family:JetBrains Mono,monospace;font-size:9px;color:var(--muted2);border-bottom:1px solid var(--border2);margin-bottom:10px">'
     +'<div style="flex:1">Player</div><div style="min-width:120px">Club</div>'
     +'<div style="min-width:80px">League</div>'
+    +'<div style="min-width:20px;text-align:right">Age</div>'
     +'<div style="min-width:32px;text-align:right">Rtg</div><div style="min-width:32px;text-align:right">Pot</div>'
     +'<div style="min-width:28px;text-align:right">Scr</div><div style="min-width:28px;text-align:right">Rank</div></div>';
 
