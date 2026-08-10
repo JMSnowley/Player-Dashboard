@@ -3221,7 +3221,7 @@ function clearSelection(){
   renderTable();
 }
 
-function retroCleanupPhysLinks(){
+async function retroCleanupPhysLinks(){
   // Retrospective cleanup: unlink PHYS snapshots pointing to players
   // that no longer exist in ST.players. Run once after a bulk delete
   // to restore auto-match availability for re-captured players.
@@ -3240,7 +3240,8 @@ function retroCleanupPhysLinks(){
     }
   });
   if(unlinked>0){
-    savePhys();
+    showToast(`Unlinking ${unlinked} orphaned snapshot${unlinked!==1?'s':''}…`,'info');
+    await savePhysicalDB();
     showToast(`Unlinked ${unlinked} orphaned physical snapshot${unlinked!==1?'s':''}. Auto-match is now available.`,'success');
   } else {
     showToast('No orphaned snapshots found — all physical links point to existing players','info');
@@ -3262,7 +3263,7 @@ function deleteSelected(){
         snap.applied=false;
       }
     });
-    savePhys();
+    savePhysicalDB(); // fire-and-forget async save
   }
   ST.players=ST.players.filter(p=>!ids.has(p.id));
   ST.selectedIds.clear();
