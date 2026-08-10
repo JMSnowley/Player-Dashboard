@@ -1325,7 +1325,7 @@ function setEditorMode(isEditor){
   // viewer-mode CSS class hides .col-check column on both th and td — survives table re-renders
   document.body.classList.toggle('viewer-mode',!isEditor);
   // Editor-only buttons
-  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn','physCaptureBtn','physMatchBtn','physApplyBtn','listsBtn'].forEach(id=>{
+  ['clearDataBtn','captureModalBtn','deleteSelBtn','setupBtn','physCaptureBtn','physMatchBtn','physApplyBtn','physCleanupBtn','listsBtn'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.style.display=isEditor?'':'none';
   });
   const selBar=document.getElementById('selBar');
@@ -3221,10 +3221,49 @@ function clearSelection(){
   renderTable();
 }
 
+function retroCleanupPhysLinks(){
+  // Retrospective cleanup: unlink PHYS snapshots pointing to players
+  // that no longer exist in ST.players. Run once after a bulk delete
+  // to restore auto-match availability for re-captured players.
+  if(!PHYS||!PHYS.snapshots||!PHYS.snapshots.length){
+    showToast('No physical snapshots found','error'); return;
+  }
+  const existingIds=new Set(ST.players.map(p=>p.id));
+  let unlinked=0;
+  PHYS.snapshots.forEach(snap=>{
+    if(snap.matchedPlayerId&&!existingIds.has(snap.matchedPlayerId)){
+      snap.matchedPlayerId=null;
+      snap.matchConfidence=null;
+      snap.physicalAdj=null;
+      snap.applied=false;
+      unlinked++;
+    }
+  });
+  if(unlinked>0){
+    savePhys();
+    showToast(`Unlinked ${unlinked} orphaned physical snapshot${unlinked!==1?'s':''}. Auto-match is now available.`,'success');
+  } else {
+    showToast('No orphaned snapshots found — all physical links point to existing players','info');
+  }
+}
+
 function deleteSelected(){
   const ids=new Set(ST.selectedIds);
   if(!ids.size) return;
   if(!confirm(`Delete ${ids.size} player${ids.size!==1?'s':''}? This cannot be undone.`)) return;
+  // Unlink any PHYS snapshots pointing to deleted players
+  // so they can be rematched after a re-capture
+  if(PHYS&&PHYS.snapshots){
+    PHYS.snapshots.forEach(snap=>{
+      if(ids.has(snap.matchedPlayerId)){
+        snap.matchedPlayerId=null;
+        snap.matchConfidence=null;
+        snap.physicalAdj=null;
+        snap.applied=false;
+      }
+    });
+    savePhys();
+  }
   ST.players=ST.players.filter(p=>!ids.has(p.id));
   ST.selectedIds.clear();
   saveState();
