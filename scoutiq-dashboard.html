@@ -1569,47 +1569,36 @@ async function saveToGitHub(){
   setSyncStatus('saving');
   // Strip _metricBonus before saving — it's recalculated fresh on every load
   // and thresholds shift as the player pool changes, so storing it causes stale display values
-  // Strip fields that are recomputed on load — reduces save size by ~18MB
-  // nm/pm = percentile scores (recomputed), _metricBonus = derived bonus
-  const savePlayers=ST.players.map(p=>{
-    const {_metricBonus,nm,pm,...rest}=p;
-    return rest;
-  });
+  // Strip _metricBonus (derived bonus, recalculated on every load)
+  // nm/pm are CAPTURED data and must be saved
+  const savePlayers=ST.players.map(({_metricBonus,...rest})=>rest);
   const payload=JSON.stringify({players:savePlayers,lists:LISTS,savedAt:new Date().toISOString()});
   const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
   const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
 
-  const buildCommit=async()=>{
-    const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
-    if(!refR.ok) throw new Error('ref '+refR.status);
-    const tipSha=(await refR.json()).object.sha;
-    const commitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${tipSha}`,{headers});
-    if(!commitR.ok) throw new Error('commit '+commitR.status);
-    const baseTree=(await commitR.json()).tree.sha;
-    const blobR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:payload,encoding:'utf-8'})});
-    if(!blobR.ok) throw new Error('blob '+blobR.status);
-    const blobSha=(await blobR.json()).sha;
-    const treeR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
-    if(!treeR.ok) throw new Error('tree '+treeR.status);
-    const newTreeSha=(await treeR.json()).sha;
-    const newCommitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16),tree:newTreeSha,parents:[tipSha]})});
-    if(!newCommitR.ok) throw new Error('newcommit '+newCommitR.status);
-    return (await newCommitR.json()).sha;
+  // Use Contents API — more reliable than blob/tree/commit for large files
+  // Step 1: get current file SHA (needed for update)
+  // Step 2: PUT with base64-encoded content
+  const saveViaContents=async()=>{
+    const fileR=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{headers});
+    const fileSha=fileR.ok?(await fileR.json()).sha:null;
+    const encoded=btoa(unescape(encodeURIComponent(payload)));
+    const body=JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16),content:encoded,branch,...(fileSha?{sha:fileSha}:{})});
+    const putR=await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`,{method:'PUT',headers,body});
+    if(!putR.ok) throw new Error('contents PUT '+putR.status);
+    return putR;
   };
 
   let lastErr;
   for(let attempt=1;attempt<=3;attempt++){
     try{
-      if(attempt>1) await new Promise(r=>setTimeout(r,2000*attempt));
-      const commitSha=await buildCommit();
-      const updateR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:commitSha})});
-      if(updateR.ok){ setSyncStatus('saved'); showToast('Saved — viewers will see updates shortly','success'); return; }
-      if(updateR.status===422){ lastErr=new Error('422 conflict'); continue; }
-      throw new Error('Could not update ref: '+updateR.status);
+      if(attempt>1) await new Promise(r=>setTimeout(r,3000*attempt));
+      await saveViaContents();
+      setSyncStatus('saved'); showToast('Saved — viewers will see updates shortly','success'); return;
     }catch(e){ lastErr=e; console.warn('saveToGitHub attempt '+attempt+' failed:',e.message); }
   }
   setSyncStatus('error');
-  throw new Error('Could not update ref: '+lastErr.message);
+  throw new Error('Save failed: '+lastErr.message);
 }
 
 async function saveData(){
