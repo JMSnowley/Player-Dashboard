@@ -1569,7 +1569,12 @@ async function saveToGitHub(){
   setSyncStatus('saving');
   // Strip _metricBonus before saving — it's recalculated fresh on every load
   // and thresholds shift as the player pool changes, so storing it causes stale display values
-  const savePlayers=ST.players.map(({_metricBonus,...rest})=>rest);
+  // Strip fields that are recomputed on load — reduces save size by ~18MB
+  // nm/pm = percentile scores (recomputed), _metricBonus = derived bonus
+  const savePlayers=ST.players.map(p=>{
+    const {_metricBonus,nm,pm,...rest}=p;
+    return rest;
+  });
   const payload=JSON.stringify({players:savePlayers,lists:LISTS,savedAt:new Date().toISOString()});
   const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
   const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
