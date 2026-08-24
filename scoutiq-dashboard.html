@@ -574,6 +574,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     </div>
     <div class="sb-footer">
       <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:10px" onclick="exportCSV()">↓ Export CSV</button>
+      <button class="btn btn-ghost" style="width:100%;justify-content:center;font-size:10px;background:var(--accent);color:#000;font-weight:700" onclick="emergencyBackup()">⚠ Backup nm/pm Now</button>
       <button id="clearDataBtn" class="btn btn-danger" style="width:100%;justify-content:center;font-size:10px;display:none" onclick="clearAllData()">✕ Clear All Data</button>
     </div>
   </nav>
@@ -8802,6 +8803,24 @@ function setSort(k){
 // ═══════════════════════════════════
 // EXPORT & CLEAR
 // ═══════════════════════════════════
+function emergencyBackup(){
+  // Export full player data including nm/pm from localStorage
+  // This saves the complete data before it can be lost
+  const s=localStorage.getItem('scoutiq_v4');
+  if(!s){ showToast('No localStorage data found','error'); return; }
+  const data=JSON.parse(s);
+  const players=data.players||[];
+  const withNm=players.filter(p=>p.nm&&Object.keys(p.nm).length>0);
+  console.log('Players with nm:',withNm.length,'/',players.length);
+  // Download as JSON
+  const blob=new Blob([s],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='plyrdash_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  showToast('Backup downloaded — '+withNm.length+' players have nm/pm data. Upload this file as db.json to GitHub to restore.','success');
+}
+
 function exportCSV(){
   const {list}=getFiltered();if(!list.length){showToast('No data','error');return;}
   const posConf=ST.filterPos!=='all'?POS_CONFIG[ST.filterPos]:null;
