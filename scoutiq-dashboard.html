@@ -1540,12 +1540,12 @@ async function loadFromGitHub(skipCacheBuild=false){
       // Ensure sort stays name alphabetical after load
       ST.sortKey='name'; ST.sortDir=1;
       saveState(); renderAll();
-      if(migrated&&GH.token) queueGitHubSave(saveData); // only save if editor (has token)
+      // No automatic save on load: migrations are idempotent and re-run in memory each load, so a 40MB write here is never needed.
       showToast('Loaded ' + data.players.length + ' players', 'success');
     }
     setSyncStatus('synced');
     if(!ST.auth) setSheetStatus('public');
-  } catch(e){ setSyncStatus('error'); console.error('loadFromGitHub', e); }
+  } catch(e){ window._lastSyncErr='Load failed: '+(e&&e.message||e); setSyncStatus('error'); console.error('loadFromGitHub', e); showToast(window._lastSyncErr.slice(0,260),'error',20000); }
 }
 
 // ═══════════════════════════════════
@@ -1616,7 +1616,7 @@ async function saveToGitHub(){
     }catch(e){ lastErr=e; console.warn('saveToGitHub attempt '+attempt+' failed:',e.message); }
   }
   setSyncStatus('error');
-  showToast('Save failed: '+lastErr.message.slice(0,160),'error');
+  window._lastSyncErr='Save failed: '+lastErr.message; showToast(window._lastSyncErr.slice(0,260),'error',20000);
   throw new Error('Save failed: '+lastErr.message);
 }
 
@@ -1717,6 +1717,8 @@ function setSyncStatus(status){
   if(!lbl) return;
   const map={saving:'↑ Saving…',saved:'✓ Saved',loading:'↓ Loading…',synced:'✓ Synced',error:'⚠ Sync error',idle:''};
   lbl.textContent=map[status]||'';
+  lbl.style.cursor=status==='error'?'pointer':'';
+  lbl.onclick=status==='error'?()=>showToast(window._lastSyncErr||'No error details recorded — open the browser console (F12) for more','error',20000):null;
   lbl.style.color=status==='error'?'var(--red)':status==='synced'||status==='saved'?'var(--green)':'var(--muted2)';
   // Warn before leaving if save in progress
   if(status==='saving'){
@@ -8881,10 +8883,10 @@ function clearAllData(){if(!confirm('Clear all player data?'))return;ST.players=
 // MODALS & TOASTS
 // ═══════════════════════════════════
 function closeModal(id){document.getElementById(id).classList.remove('open');}
-function showToast(msg,type='info'){
+function showToast(msg,type='info',ms=3500){
   const c=document.getElementById('toastContainer'),t=document.createElement('div');
   t.className=`toast ${type}`;t.innerHTML=`<span>${type==='success'?'✓':type==='error'?'✕':'ℹ'}</span>${msg}`;
-  c.appendChild(t);setTimeout(()=>{t.style.cssText='opacity:0;transform:translateY(4px);transition:all .2s';setTimeout(()=>t.remove(),200);},3500);
+  c.appendChild(t);setTimeout(()=>{t.style.cssText='opacity:0;transform:translateY(4px);transition:all .2s';setTimeout(()=>t.remove(),200);},ms);
 }
 
 // ═══════════════════════════════════
