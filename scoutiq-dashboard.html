@@ -2253,7 +2253,8 @@ function seasonCaptureDate(season){
   const splitMatch=season&&season.match(/^(\d{2})\/(\d{2})$/);
   if(splitMatch){
     const endYear=2000+parseInt(splitMatch[2]);
-    if(endYear>=nowYear) return now.toISOString(); // current or future
+    // Season counts as current only until 30 June of its end year; after that it's a past season (dated 30 May)
+    if(now<=new Date(endYear,5,30,23,59,59)) return now.toISOString();
     return new Date(endYear,4,30,12,0,0).toISOString(); // May 30
   }
   // Calendar year e.g. "2023" → Nov 30 of that year
@@ -2279,6 +2280,7 @@ async function runCapture(){
   pw.style.display='block';
   const capturedAt=seasonCaptureDate(season);
   const newSnaps=[];
+  try{
   for(let i=0;i<selected.length;i++){
     const ck=selected[i],tabName=ST.cfg.tabs[ck];
     pl.textContent=`Reading ${ck==='MF'?'Midfielders':POS_CONFIG[ck]?.label} (${tabName})…`;
@@ -2331,6 +2333,7 @@ async function runCapture(){
   showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
   queueGitHubSave(saveData);
   setTimeout(()=>{closeModal('captureModal');btn.disabled=false;pw.style.display='none';},800);
+  }catch(e){ console.error('runCapture failed',e); showToast('Capture failed: '+e.message,'error'); btn.disabled=false; pw.style.display='none'; }
 }
 
 // ═══════════════════════════════════
@@ -2608,25 +2611,42 @@ function createPlayer(snap){
     rating:capScore(snap.rating),potential:capScore(snap.potential),ptPriority:capScore(snap.ptPriority),leaguePct:snap.leaguePct,
     wyscoutPositions:snap.wyscoutPositions||'',
     season:snap.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm,
+    scoreAdjusted:7,
     history:[buildHistoryEntry(snap)]});
 }
 function addSnapshot(idx,snap){
   const p=ST.players[idx];
   if(!p.history)p.history=[];
-  p.history.push(buildHistoryEntry(snap));
+  // Re-capture of the same season/league/club: replace the old entry instead of stacking a duplicate
+  const he=buildHistoryEntry(snap);
+  const dupH=p.history.findIndex(h=>!h.type&&h.season===he.season&&h.leagueTag===he.leagueTag&&norm(h.team)===norm(he.team)&&(h.pos||p.pos)===he.pos);
+  if(dupH>=0) p.history[dupH]=he; else p.history.push(he);
   // Only update main player display if this snap is newer than current
   const snapDate=new Date(snap.capturedAt), curDate=new Date(p.capturedAt||0);
-  if(snapDate>=curDate){
-    const seasonChanging=snap.season&&p.season&&snap.season!==p.season;
-    Object.assign(p,{team:snap.team,nationalities:snap.nationalities||p.nationalities||[],age:snap.age,minutes:snap.minutes,
-      contractExpires:snap.contractExpires,rating:capScore(snap.rating),potential:capScore(snap.potential),ptPriority:capScore(snap.ptPriority),leaguePct:snap.leaguePct,
-      wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
-      season:snap.season||p.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:snap.roles,nm:snap.nm,pm:snap.pm});
-    // Clear physical flag if season changed — physical from old season shouldn't carry over
-    if(seasonChanging) p.hasPhysical=false;
-  }
+  if(snapDate<curDate) return;
+  const sameSeason=!!snap.season&&snap.season===p.season;
+  // Same player captured in two position tabs in the same season: keep whichever has more minutes
+  if(sameSeason&&p.pos!==snap.pos&&p.minutes!=null&&snap.minutes!=null&&p.minutes>snap.minutes) return;
+  const seasonChanging=snap.season&&p.season&&snap.season!==p.season;
+  const posChanging=!!snap.pos&&snap.pos!==p.pos;
+  const hasMetrics=o=>o&&Object.keys(o).length>0;
+  // If the new capture came back with no metrics (e.g. missing row in a position tab) keep the old ones, but never across a position change
+  const keepOld=!posChanging;
+  const newNm=hasMetrics(snap.nm)||!keepOld?snap.nm:(p.nm||snap.nm);
+  const newPm=hasMetrics(snap.pm)||!keepOld?snap.pm:(p.pm||snap.pm);
+  const newRoles=hasMetrics(snap.roles)||!keepOld?snap.roles:(p.roles||snap.roles);
+  // Physical adjustments were baked into the OLD rating — the fresh rating has none, so mark them not-applied
+  // (otherwise the next physical recompute subtracts an adjustment that is no longer there)
+  if(sameSeason||posChanging) (PHYS.snapshots||[]).forEach(s=>{ if(s.matchedPlayerId===p.id){ s.applied=false; s.physicalAdj=null; } });
+  Object.assign(p,{pos:snap.pos||p.pos,team:snap.team,nationalities:snap.nationalities||p.nationalities||[],age:snap.age,minutes:snap.minutes,
+    contractExpires:snap.contractExpires||p.contractExpires||'',rating:capScore(snap.rating),potential:capScore(snap.potential),ptPriority:capScore(snap.ptPriority),leaguePct:snap.leaguePct,
+    wyscoutPositions:snap.wyscoutPositions||p.wyscoutPositions||'',
+    season:snap.season||p.season||'',leagueTag:snap.leagueTag,capturedAt:snap.capturedAt,roles:newRoles,nm:newNm,pm:newPm,
+    scoreAdjusted:7});
+  // Physical from an old season/position shouldn't carry over
+  if(seasonChanging||posChanging) p.hasPhysical=false;
 }
-function buildHistoryEntry(snap){return{capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,season:snap.season||'',team:snap.team,nationalities:snap.nationalities||[],rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
+function buildHistoryEntry(snap){return{pos:snap.pos,capturedAt:snap.capturedAt,leagueTag:snap.leagueTag,season:snap.season||'',team:snap.team,nationalities:snap.nationalities||[],rating:snap.rating,potential:snap.potential,ptPriority:snap.ptPriority,leaguePct:snap.leaguePct,age:snap.age,minutes:snap.minutes,roles:snap.roles};}
 function showDupPrompt(snap,matches){
   return new Promise(res=>{
     ST.dupResolve=res;
