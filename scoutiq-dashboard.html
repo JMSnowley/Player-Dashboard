@@ -1527,7 +1527,7 @@ async function loadFromGitHub(skipCacheBuild=false){
         });
       });
       // Floor PT Priority at 0 for any players that went negative
-      ST.players.forEach(p=>{ if(p.ptPriority!=null&&p.ptPriority<0) p.ptPriority=0; migrated=true; });
+      ST.players.forEach(p=>{ if(p.ptPriority!=null&&p.ptPriority<0){ p.ptPriority=0; migrated=true; } });
       // Clear any stale _metricBonus — will be recalculated fresh by computeMetricBonuses
       ST.players.forEach(p=>{ delete p._metricBonus; });
       if(!skipCacheBuild){
@@ -1559,12 +1559,13 @@ function queueGitHubSave(fn){
   _ghSaveQueue=_ghSaveQueue
     .then(()=>Promise.race([
       fn(),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('GitHub save timeout after 90s')),90000))
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('GitHub save timeout after 300s')),300000))
     ]))
     .catch(e=>console.warn('queued save error:',e.message));
   return _ghSaveQueue;
 }
 
+async function _ghErr(r,label){ let b=''; try{ b=(await r.text()).slice(0,300); }catch(e){} return new Error(label+' '+r.status+(b?' – '+b:'')); }
 async function saveToGitHub(){
   if(!GH.token){ showToast('Enter your GitHub token in Setup to save','error'); return; }
   setSyncStatus('saving');
@@ -1583,23 +1584,23 @@ async function saveToGitHub(){
     const encoded=btoa(unescape(encodeURIComponent(payload)));
     // 1. Get current HEAD
     const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
-    if(!refR.ok) throw new Error('ref '+refR.status);
+    if(!refR.ok) throw await _ghErr(refR,'ref');
     const tipSha=(await refR.json()).object.sha;
     // 2. Get base tree
     const commitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${tipSha}`,{headers});
-    if(!commitR.ok) throw new Error('commit '+commitR.status);
+    if(!commitR.ok) throw await _ghErr(commitR,'commit');
     const baseTree=(await commitR.json()).tree.sha;
     // 3. Create blob with base64 encoding (avoids 422 on large utf-8 blobs)
     const blobR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:encoded,encoding:'base64'})});
-    if(!blobR.ok) throw new Error('blob '+blobR.status);
+    if(!blobR.ok) throw await _ghErr(blobR,'blob');
     const blobSha=(await blobR.json()).sha;
     // 4. Create tree
     const treeR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
-    if(!treeR.ok) throw new Error('tree '+treeR.status);
+    if(!treeR.ok) throw await _ghErr(treeR,'tree');
     const newTreeSha=(await treeR.json()).sha;
     // 5. Create commit
     const newCommitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16),tree:newTreeSha,parents:[tipSha]})});
-    if(!newCommitR.ok) throw new Error('newcommit '+newCommitR.status);
+    if(!newCommitR.ok) throw await _ghErr(newCommitR,'newcommit');
     return (await newCommitR.json()).sha;
   };
 
@@ -1610,11 +1611,12 @@ async function saveToGitHub(){
       const commitSha=await buildCommit();
       const updateR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:commitSha})});
       if(updateR.ok){ setSyncStatus('saved'); showToast('Saved — viewers will see updates shortly','success'); return; }
-      if(updateR.status===422){ lastErr=new Error('ref conflict'); continue; }
-      throw new Error('ref update '+updateR.status);
+      if(updateR.status===422){ lastErr=await _ghErr(updateR,'ref conflict'); continue; }
+      throw await _ghErr(updateR,'ref update');
     }catch(e){ lastErr=e; console.warn('saveToGitHub attempt '+attempt+' failed:',e.message); }
   }
   setSyncStatus('error');
+  showToast('Save failed: '+lastErr.message.slice(0,160),'error');
   throw new Error('Save failed: '+lastErr.message);
 }
 
