@@ -1430,7 +1430,23 @@ async function loadFromGitHub(skipCacheBuild=false){
     setSyncStatus('loading');
     const resp = await fetch(GH.rawUrl + '?cb=' + Date.now());
     if(!resp.ok){ setSyncStatus('idle'); return; }
-    const data = await resp.json();
+    let data = await resp.json();
+    if(data&&data.format==='sharded-v1'){
+      // Players live in db_shard_N.json; all shards must carry the manifest's version (guards against reading mid-update)
+      let players=null;
+      for(let attempt=1;attempt<=4&&!players;attempt++){
+        if(attempt>1) await new Promise(r=>setTimeout(r,2500));
+        const base=GH.rawUrl.replace(/db\.json$/,'');
+        const parts=await Promise.all(Array.from({length:data.shards},(_,i)=>fetch(base+`db_shard_${i}.json?cb=${Date.now()}`).then(r=>{ if(!r.ok) throw new Error('shard '+i+' '+r.status); return r.json(); })));
+        if(parts.every(p=>p.ver===data.ver)){
+          const all=parts.flatMap(p=>p.players||[]);
+          if(all.length===data.count) players=all;
+        }
+      }
+      if(!players) throw new Error('db shards did not match manifest (try again in a minute)');
+      data={players,lists:data.lists};
+    }
+    
     if(data.players && data.players.length){
       ST.players = data.players;
       if(data.lists){
@@ -1566,40 +1582,44 @@ function queueGitHubSave(fn){
 }
 
 async function _ghErr(r,label){ let b=''; try{ b=(await r.text()).slice(0,300); }catch(e){} return new Error(label+' '+r.status+(b?' – '+b:'')); }
+// ── SHARDED STORAGE ──────────────────────────────────────────────
+// GitHub's API rejects a single ~40MB blob ("input too large"), so the database is stored as
+// db.json (small manifest + lists) plus db_shard_0..7.json (players split by id). One commit writes all of them.
+const DB_SHARDS=8;
+function _shardOf(id){ let x=0; const s=String(id||''); for(let i=0;i<s.length;i++) x=(x*31+s.charCodeAt(i))|0; return Math.abs(x)%DB_SHARDS; }
 async function saveToGitHub(){
   if(!GH.token){ showToast('Enter your GitHub token in Setup to save','error'); return; }
   setSyncStatus('saving');
-  // Strip _metricBonus before saving — it's recalculated fresh on every load
-  // and thresholds shift as the player pool changes, so storing it causes stale display values
-  // Strip _metricBonus (derived bonus, recalculated on every load)
-  // nm/pm are CAPTURED data and must be saved
+  // nm/pm are CAPTURED data and must be saved. Only _metricBonus (derived) is stripped.
   const savePlayers=ST.players.map(({_metricBonus,...rest})=>rest);
-  const payload=JSON.stringify({players:savePlayers,lists:LISTS,savedAt:new Date().toISOString()});
-  const owner='JMSnowley',repo='Player-Dashboard',path='db.json',branch='main';
+  const ver=Date.now(), savedAt=new Date().toISOString();
+  const buckets=Array.from({length:DB_SHARDS},()=>[]);
+  savePlayers.forEach(p=>buckets[_shardOf(p.id)].push(p));
+  const files=[{path:'db.json',content:JSON.stringify({format:'sharded-v1',shards:DB_SHARDS,count:savePlayers.length,ver,lists:LISTS,savedAt})}];
+  buckets.forEach((pl,i)=>files.push({path:`db_shard_${i}.json`,content:JSON.stringify({ver,index:i,players:pl})}));
+  const owner='JMSnowley',repo='Player-Dashboard',branch='main';
   const headers={'Authorization':'token '+GH.token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'};
-
-  // Git Data API with base64 blob — correct approach for large files (>1MB)
-  // base64 encoding avoids the utf-8 422 error on large blobs
+  const api=u=>`https://api.github.com/repos/${owner}/${repo}/${u}`;
+  const blobShas={}; // reused across retry attempts so each file uploads once
   const buildCommit=async()=>{
-    const encoded=btoa(unescape(encodeURIComponent(payload)));
-    // 1. Get current HEAD
-    const refR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,{headers});
+    for(const f of files){
+      if(blobShas[f.path]) continue;
+      const encoded=btoa(unescape(encodeURIComponent(f.content)));
+      const blobR=await fetch(api('git/blobs'),{method:'POST',headers,body:JSON.stringify({content:encoded,encoding:'base64'})});
+      if(!blobR.ok) throw await _ghErr(blobR,'blob '+f.path);
+      blobShas[f.path]=(await blobR.json()).sha;
+    }
+    // Fetch the branch tip AFTER the uploads so the commit sits on the latest head
+    const refR=await fetch(api('git/ref/heads/'+branch),{headers});
     if(!refR.ok) throw await _ghErr(refR,'ref');
     const tipSha=(await refR.json()).object.sha;
-    // 2. Get base tree
-    const commitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits/${tipSha}`,{headers});
+    const commitR=await fetch(api('git/commits/'+tipSha),{headers});
     if(!commitR.ok) throw await _ghErr(commitR,'commit');
     const baseTree=(await commitR.json()).tree.sha;
-    // 3. Create blob with base64 encoding (avoids 422 on large utf-8 blobs)
-    const blobR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/blobs`,{method:'POST',headers,body:JSON.stringify({content:encoded,encoding:'base64'})});
-    if(!blobR.ok) throw await _ghErr(blobR,'blob');
-    const blobSha=(await blobR.json()).sha;
-    // 4. Create tree
-    const treeR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees`,{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:[{path,mode:'100644',type:'blob',sha:blobSha}]})});
+    const treeR=await fetch(api('git/trees'),{method:'POST',headers,body:JSON.stringify({base_tree:baseTree,tree:files.map(f=>({path:f.path,mode:'100644',type:'blob',sha:blobShas[f.path]}))})});
     if(!treeR.ok) throw await _ghErr(treeR,'tree');
     const newTreeSha=(await treeR.json()).sha;
-    // 5. Create commit
-    const newCommitR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/commits`,{method:'POST',headers,body:JSON.stringify({message:'PLYRDASH db '+new Date().toISOString().slice(0,16),tree:newTreeSha,parents:[tipSha]})});
+    const newCommitR=await fetch(api('git/commits'),{method:'POST',headers,body:JSON.stringify({message:'PLYRDASH db '+savedAt.slice(0,16),tree:newTreeSha,parents:[tipSha]})});
     if(!newCommitR.ok) throw await _ghErr(newCommitR,'newcommit');
     return (await newCommitR.json()).sha;
   };
@@ -1609,7 +1629,7 @@ async function saveToGitHub(){
     try{
       if(attempt>1) await new Promise(r=>setTimeout(r,3000*attempt));
       const commitSha=await buildCommit();
-      const updateR=await fetch(`https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${branch}`,{method:'PATCH',headers,body:JSON.stringify({sha:commitSha})});
+      const updateR=await fetch(api('git/refs/heads/'+branch),{method:'PATCH',headers,body:JSON.stringify({sha:commitSha})});
       if(updateR.ok){ setSyncStatus('saved'); showToast('Saved — viewers will see updates shortly','success'); return; }
       if(updateR.status===422){ lastErr=await _ghErr(updateR,'ref conflict'); continue; }
       throw await _ghErr(updateR,'ref update');
