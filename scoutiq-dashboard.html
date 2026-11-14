@@ -2354,7 +2354,7 @@ async function runCapture(){
   computeAllLeaguePct();
   pf.style.width='100%';pl.textContent='Done!';
   saveState();renderAll();
-  showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`,'success');
+  showToast(`Captured ${newSnaps.length} players — ${fmtDate(capturedAt)}`+((ST._autoMatched&&ST._autoMatched.length)?` · ${ST._autoMatched.length} returning players matched automatically`:''),'success',6000);
   queueGitHubSave(saveData);
   setTimeout(()=>{closeModal('captureModal');btn.disabled=false;pw.style.display='none';},800);
   }catch(e){ console.error('runCapture failed',e); showToast('Capture failed: '+e.message,'error'); btn.disabled=false; pw.style.display='none'; }
@@ -2510,7 +2510,28 @@ function ageConsistent(existingAge, existingCaptureDate, newAge, newCaptureDate)
   return actualAgeDiff>=expectedAgeDiff-1 && actualAgeDiff<=expectedAgeDiff+1;
 }
 
-async function processDupQueue(){closeModal('dupModal');for(const snap of ST.dupQueue)await resolveSnap(snap);closeModal('dupModal');}
+async function processDupQueue(){
+  closeModal('dupModal');
+  // Names appearing more than once in this capture can't be auto-matched (could be two different players)
+  ST._batchNames={}; ST._autoMatched=[];
+  ST.dupQueue.forEach(s=>{ const k=norm(s.name); ST._batchNames[k]=(ST._batchNames[k]||0)+1; });
+  for(const snap of ST.dupQueue)await resolveSnap(snap);
+  closeModal('dupModal');
+  if(ST._autoMatched.length){
+    console.log('Auto-matched '+ST._autoMatched.length+' returning players (name + age + position fit):',ST._autoMatched.map(a=>`${a.name}: ${a.fromTeam}/${a.fromPos} → ${a.toTeam}/${a.toPos}`));
+  }
+}
+
+// Positions that are plausible moves for the same player between captures
+const POS_NEIGHBOURS={CB:['FB','DM'],FB:['CB'],DM:['CB','CM'],CM:['DM','AM'],AM:['CM','WF','CF'],WF:['AM','CF'],CF:['WF','AM'],GK:[]};
+function posClose(a,b){ if(!a||!b) return false; if(a===b) return true; return (POS_NEIGHBOURS[a]||[]).includes(b); }
+// Strict age check for auto-matching: age must have risen by roughly the time elapsed (0 or 1 within a year, etc.)
+function ageFitsTight(existingAge,existingDate,newAge,newDate){
+  if(existingAge==null||newAge==null) return false; // no age → can't auto-match, ask
+  const yrs=Math.abs((new Date(newDate)-new Date(existingDate))/(1000*60*60*24*365.25));
+  const diff=newAge-existingAge;
+  return diff>=Math.floor(yrs+0.05) && diff<=Math.ceil(yrs-0.05);
+}
 
 async function resolveSnap(snap){
   const nameNorm=norm(snap.name);
@@ -2577,6 +2598,19 @@ async function resolveSnap(snap){
     const finalCandidates=posFiltered.length>0?posFiltered:candidates;
     if(finalCandidates.length===0){
       createPlayer(snap); return;
+    }
+    // AUTO-MATCH: one plausible record, same name, age fits the time elapsed, position is the same or a close one
+    // (and the name is unique within this capture) → merge without asking
+    if(finalCandidates.length===1&&(ST._batchNames?.[nameNorm]||0)<=1){
+      const c=finalCandidates[0];
+      if(natConsistent(c.nationalities||[],snap.nationalities||[])&&ageFitsTight(c.age,c.capturedAt,snap.age,snap.capturedAt)&&posClose(c.pos,snap.pos)){
+        const idx=ST.players.findIndex(p=>p.id===c.id);
+        if(idx>=0){
+          (ST._autoMatched=ST._autoMatched||[]).push({name:snap.name,fromTeam:c.team,fromPos:c.pos,toTeam:snap.team,toPos:snap.pos});
+          addSnapshot(idx,snap);
+          return;
+        }
+      }
     }
     if(finalCandidates.length===1){
       // Only one plausible match after all guards — prompt (they may have transferred)
