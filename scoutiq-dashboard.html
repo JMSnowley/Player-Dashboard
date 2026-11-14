@@ -1620,9 +1620,11 @@ async function saveToGitHub(){
   throw new Error('Save failed: '+lastErr.message);
 }
 
+// NOTE: always call as queueGitHubSave(saveData). It runs inside the queue, so it must call saveToGitHub directly
+// (queueing again from inside the queue waits on itself until the timeout, then fails).
 async function saveData(){
-  await queueGitHubSave(saveToGitHub);
-  await saveToSheet();
+  await saveToGitHub();
+  if(typeof saveToSheet==='function') await saveToSheet();
 }
 // ═══════════════════════════════════
 // PHYSICAL DB LOAD / SAVE
@@ -1706,7 +1708,7 @@ async function savePhysicalDB(){
 
 
 async function manualSync(){
-  await saveData();
+  await queueGitHubSave(saveData);
   await loadFromGitHub();
 }
 
