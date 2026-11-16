@@ -2277,7 +2277,7 @@ function openCaptureModal(){
   cs.value='England';
   const ss=document.getElementById('capSeason');
   ss.innerHTML=SEASONS.map(s=>`<option value="${s}">${s}</option>`).join('');
-  ss.value='25/26';updateLeaguePreview();
+  ss.value=getLastCaptureSeason();updateLeaguePreview();
   document.getElementById('capProgWrap').style.display='none';
   document.getElementById('captureBtn').disabled=false;
   document.getElementById('captureModal').classList.add('open');
@@ -2318,6 +2318,7 @@ async function runCapture(){
   if(leagueTag.startsWith('—')){showToast('Select a country and tier','error');return;}
   const season=document.getElementById('capSeason').value||'';
   const ok=await ensureAuth();if(!ok)return;
+  try{ if(season) localStorage.setItem('plyrdash_lastcapseason',season); }catch(e){}
   const btn=document.getElementById('captureBtn');btn.disabled=true;
   const pw=document.getElementById('capProgWrap'),pf=document.getElementById('capProgFill'),pl=document.getElementById('capProgLbl');
   pw.style.display='block';
@@ -4051,8 +4052,8 @@ function setPhysSeasonType(type){
   const seasons=type==='winter'?PHYS_WINTER_SEASONS:PHYS_SUMMER_SEASONS;
   const sel=document.getElementById('physCapSeason');
   sel.innerHTML=seasons.map(s=>`<option value="${s}">${s}</option>`).join('');
-  // Default: 25/26 for winter, 2026 for summer
-  sel.value=type==='winter'?'25/26':'2026';
+  // Default: 26/27 for winter, 2026 for summer
+  sel.value=type==='winter'?'26/27':'2026';
   // Style buttons
   document.getElementById('physSeasonTypeWinter').className='btn '+(type==='winter'?'btn-gold':'btn-ghost')+' ';
   document.getElementById('physSeasonTypeSummer').className='btn '+(type==='summer'?'btn-gold':'btn-ghost')+' ';
@@ -8886,6 +8887,14 @@ function resetDefaultView(){
   try{ localStorage.removeItem('plyrdash_defaultview'); }catch(e){}
   refreshDefaultViewLabel();
   showToast('Default reset to 2026 + 26/27, all leagues','info');
+}
+// Capture dialog defaults to the season you captured last (remembered per browser),
+// falling back to the season of the most recently captured player in the database.
+function getLastCaptureSeason(){
+  try{ const s=localStorage.getItem('plyrdash_lastcapseason'); if(s&&SEASONS.includes(s)) return s; }catch(e){}
+  let best=null;
+  ST.players.forEach(p=>{ if(p.season&&p.capturedAt&&(!best||p.capturedAt>best.capturedAt)) best=p; });
+  return best&&SEASONS.includes(best.season)?best.season:'26/27';
 }
 function clearAllFilters(){
   // Reset nav filters
