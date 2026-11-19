@@ -3592,21 +3592,23 @@ function computeMetricBonuses(){
 }
 
 // Display helpers — always use these when showing ratings in the UI
+// Share of the displayed rating that comes from the club's level (wage budget). Raw stored ratings are never changed.
+const CLUB_WEIGHT=0.10;
 function displayRating(p){
   if(p.rating==null) return null;
   const cr=getClubRating(p.team||'',p.leagueTag||'');
-  return Math.round(Math.min(100,0.8*p.rating+0.2*cr)*10)/10;
+  return Math.round(Math.min(100,(1-CLUB_WEIGHT)*p.rating+CLUB_WEIGHT*cr)*10)/10;
 }
 function displayPotential(p){
   if(p.potential==null) return null;
   const cr=getClubRating(p.team||'',p.leagueTag||'');
-  return Math.round(Math.min(100,0.8*p.potential+0.2*cr)*10)/10;
+  return Math.round(Math.min(100,(1-CLUB_WEIGHT)*p.potential+CLUB_WEIGHT*cr)*10)/10;
 }
 function displayPTP(p){
   if(p.ptPriority==null) return null;
   const cr=getClubRating(p.team||'',p.leagueTag||'');
   const base=Math.min(100,Math.max(0,(p.ptPriority)+(p._metricBonus?.pt||0)));
-  return Math.round(Math.min(100,0.8*base+0.2*cr)*10)/10;
+  return Math.round(Math.min(100,(1-CLUB_WEIGHT)*base+CLUB_WEIGHT*cr)*10)/10;
 }
 
 // ═══════════════════════════════════
