@@ -478,6 +478,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button id="listsBtn" class="btn btn-ghost" onclick="openListsModal()" style="font-size:11px">≡ Lists</button>
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
+    <button class="btn btn-ghost" id="restoreArchiveBtn" onclick="restoreArchive()" style="font-size:10px" title="One-off: restores the 25/26 technical metrics of players already re-captured in 26/27">⟲ Restore 25/26 metrics</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button id="physCaptureBtn" class="btn btn-gold" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
     <button id="physMatchBtn" class="btn btn-ghost" onclick="openPhysMatchModal()" style="display:none;font-size:11px">🔗 Match Physical</button>
@@ -2692,6 +2693,35 @@ function createPlayer(snap){
     scoreAdjusted:7,
     history:[buildHistoryEntry(snap)]});
 }
+// Copies the main record's technical metrics (nm/pm), position and role data into the matching history entry
+// so a later capture of a new season does not destroy them. Idempotent: never overwrites an entry that already has metrics.
+function archivePreviousRecord(p){
+  if(!p||(!p.nm&&!p.pm)) return false;
+  const h=(p.history||[]).find(h=>!h.type&&h.season===p.season&&h.leagueTag===p.leagueTag&&norm(h.team)===norm(p.team));
+  if(!h||h.nm||h.pm) return false;
+  h.nm=p.nm; h.pm=p.pm; h.pos=h.pos||p.pos; h.wyscoutPositions=p.wyscoutPositions||'';
+  return true;
+}
+// One-off recovery: fills the missing old-season metrics of re-captured players from archive_2526.json (in the repo)
+async function restoreArchive(){
+  try{
+    showToast('Reading archive…','info',2500);
+    const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/archive_2526.json?cb='+Date.now());
+    if(!r.ok){showToast('archive_2526.json not found in the repo ('+r.status+')','error',8000);return;}
+    const A=await r.json(); const byId=new Map(ST.players.map(p=>[p.id,p]));
+    let done=0,already=0,missing=0;
+    for(const [id,a] of Object.entries(A)){
+      const p=byId.get(id); if(!p){missing++;continue;}
+      const h=(p.history||[]).find(h=>!h.type&&h.season===a.s&&h.leagueTag===a.l&&norm(h.team)===norm(a.t));
+      if(!h){missing++;continue;}
+      if(h.nm||h.pm){already++;continue;}
+      h.nm=a.nm; h.pm=a.pm; h.pos=h.pos||a.pos; h.wyscoutPositions=a.w||'';
+      done++;
+    }
+    if(done){ saveState(); await queueGitHubSave(saveData); }
+    showToast(`Archive restored: ${done} players updated, ${already} already had it, ${missing} not found`,done?'success':'info',8000);
+  }catch(e){ console.error(e); showToast('Restore failed: '+(e.message||e),'error',10000); }
+}
 function addSnapshot(idx,snap){
   const p=ST.players[idx];
   if(!p.history)p.history=[];
@@ -2708,6 +2738,8 @@ function addSnapshot(idx,snap){
   const seasonChanging=snap.season&&p.season&&snap.season!==p.season;
   const posChanging=!!snap.pos&&snap.pos!==p.pos;
   const hasMetrics=o=>o&&Object.keys(o).length>0;
+  // The main record is about to be overwritten by a different season/position: keep the old technical metrics inside its history entry
+  if(seasonChanging||posChanging) archivePreviousRecord(p);
   // If the new capture came back with no metrics (e.g. missing row in a position tab) keep the old ones, but never across a position change
   const keepOld=!posChanging;
   const newNm=hasMetrics(snap.nm)||!keepOld?snap.nm:(p.nm||snap.nm);
