@@ -62,6 +62,16 @@ body::after{content:'';position:fixed;inset:0;background-image:url("data:image/s
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .toolbar{display:flex;align-items:center;gap:9px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;flex-wrap:wrap}
 .tb-title{font-family:'Archivo Black',sans-serif;font-size:13px;letter-spacing:1px;white-space:nowrap}
+.fchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+.fc-group{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.fc-lbl{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.fc-chip{display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 4px 2px 8px;border-radius:11px;background:var(--accent-dim);border:1px solid var(--accent-border);color:var(--accent);white-space:nowrap}
+.fc-chip button{all:unset;cursor:pointer;width:14px;height:14px;line-height:13px;text-align:center;border-radius:50%;font-size:12px;opacity:.7}
+.fc-chip button:hover{opacity:1;background:rgba(255,255,255,.12)}
+.fc-more{cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 8px;border-radius:11px;border:1px dashed var(--border2);color:var(--muted2);background:none}
+.fc-more:hover{color:var(--text);border-color:var(--muted)}
+.fc-clear{margin-left:auto;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.5px;color:var(--muted);background:none;border:none;text-transform:uppercase}
+.fc-clear:hover{color:var(--red)}
 .sw{position:relative;flex:1;max-width:210px}
 .sw input{width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:6px 10px 6px 27px;font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;transition:border-color .15s}
 .sw input:focus{border-color:var(--accent)}
@@ -478,7 +488,6 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button id="listsBtn" class="btn btn-ghost" onclick="openListsModal()" style="font-size:11px">≡ Lists</button>
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
-    <button class="btn btn-ghost" id="restoreExtraBtn" onclick="restoreArchive('archive_extra.json')" style="font-size:10px" title="One-off: restores the last few missing earlier-season metrics">⟲ Restore missing metrics</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button id="physCaptureBtn" class="btn btn-gold" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
     <button id="physMatchBtn" class="btn btn-ghost" onclick="openPhysMatchModal()" style="display:none;font-size:11px">🔗 Match Physical</button>
@@ -609,6 +618,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
         <button class="btn btn-ghost" id="compareBtn" onclick="openCompare()" style="display:none;font-size:10px;padding:4px 9px;white-space:nowrap">⇄ Compare</button>
       </div>
     </div>
+    <div class="fchips" id="filterChips" style="display:none"></div>
     <div class="ss">
       <div class="ss-block"><div class="ss-label">Players</div><div class="ss-val ac" id="ss-p">0</div></div>
       <div class="ss-block"><div class="ss-label">Leagues</div><div class="ss-val" id="ss-l">0</div></div>
@@ -3298,7 +3308,8 @@ function renderTable(){
   const lgName=ST.filterLeague.length?ST.filterLeague.join('/\u200b'):'';
   const natName=ST.filterNat.length?ST.filterNat.join('/'):'';
   const teamName=ST.filterTeam.length?ST.filterTeam.join('/'):'';
-  document.getElementById('viewTitle').textContent=[lgName,teamName,natName,posName].filter(Boolean).join(' · ').toUpperCase();
+  document.getElementById('viewTitle').textContent=(ST.filterPos.length?posName:'ALL PLAYERS').toUpperCase();
+  renderFilterChips();
   const tbody=document.getElementById('tableBody'),empty=document.getElementById('emptyState');
   if(!list.length){tbody.innerHTML='';empty.style.display='flex';return;}
   empty.style.display='none';
@@ -9110,6 +9121,33 @@ function applyStoredTheme(){
     const icon=document.getElementById('themeIcon');
     if(icon) icon.textContent='🌙';
   }
+}
+function renderFilterChips(){
+  const el=document.getElementById('filterChips'); if(!el) return;
+  const groups=[['league','League',ST.filterLeague],['team','Club',ST.filterTeam],['nat','Nationality',ST.filterNat],['season','Season',ST.filterSeason]];
+  const any=groups.some(g=>g[2].length)||ST.filterPos.length;
+  if(!any){el.style.display='none';el.innerHTML='';return;}
+  ST._chipOpen=ST._chipOpen||{};
+  const LIMIT=4;
+  const chip=(type,v)=>`<span class="fc-chip">${v}<button title="Remove" onclick="toggleFilter('${type}','${encodeURIComponent(v).replace(/'/g,'%27')}')">×</button></span>`;
+  let html='';
+  const all=[['pos','Position',ST.filterPos],...groups];
+  all.forEach(([type,label,arr])=>{
+    if(!arr.length) return;
+    const open=!!ST._chipOpen[type];
+    const shown=open?arr:arr.slice(0,LIMIT);
+    html+=`<div class="fc-group"><span class="fc-lbl">${label}</span>${shown.map(v=>chip(type,v)).join('')}`
+      +(arr.length>LIMIT?`<button class="fc-more" onclick="ST._chipOpen['${type}']=${!open};renderFilterChips()">${open?'show less':'+'+(arr.length-LIMIT)+' more'}</button>`:'')
+      +`</div>`;
+  });
+  html+=`<button class="fc-clear" onclick="clearAllFilters()">Clear all ✕</button>`;
+  el.innerHTML=html;el.style.display='flex';
+}
+function clearAllFilters(){
+  ST.filterPos=[];ST.filterLeague=[];ST.filterNat=[];ST.filterTeam=[];ST.filterSeason=[];ST.currentPage=0;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const na=document.getElementById('nav-all'); if(na) na.classList.add('active');
+  renderAll();
 }
 function toggleFilter(type,rawVal){
   const val=decodeURIComponent(rawVal);
