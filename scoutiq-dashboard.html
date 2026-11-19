@@ -3226,7 +3226,7 @@ function renderTable(){
     return `<tr class="${checked?'row-selected':''}">
       ${cbCell}
       ${rankCell}
-      <td><div class="pc">${badgeEl(p.team,26)}<div>
+      <td><div class="pc">${badgeEl(p.team,26,p.leagueTag)}<div>
         <div class="pn">${hl(p.name)}${!(p.hasPhysical&&PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null))&&p.pos!=='GK'?'<span title="No physical data for this season" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:middle;opacity:0.7"></span>':''}</div>
         <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
@@ -4986,7 +4986,7 @@ function renderCompare(){
   const playerStrip=`<div class="cmp-player-strip">
     <div class="cmp-player-card">
       <div class="cmp-player-dot" style="background:${COL_A};color:${COL_A}"></div>
-      ${badgeEl(pA.team,28)}
+      ${badgeEl(pA.team,28,pA.leagueTag)}
       <div>
         <div style="font-weight:700;font-size:13px">${pA.name}</div>
         <div style="font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${pA.pos} · ${pA.team} · ${pA.leagueTag||''} · ${pA.season||''}</div>
@@ -4996,7 +4996,7 @@ function renderCompare(){
     <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">vs</div>
     <div class="cmp-player-card">
       <div class="cmp-player-dot" style="background:${COL_B};color:${COL_B}"></div>
-      ${badgeEl(pB.team,28)}
+      ${badgeEl(pB.team,28,pB.leagueTag)}
       <div>
         <div style="font-weight:700;font-size:13px">${pB.name}</div>
         <div style="font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace">${pB.pos} · ${pB.team} · ${pB.leagueTag||''} · ${pB.season||''}</div>
@@ -5362,6 +5362,9 @@ function buildRadar(pA,pB,mode,radarType,colA,colB){
 // CLUB BADGE CACHE
 // ═══════════════════════════════════
 let BADGE_MAP={};
+// Club names that exist in more than one country: badges for these are stored per league ('Barcelona|Ecuador 1')
+const AMBIG_BADGE=new Set(['Al Ahli','Aris','Barcelona','Guadalajara']);
+function bk(team,league){return (AMBIG_BADGE.has(team)&&league)?team+'|'+league:team;}
 let _badgeMapDirty=false;
 let _badgeSaveTimer=null;
 
@@ -5558,6 +5561,7 @@ function searchVariants(team){
 }
 
 async function fetchBadge(team,retryNone=false,league=''){
+  if(AMBIG_BADGE.has(team)&&!league) return null;   // ambiguous names are never looked up by name alone
   const _badgeKey=league?team+'|'+league:team;
   if(BADGE_MAP[_badgeKey]!==undefined&&BADGE_MAP[_badgeKey]!=='none'&&!retryNone) return BADGE_MAP[_badgeKey];
   if(BADGE_MAP[_badgeKey]==='loading') return null;
@@ -5604,14 +5608,15 @@ function teamInitials(name){
   return words.filter(w=>w.length>2).slice(0,2).map(w=>w[0].toUpperCase()).join('')||name.slice(0,2).toUpperCase();
 }
 
-function badgeEl(team,size=22){
+function badgeEl(team,size=22,league=''){
   if(!team) return `<div class="player-initials" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px">?</div>`;
   const initials=teamInitials(team);
   const esc=team.replace(/['<>&]/g,c=>({'\'':'&#39;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]||c));
-  const cached=BADGE_MAP[team];
+  const _bk=bk(team,league), _bke=_bk.replace(/['<>&]/g,c=>({'\'':'&#39;','<':'&lt;','>':'&gt;','&':'&amp;'}[c]||c));
+  const cached=BADGE_MAP[_bk];
   if(cached&&cached!=='loading'&&cached!=='none')
-    return `<img class="player-badge" src="${cached}" style="width:${size}px;height:${size}px" alt="${esc}" onerror="BADGE_MAP['${esc}']='none';this.outerHTML='<div class=player-initials style=width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px>${initials}</div>'"/>`;
-  if(cached!=='loading') fetchBadge(team);
+    return `<img class="player-badge" src="${cached}" style="width:${size}px;height:${size}px" alt="${esc}" onerror="BADGE_MAP['${_bke}']='none';this.outerHTML='<div class=player-initials style=width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px>${initials}</div>'"/>`;
+  if(cached!=='loading'&&!AMBIG_BADGE.has(team)) fetchBadge(team);
   return `<div class="player-initials" data-badge-team="${esc}" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.36)}px" title="${esc}">${initials}</div>`;
 }
 
@@ -5666,7 +5671,7 @@ function renderPanel(){
   const posConf=POS_CONFIG[p.pos]||POS_CONFIG.CF;
   const r=displayRating(p),rc=ratingColor(r);
   const flag=(p.nationalities&&p.nationalities.length)?p.nationalities.map(natFlag).join(' ')+' ':'';
-  document.getElementById('ppAv').innerHTML=badgeEl(p.team,38);
+  document.getElementById('ppAv').innerHTML=badgeEl(p.team,38,p.leagueTag);
   document.getElementById('ppName').textContent=p.name;
   document.getElementById('ppSub').textContent=`${flag}${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''}${p.season?' · '+p.season:''}`;
   const body=document.getElementById('ppBody');
@@ -6333,7 +6338,7 @@ function buildFullOverview(p){
   const _foRoleKeys=Object.keys(p.roles||{});
   const sortedRoles=(_foRoleKeys.length?_foRoleKeys:posConf.roles).map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
   const natFlags=(p.nationalities||[]).map(n=>COUNTRY_FLAGS[n]||'').filter(Boolean).join(' ');
-  const badgeUrl=BADGE_MAP[p.team];
+  const badgeUrl=BADGE_MAP[bk(p.team,p.leagueTag)];
   const badgeHtml=badgeUrl&&badgeUrl!=='none'&&badgeUrl!=='loading'
     ?`<img class="fo-badge" src="${badgeUrl}" alt="${p.team}" onerror="this.outerHTML='<div class=fo-badge-init>${teamInitials(p.team)}</div>'"/>`
     :`<div class="fo-badge-init">${teamInitials(p.team)}</div>`;
@@ -7785,7 +7790,7 @@ function buildFORecommendedClubs(p, _foLimit=5){
   </div>`;
 
   const rows=top.map(c=>{
-    const badge=badgeEl(c.team,22);
+    const badge=badgeEl(c.team,22,c.league);
     const scoreCol=c.score>=75?'#00e599':c.score>=60?'#7fd97f':c.score>=45?'#f5c842':'#ff8c42';
     return`<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">
       <div style="flex-shrink:0;margin-top:2px">${badge}</div>
@@ -8735,7 +8740,7 @@ function buildFOSimilar(p,seasons){
     const xdr=displayRating(x)??0;
     const col=xdr>=80?'#00e599':xdr>=70?'#7fd97f':xdr>=60?'#f5c842':'#ff8c42';
     const simCol=sim>=80?'#00e599':sim>=65?'#7fd97f':sim>=50?'#f5c842':'#ff8c42';
-    const xBadge=BADGE_MAP[x.team];
+    const xBadge=BADGE_MAP[bk(x.team,x.leagueTag)];
     const xBadgeHtml=xBadge&&xBadge!=='none'&&xBadge!=='loading'
       ?`<img style="width:18px;height:18px;border-radius:3px;object-fit:contain;flex-shrink:0" src="${xBadge}" onerror="this.style.display='none'"/>`
       :`<div style="width:18px;height:18px;border-radius:3px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--muted2)">${teamInitials(x.team)}</div>`;
