@@ -523,7 +523,8 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <!-- Season -->
     <div class="sb-section">
       <div class="sb-toggle" onclick="toggleSb('seasonContent',this)"><span>Season</span><span class="sb-arrow">›</span></div>
-      <div class="sb-content" id="seasonContent"><div id="seasonNav"></div></div>
+      <div class="sb-content" id="seasonContent"><div id="seasonNav"></div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted);padding:6px 10px;cursor:pointer" title="When seasons are selected, show one row per player (their latest selected season) instead of one per season"><input type="checkbox" id="latestOnlyCb" onchange="setLatestOnly(this.checked)" style="accent-color:var(--accent)"> Latest season only (1 row per player)</label></div>
     </div>
     <!-- Team -->
     <div class="sb-section">
@@ -677,7 +678,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
 <div class="pp" id="playerPanel">
   <div class="pp-top">
     <div class="pp-av" id="ppAv"></div>
-    <div style="min-width:0"><div class="pp-name" id="ppName"></div><div class="pp-sub" id="ppSub"></div></div>
+    <div style="min-width:0"><div class="pp-name" id="ppName"></div><div class="pp-sub" id="ppSub"></div><div id="ppSeasonBar" style="margin-top:6px"></div></div>
     <button class="pp-close" onclick="closePanel()">✕</button>
   </div>
   <div style="padding:8px 14px 0;display:flex;justify-content:flex-end"><button class="btn btn-ghost" style="font-size:9px;padding:3px 10px;letter-spacing:1px;font-family:'JetBrains Mono',monospace" onclick="openFullOverview()">⊞ FULL OVERVIEW</button></div>
@@ -2798,8 +2799,64 @@ function leagueFlag(tag){
 // ═══════════════════════════════════
 // RENDER
 // ═══════════════════════════════════
+// ═══════════════════════════════════
+// SEASON ROWS — one row per player per selected season
+// ═══════════════════════════════════
+function normSeason(x){
+  if(!x) return '';
+  const m=/^20(\d\d)$/.exec(x);
+  if(m){const y=+m[1];return String(y).padStart(2,'0')+'/'+String(y+1).padStart(2,'0');}
+  return x;
+}
+function seasonEntry(p,season){
+  const t=normSeason(season);
+  let best=null;
+  (p.history||[]).forEach(h=>{
+    if(h.type==='physical'||normSeason(h.season)!==t) return;
+    if(!best||(h.nm&&!best.nm)||((!!h.nm===!!best.nm)&&new Date(h.capturedAt)>new Date(best.capturedAt))) best=h;
+  });
+  return best;
+}
+function seasonRow(p,season){
+  if(normSeason(p.season)===normSeason(season)) return p;
+  const e=seasonEntry(p,season); if(!e) return null;
+  const hasM=!!(e.nm&&e.pm);
+  return Object.assign({},p,{
+    team:e.team,leagueTag:e.leagueTag,season:e.season,nationalities:e.nationalities||p.nationalities,
+    rating:e.rating,potential:e.potential,ptPriority:e.ptPriority,leaguePct:e.leaguePct??null,
+    age:e.age??p.age,minutes:e.minutes??null,roles:e.roles||{},pos:e.pos||p.pos,
+    wyscoutPositions:e.wyscoutPositions||e.pos||p.wyscoutPositions,
+    nm:hasM?e.nm:null,pm:hasM?e.pm:null,capturedAt:e.capturedAt,
+    _vrow:true,_noMetrics:!hasM,_mainSeason:p.season
+  });
+}
+// Base row set: no season selected -> latest record per player (as before).
+// Seasons selected -> a row per player per selected season (or one row if "latest only").
+function getRows(skipSeason){
+  const sel=skipSeason?[]:(ST.filterSeason||[]);
+  if(!sel.length) return ST.players;
+  const out=[];
+  const seen=new Set();
+  ST.players.forEach(p=>{
+    const rows=[];
+    const used=new Set();
+    sel.forEach(sn=>{
+      const t=normSeason(sn); if(used.has(t)) return; used.add(t);
+      const r=seasonRow(p,sn); if(r) rows.push(r);
+    });
+    if(!rows.length) return;
+    if(ST.latestOnly){
+      rows.sort((a,b)=>SEASON_ORDER(b.season)-SEASON_ORDER(a.season));
+      out.push(rows[0]);
+    } else rows.forEach(r=>out.push(r));
+  });
+  return out;
+}
+function SEASON_ORDER(s){const t=normSeason(s);const i=SEASONS.indexOf(t);return i<0?-1:i;}
+function setLatestOnly(v){ST.latestOnly=!!v;ST.currentPage=0;renderAll();}
+
 function getFiltered(){
-  let list=[...ST.players];
+  let list=[...getRows()];
   // If viewing a list, restrict to that list's players (in list order)
   if(ST._activeListId){
     const activeList=LISTS.find(l=>l.id===ST._activeListId);
@@ -2809,7 +2866,6 @@ function getFiltered(){
   if(ST.filterLeague.length)list=list.filter(p=>ST.filterLeague.includes(p.leagueTag));
   if(ST.filterNat.length)list=list.filter(p=>(p.nationalities||[]).some(n=>ST.filterNat.includes(n)));
   if(ST.filterTeam.length)list=list.filter(p=>ST.filterTeam.includes(p.team));
-  if(ST.filterSeason.length)list=list.filter(p=>ST.filterSeason.includes(p.season));
   const _qRaw=(document.getElementById('searchInput')?.value||'').trim();
   const _norm=s=>(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const q=_norm(_qRaw);
@@ -3072,12 +3128,11 @@ function renderSidebar(){
   // Build counts from context-filtered players (exclude each dimension's own filter)
   // so sidebar options reflect what's available given other active filters
   function filteredExcept(skipDim){
-    return ST.players.filter(p=>{
+    return getRows(skipDim==='season').filter(p=>{
       if(skipDim!=='pos'    &&ST.filterPos.length    &&!ST.filterPos.includes(p.pos))       return false;
       if(skipDim!=='league' &&ST.filterLeague.length  &&!ST.filterLeague.includes(p.leagueTag)) return false;
       if(skipDim!=='nat'    &&ST.filterNat.length     &&!(p.nationalities||[]).some(n=>ST.filterNat.includes(n))) return false;
       if(skipDim!=='team'   &&ST.filterTeam.length    &&!ST.filterTeam.includes(p.team))    return false;
-      if(skipDim!=='season' &&ST.filterSeason.length  &&!ST.filterSeason.includes(p.season)) return false;
       return true;
     });
   }
@@ -3087,7 +3142,19 @@ function renderSidebar(){
   filteredExcept('league').forEach(p=>{lc[p.leagueTag]=(lc[p.leagueTag]||0)+1;});
   filteredExcept('nat').forEach(p=>{(p.nationalities||[]).forEach(n=>{if(n)nc[n]=(nc[n]||0)+1;});});
   filteredExcept('team').forEach(p=>{if(p.team)tc[p.team]=(tc[p.team]||0)+1;});
-  filteredExcept('season').forEach(p=>{if(p.season)sc[p.season]=(sc[p.season]||0)+1;});
+  // season counts: players that have a record in each season (given other filters)
+  {
+    const others=filteredExcept('season');
+    const ids=new Set(others.map(p=>p.id));
+    const sel=ST.filterSeason||[];
+    ST.players.forEach(p=>{
+      if(!ids.has(p.id)) return;
+      const ss=new Set();
+      if(p.season) ss.add(normSeason(p.season));
+      (p.history||[]).forEach(h=>{if(h.type!=='physical'&&h.season) ss.add(normSeason(h.season));});
+      ss.forEach(x=>{sc[x]=(sc[x]||0)+1;});
+    });
+  }
   document.getElementById('nc-all').textContent=ST.players.length;
   // Position in fixed order
   const posOrder=['GK','CB','FB','DM','CM','AM','WF','CF'];
@@ -3211,8 +3278,9 @@ function renderTable(){
   // Precompute skill scores for all filtered players once (very expensive if done per-row)
   const _skillScoreCache=new Map();
   const _getSkillScore=p=>{
-    if(!_skillScoreCache.has(p.id)) _skillScoreCache.set(p.id,computePlayerSkillScores(p));
-    return _skillScoreCache.get(p.id);
+    const _k=p.id+'|'+normSeason(p.season);
+    if(!_skillScoreCache.has(_k)) _skillScoreCache.set(_k,computePlayerSkillScores(p));
+    return _skillScoreCache.get(_k);
   };
   // Precompute per-position/league peer pools and min/max for scaling
   const _peerPoolCache=new Map();
@@ -3221,7 +3289,7 @@ function renderTable(){
     const pk=(MFG.includes(p.pos)?'MF':p.pos)+'|'+p.leagueTag+'|'+p.season;
     if(!_peerPoolCache.has(pk)){
       const poolPos=MFG.includes(p.pos)?MFG:[p.pos];
-      const peers=ST.players.filter(x=>x.leagueTag===p.leagueTag&&x.season===p.season&&poolPos.includes(x.pos)&&(x.minutes||0)>=300);
+      const peers=ST.players.map(x=>seasonRow(x,p.season)).filter(x=>x&&x.leagueTag===p.leagueTag&&poolPos.includes(x.pos)&&(x.minutes||0)>=300&&!x._noMetrics);
       _peerPoolCache.set(pk,peers);
     }
     const peers=_peerPoolCache.get(pk);
@@ -3253,8 +3321,8 @@ function renderTable(){
       const w=Math.max(1,Math.round(v));
       return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" data-tip="${role.replace(' %','')}: ${fmt(v,1)}%" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
     }).join('');
-    const checked=ST.selectedIds.has(p.id);
-    const cbCell=`<td class="col-check"><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this)" style="accent-color:var(--accent);cursor:pointer"></td>`;
+    const checked=ST.selectedIds.has(p.id)&&(!(ST.selSeason||{})[p.id]||normSeason(ST.selSeason[p.id])===normSeason(p.season));
+    const cbCell=`<td class="col-check"><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this,'${p.season||''}')" style="accent-color:var(--accent);cursor:pointer"></td>`;
     return `<tr class="${checked?'row-selected':''}">
       ${cbCell}
       ${rankCell}
@@ -3290,7 +3358,7 @@ function renderTable(){
 
       </td>
       <td><span class="ds-badge">${fmtDate(p.capturedAt)}${hCount>1?` · ${hCount}×`:''}</span></td>
-      <td><button class="row-btn" onclick="openPanel('${p.id}')">Expand</button></td>
+      <td><button class="row-btn" onclick="openPanel('${p.id}'${p._vrow?",'"+p.season+"'":''})">Expand</button></td>
       <td class="col-list-add" style="width:28px;padding:0 4px">
         ${ST._activeListId
           ? `<button class="list-add-btn" title="Remove from list" onclick="removeFromCurrentList('${p.id}')" style="color:#ff6b82;border-color:rgba(255,77,106,.4)">−</button>`
@@ -3338,9 +3406,10 @@ function renderPagination(total,page,limit){
 
 function goPage(p){ST.currentPage=p;renderTable();window.scrollTo&&document.querySelector('.tw')&&document.querySelector('.tw').scrollTo(0,0);}
 
-function toggleRowSelect(id, cb){
-  if(cb.checked) ST.selectedIds.add(id);
-  else ST.selectedIds.delete(id);
+function toggleRowSelect(id, cb, season){
+  ST.selSeason=ST.selSeason||{};
+  if(cb.checked){ST.selectedIds.add(id);ST.selSeason[id]=season||null;}
+  else {ST.selectedIds.delete(id);delete ST.selSeason[id];}
   // Update row highlight
   const row=cb.closest('tr');
   if(row) row.classList.toggle('row-selected', cb.checked);
@@ -4983,7 +5052,7 @@ let _cmpMode='normal';
 function openCompare(){
   const ids=[...ST.selectedIds];
   if(ids.length!==2){showToast('Select exactly 2 players to compare','error');return;}
-  const [pA,pB]=[ST.players.find(p=>p.id===ids[0]),ST.players.find(p=>p.id===ids[1])];
+  const [pA,pB]=ids.slice(0,2).map(id=>{const b=ST.players.find(p=>p.id===id);const sn=(ST.selSeason||{})[id];return b?(sn?(seasonRow(b,sn)||b):b):undefined;});
   if(!pA||!pB)return;
   const MFG=['DM','CM','AM'];
   const posA=MFG.includes(pA.pos)?'MF':pA.pos;
@@ -5010,7 +5079,7 @@ function setCmpMode(mode,el){
 }
 function renderCompare(){
   const ids=[...ST.selectedIds];
-  const [pA,pB]=[ST.players.find(p=>p.id===ids[0]),ST.players.find(p=>p.id===ids[1])];
+  const [pA,pB]=ids.slice(0,2).map(id=>{const b=ST.players.find(p=>p.id===id);const sn=(ST.selSeason||{})[id];return b?(sn?(seasonRow(b,sn)||b):b):undefined;});
   if(!pA||!pB)return;
   const wrap=document.getElementById('cmpRadarWrap');
   const COL_A='#00d4ff'; // cyan for player A
@@ -5682,7 +5751,7 @@ async function prefetchAllBadges(){
 // ═══════════════════════════════════
 // PLAYER PANEL
 // ═══════════════════════════════════
-function openPanel(id){ST.panelId=id;ST.panelTab='overview';ST.metricView='normal';document.querySelectorAll('.pp-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderPanel();document.getElementById('playerPanel').classList.add('open');}
+function openPanel(id,season){ST.panelId=id;ST.panelSeason=season||null;ST.panelTab='overview';ST.metricView='normal';document.querySelectorAll('.pp-tab').forEach((t,i)=>t.classList.toggle('active',i===0));renderPanel();document.getElementById('playerPanel').classList.add('open');}
 async function deleteSinglePlayer(id){
   if(!confirm('Delete this player? This cannot be undone.')) return;
   const idx=ST.players.findIndex(p=>p.id===id);
@@ -5695,18 +5764,31 @@ async function deleteSinglePlayer(id){
   saveState();
   queueGitHubSave(saveData);
 }
-function closePanel(){document.getElementById('playerPanel').classList.remove('open');ST.panelId=null;}
+function closePanel(){document.getElementById('playerPanel').classList.remove('open');ST.panelId=null;ST.panelSeason=null;}
 function setPPTab(tab,el){ST.panelTab=tab;document.querySelectorAll('.pp-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderPanel();}
 function setMV(v){ST.metricView=v;renderPanel();}
 function setMCV(v){ST.metricChartView=v;renderPanel();}
 
+function panelRow(){
+  const base=ST.players.find(x=>x.id===ST.panelId); if(!base) return null;
+  if(!ST.panelSeason) return base;
+  return seasonRow(base,ST.panelSeason)||base;
+}
+function setPanelSeason(sn){ST.panelSeason=sn;renderPanel();}
 function renderPanel(){
-  const p=ST.players.find(x=>x.id===ST.panelId);if(!p)return;
+  const p=panelRow();if(!p)return;
   const posConf=POS_CONFIG[p.pos]||POS_CONFIG.CF;
   const r=displayRating(p),rc=ratingColor(r);
   const flag=(p.nationalities&&p.nationalities.length)?p.nationalities.map(natFlag).join(' ')+' ':'';
   document.getElementById('ppAv').innerHTML=badgeEl(p.team,38,p.leagueTag);
   document.getElementById('ppName').textContent=p.name;
+  {
+    const base=ST.players.find(x=>x.id===ST.panelId);
+    const ss=[];(base?[base.season,...(base.history||[]).filter(h=>h.type!=='physical').map(h=>h.season)]:[]).forEach(x=>{const t=normSeason(x);if(t&&!ss.includes(t))ss.push(t);});
+    ss.sort((a,b)=>SEASON_ORDER(b)-SEASON_ORDER(a));
+    const cur=normSeason(p.season);
+    document.getElementById('ppSeasonBar').innerHTML=ss.length>1?ss.map(x=>`<button class="btn btn-ghost" style="padding:2px 8px;font-size:10px;margin-right:4px;${x===cur?'border-color:var(--accent);color:var(--accent)':''}" onclick="setPanelSeason('${x}')">${x}</button>`).join('')+(p._noMetrics?'<span style="font-size:10px;color:var(--muted);margin-left:6px">metrics not archived for this season</span>':''):'';
+  }
   document.getElementById('ppSub').textContent=`${flag}${p.pos}${p.wyscoutPositions?' ('+p.wyscoutPositions+')':''} · ${p.team} · ${p.leagueTag||''}${p.season?' · '+p.season:''}`;
   const body=document.getElementById('ppBody');
 
