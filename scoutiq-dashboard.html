@@ -2803,10 +2803,8 @@ function leagueFlag(tag){
 // SEASON ROWS — one row per player per selected season
 // ═══════════════════════════════════
 function normSeason(x){
-  if(!x) return '';
-  const m=/^20(\d\d)$/.exec(x);
-  if(m){const y=+m[1];return String(y).padStart(2,'0')+'/'+String(y+1).padStart(2,'0');}
-  return x;
+  // Seasons are kept exactly as labelled: 25/26, 26/27 and calendar-year seasons such as 2026 are all separate.
+  return x?String(x).trim():'';
 }
 function seasonEntry(p,season){
   const t=normSeason(season);
@@ -2821,14 +2819,16 @@ function seasonRow(p,season){
   if(normSeason(p.season)===normSeason(season)) return p;
   const e=seasonEntry(p,season); if(!e) return null;
   const hasM=!!(e.nm&&e.pm);
-  return Object.assign({},p,{
+  const row=Object.assign({},p,{
     team:e.team,leagueTag:e.leagueTag,season:e.season,nationalities:e.nationalities||p.nationalities,
     rating:e.rating,potential:e.potential,ptPriority:e.ptPriority,leaguePct:e.leaguePct??null,
     age:e.age??p.age,minutes:e.minutes??null,roles:e.roles||{},pos:e.pos||p.pos,
     wyscoutPositions:e.wyscoutPositions||e.pos||p.wyscoutPositions,
     nm:hasM?e.nm:null,pm:hasM?e.pm:null,capturedAt:e.capturedAt,
-    _vrow:true,_noMetrics:!hasM,_mainSeason:p.season
+    hasPhysical:!!(window.PHYS&&physSnapFor({id:p.id,season:e.season})),_metricBonus:null,_vrow:true,_noMetrics:!hasM,_mainSeason:p.season
   });
+  row._metricBonus=hasM?calcRowMetricBonus(row):null;
+  return row;
 }
 // Base row set: no season selected -> latest record per player (as before).
 // Seasons selected -> a row per player per selected season (or one row if "latest only").
@@ -2851,6 +2851,25 @@ function getRows(skipSeason){
     } else rows.forEach(r=>out.push(r));
   });
   return out;
+}
+let _SP={k:null,m:{}};
+function seasonPool(season){
+  const k=ST.players.length+'|'+(ST.players[0]&&ST.players[0].capturedAt)+'|'+(window._spVer||0);
+  if(_SP.k!==k){_SP={k,m:{}};}
+  const t=normSeason(season);
+  if(!_SP.m[t]) _SP.m[t]=ST.players.map(x=>seasonRow(x,t)).filter(Boolean);
+  return _SP.m[t];
+}
+function rowKey(p){return p._vrow?p.id+'@'+normSeason(p.season):p.id;}
+function keyPid(k){return String(k).split('@')[0];}
+function resolveKey(k){
+  const [id,sn]=String(k).split('@');
+  const b=ST.players.find(x=>x.id===id); if(!b) return undefined;
+  return sn?(seasonRow(b,sn)||b):b;
+}
+function playerSeasons(b){
+  const ss=[];[b.season,...(b.history||[]).filter(h=>h.type!=='physical').map(h=>h.season)].forEach(x=>{const t=normSeason(x);if(t&&!ss.includes(t))ss.push(t);});
+  return ss.sort((a,b)=>SEASON_ORDER(b)-SEASON_ORDER(a));
 }
 function SEASON_ORDER(s){const t=normSeason(s);const i=SEASONS.indexOf(t);return i<0?-1:i;}
 function setLatestOnly(v){ST.latestOnly=!!v;ST.currentPage=0;renderAll();}
@@ -2908,7 +2927,7 @@ function getFiltered(){
     if(lo===0&&hi===100) return;
     const metricKey=key.slice(6); // strip 'phys::'
     list=list.filter(p=>{
-      const pct=PHYS_PCT_CACHE[p.id]?.[metricKey];
+      const pct=physPct(p)?.[metricKey];
       if(pct==null) return false; // no physical data for the selected season → can't satisfy a physical filter
       return pct>=lo&&pct<=hi;
     });
@@ -2970,6 +2989,7 @@ function getFiltered(){
 }
 
 function renderAll(){
+  window._spVer=(window._spVer||0)+1;window._physIdxVer=(window._physIdxVer||0)+1;
   // Default: name alphabetical until user sorts
   if(!ST._sortTouched){ST.sortKey='name';ST.sortDir=1;}
   renderSidebar();renderStatsStrip();renderTable();
@@ -3321,13 +3341,13 @@ function renderTable(){
       const w=Math.max(1,Math.round(v));
       return`<div class="rcb-seg" style="width:${w}%;background:${roleColors[i%roleColors.length]}" data-tip="${role.replace(' %','')}: ${fmt(v,1)}%" title="${role.replace(' %','')}: ${fmt(v,1)}%"></div>`;
     }).join('');
-    const checked=ST.selectedIds.has(p.id)&&(!(ST.selSeason||{})[p.id]||normSeason(ST.selSeason[p.id])===normSeason(p.season));
-    const cbCell=`<td class="col-check"><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${p.id}',this,'${p.season||''}')" style="accent-color:var(--accent);cursor:pointer"></td>`;
+    const checked=ST.selectedIds.has(rowKey(p));
+    const cbCell=`<td class="col-check"><input type="checkbox" ${checked?'checked':''} onchange="toggleRowSelect('${rowKey(p)}',this)" style="accent-color:var(--accent);cursor:pointer"></td>`;
     return `<tr class="${checked?'row-selected':''}">
       ${cbCell}
       ${rankCell}
       <td><div class="pc">${badgeEl(p.team,26,p.leagueTag)}<div>
-        <div class="pn">${hl(p.name)}${!(p.hasPhysical&&PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null))&&p.pos!=='GK'?'<span title="No physical data for this season" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:middle;opacity:0.7"></span>':''}</div>
+        <div class="pn">${hl(p.name)}${!(p.hasPhysical&&physSnapFor(p))&&p.pos!=='GK'?'<span title="No physical data for this season" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:middle;opacity:0.7"></span>':''}</div>
         <div class="pc-club" style="margin-top:1px">${hl(p.team)}</div>
       </div></div></td>
       <td style="font-size:16px;text-align:center" title="${(p.nationalities||[]).join(', ')||''}">${natF}</td>
@@ -3406,10 +3426,9 @@ function renderPagination(total,page,limit){
 
 function goPage(p){ST.currentPage=p;renderTable();window.scrollTo&&document.querySelector('.tw')&&document.querySelector('.tw').scrollTo(0,0);}
 
-function toggleRowSelect(id, cb, season){
-  ST.selSeason=ST.selSeason||{};
-  if(cb.checked){ST.selectedIds.add(id);ST.selSeason[id]=season||null;}
-  else {ST.selectedIds.delete(id);delete ST.selSeason[id];}
+function toggleRowSelect(key, cb){
+  if(cb.checked) ST.selectedIds.add(key);
+  else ST.selectedIds.delete(key);
   // Update row highlight
   const row=cb.closest('tr');
   if(row) row.classList.toggle('row-selected', cb.checked);
@@ -3421,9 +3440,9 @@ function toggleRowSelect(id, cb, season){
 function toggleSelectAll(cb){
   const {allFiltered}=getFiltered();
   if(cb.checked){
-    allFiltered.forEach(p=>ST.selectedIds.add(p.id));
+    allFiltered.forEach(p=>ST.selectedIds.add(rowKey(p)));
   } else {
-    allFiltered.forEach(p=>ST.selectedIds.delete(p.id));
+    allFiltered.forEach(p=>ST.selectedIds.delete(rowKey(p)));
   }
   renderTable();
 }
@@ -3461,7 +3480,7 @@ async function retroCleanupPhysLinks(){
 }
 
 function deleteSelected(){
-  const ids=new Set(ST.selectedIds);
+  const ids=new Set([...ST.selectedIds].map(keyPid));
   if(!ids.size) return;
   if(!confirm(`Delete ${ids.size} player${ids.size!==1?'s':''}? This cannot be undone.`)) return;
   // Unlink any PHYS snapshots pointing to deleted players
@@ -3497,7 +3516,7 @@ function updateSelBar(list){
   if(cmpBtn) cmpBtn.style.display=n===2?'inline-flex':'none';
   const sa=document.getElementById('selectAll');
   if(sa){
-    const visibleIds=list.map(p=>p.id);
+    const visibleIds=list.map(p=>rowKey(p));
     const allChecked=visibleIds.length>0&&visibleIds.every(id=>ST.selectedIds.has(id));
     const someChecked=visibleIds.some(id=>ST.selectedIds.has(id));
     sa.checked=allChecked;
@@ -3615,20 +3634,40 @@ function computeAllLeaguePct(){
 
 // Pre-compute physical percentile cache for each player/metric
 // Avoids per-render O(n) pool scans in buildPhysicalSection and getFiltered
-let PHYS_PCT_CACHE={}; // {playerId: {metricKey: percentile}}
+let PHYS_PCT_CACHE={}; // {playerId: {metricKey: percentile}} (main/latest record)
+let PHYS_PCT_SEASON={}; // {playerId@season: {metricKey: percentile}} (every matched snapshot, any season)
+let _PHYS_SNAP_IDX={n:-1,m:{}};
+function physSnapFor(p){
+  if(!window.PHYS||!PHYS.snapshots) return undefined;
+  if(_PHYS_SNAP_IDX.n!==PHYS.snapshots.length||_PHYS_SNAP_IDX.v!==window._physIdxVer){
+    const m={};
+    PHYS.snapshots.forEach(sn=>{
+      if(!sn.matchedPlayerId||sn.physicalScore==null) return;
+      const k=sn.matchedPlayerId+'@'+normSeason(sn.season);
+      if(!m[k]||(sn.applied&&!m[k].applied)) m[k]=sn;
+    });
+    _PHYS_SNAP_IDX={n:PHYS.snapshots.length,v:window._physIdxVer,m};
+  }
+  return _PHYS_SNAP_IDX.m[p.id+'@'+normSeason(p.season)];
+}
+function physPct(p){
+  if(p&&p._vrow) return PHYS_PCT_SEASON[p.id+'@'+normSeason(p.season)];
+  return PHYS_PCT_CACHE[p.id];
+}
 
 function buildPhysPercentileCache(){
-  PHYS_PCT_CACHE={};
+  PHYS_PCT_CACHE={};PHYS_PCT_SEASON={};window._physIdxVer=(window._physIdxVer||0)+1;window._spVer=(window._spVer||0)+1;
   if(!PHYS.snapshots.length||!ST.players.length) return;
 
+  const _plById={};ST.players.forEach(x=>{_plById[x.id]=x;});
   // Build positional pools per season
   const poolMap={}; // 'season::poolKey' → [snap]
   PHYS.snapshots.forEach(s=>{
     if(!s.matchedPlayerId||!s.physicalScore) return;
-    const p=ST.players.find(x=>x.id===s.matchedPlayerId);
+    const p=_plById[s.matchedPlayerId];
     if(!p||PHYS_EXCLUDED.includes(p.pos)) return;
     const poolKey=PHYS_MF_POSITIONS.includes(p.pos)?'MF':p.pos;
-    const k=s.season+'::'+poolKey;
+    const k=normSeason(s.season)+'::'+poolKey;
     if(!poolMap[k]) poolMap[k]=[];
     poolMap[k].push({snap:s,pos:p.pos});
   });
@@ -3643,9 +3682,13 @@ function buildPhysPercentileCache(){
         if(v==null) return;
         // Physical data only applies to the season it was captured for. A snapshot from a past season
         // still ranks inside its own pool (above) but is never attached to a player's current-season record.
-        const _pl=ST.players.find(x=>x.id===snap.matchedPlayerId);
-        if(!_pl||_pl.season!==snap.season) return;
+        const _pl=_plById[snap.matchedPlayerId];
+        if(!_pl) return;
         const rank=inverted?vals.filter(x=>x>=v).length/vals.length:vals.filter(x=>x<=v).length/vals.length;
+        const _sk=snap.matchedPlayerId+'@'+normSeason(snap.season);
+        if(!PHYS_PCT_SEASON[_sk]) PHYS_PCT_SEASON[_sk]={};
+        PHYS_PCT_SEASON[_sk][key]=Math.round(rank*100);
+        if(normSeason(_pl.season)!==normSeason(snap.season)) return;
         if(!PHYS_PCT_CACHE[snap.matchedPlayerId]) PHYS_PCT_CACHE[snap.matchedPlayerId]={};
         PHYS_PCT_CACHE[snap.matchedPlayerId][key]=Math.round(rank*100);
       });
@@ -3667,6 +3710,8 @@ function computeMetricBonuses(){
     return{t90,t95};
   };
   const nm=buildThresholds('nm'),pm=buildThresholds('pm');
+  window._MB_THR={nm,pm};
+  window._spVer=(window._spVer||0)+1;
   ST.players.forEach(p=>{
     const mins=p.minutes||0;
     const minScale=mins<=500?0:mins>=1500?1:Math.round((mins-500)/1000*1000)/1000;
@@ -3690,6 +3735,19 @@ function computeMetricBonuses(){
     // Bonus is added at display time via displayRating(p) helper.
     p._metricBonus={r:Math.round(bonusR*minScale*1000)/1000,pt:Math.round(bonusPt*minScale*1000)/1000};
   });
+}
+// Same bonus calculation for an earlier-season row, using the thresholds from the main run
+function calcRowMetricBonus(row){
+  const T=window._MB_THR; if(!T) return null;
+  const mins=row.minutes||0;
+  const minScale=mins<=500?0:mins>=1500?1:Math.round((mins-500)/1000*1000)/1000;
+  let bonusR=0,bonusPt=0;
+  const add=(v,t)=>{ if(t.t95[v[0]]!=null&&v[1]>=t.t95[v[0]]){bonusR+=0.25;bonusPt+=0.5;} else if(t.t90[v[0]]!=null&&v[1]>=t.t90[v[0]]){bonusR+=0.125;bonusPt+=0.25;} };
+  Object.entries(row.nm||{}).forEach(v=>add(v,T.nm));
+  Object.entries(row.pm||{}).forEach(v=>add(v,T.pm));
+  const ph=PHYS_PCT_SEASON[row.id+'@'+normSeason(row.season)];
+  if(ph) Object.values(ph).forEach(pct=>{ if(pct==null) return; if(pct>=95){bonusR+=0.25;bonusPt+=0.5;} else if(pct>=90){bonusR+=0.125;bonusPt+=0.25;} });
+  return {r:Math.round(bonusR*minScale*1000)/1000,pt:Math.round(bonusPt*minScale*1000)/1000};
 }
 
 // Display helpers — always use these when showing ratings in the UI
@@ -4437,13 +4495,13 @@ function openPhysMatchModal(keepOpen=false){
   const sortKey=(document.getElementById('physMatchSort')||{}).value||'rating';
   const unmatched=ST.players.filter(p=>{
     if(PHYS_EXCLUDED.includes(p.pos)) return false;
-    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+    return !physSnapFor(p);
   }).sort((a,b)=>{
     if(sortKey==='name') return (a.name||'').localeCompare(b.name||'');
     if(sortKey==='pos') return (a.pos||'').localeCompare(b.pos||'');
     return (displayRating(b)??-Infinity)-(displayRating(a)??-Infinity);
   });
-  const matched=ST.players.filter(p=>!PHYS_EXCLUDED.includes(p.pos)&&PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null));
+  const matched=ST.players.filter(p=>!PHYS_EXCLUDED.includes(p.pos)&&physSnapFor(p));
   document.getElementById('physMatchStatus').textContent=
     `${unmatched.length} without physical data · ${matched.length} matched`;
   renderPhysMatchBody(unmatched);
@@ -4573,7 +4631,7 @@ function updatePhysMatchSummary(){
 async function runAutoMatch(){
   const unmatched=ST.players.filter(p=>{
     if(PHYS_EXCLUDED.includes(p.pos)) return false;
-    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+    return !physSnapFor(p);
   }).filter(p=>!_physMatchDecisions[p.id]);
 
   const total=unmatched.length;
@@ -4706,7 +4764,7 @@ async function runAutoMatch(){
   showToast(`Auto-matched ${autoCount} players (${idCount} via stored ID)`,'success');
   const stillUnmatched=ST.players.filter(p=>{
     if(PHYS_EXCLUDED.includes(p.pos)) return false;
-    return !PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null)&&!_physMatchDecisions[p.id];
+    return !physSnapFor(p)&&!_physMatchDecisions[p.id];
   });
   renderPhysMatchBody(stillUnmatched);
   updatePhysMatchSummary();
@@ -4819,10 +4877,11 @@ function computeAndApplyPhysical(){
     applied++;
   });
 
+  window._physIdxVer=(window._physIdxVer||0)+1;
   // Mark players without physical data
   ST.players.forEach(p=>{
     if(!PHYS_EXCLUDED.includes(p.pos))
-      p.hasPhysical=PHYS.snapshots.some(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+      p.hasPhysical=!!physSnapFor(p);
   });
 
   buildPhysPercentileCache();
@@ -5052,7 +5111,7 @@ let _cmpMode='normal';
 function openCompare(){
   const ids=[...ST.selectedIds];
   if(ids.length!==2){showToast('Select exactly 2 players to compare','error');return;}
-  const [pA,pB]=ids.slice(0,2).map(id=>{const b=ST.players.find(p=>p.id===id);const sn=(ST.selSeason||{})[id];return b?(sn?(seasonRow(b,sn)||b):b):undefined;});
+  const [pA,pB]=ids.slice(0,2).map(resolveKey);
   if(!pA||!pB)return;
   const MFG=['DM','CM','AM'];
   const posA=MFG.includes(pA.pos)?'MF':pA.pos;
@@ -5079,7 +5138,7 @@ function setCmpMode(mode,el){
 }
 function renderCompare(){
   const ids=[...ST.selectedIds];
-  const [pA,pB]=ids.slice(0,2).map(id=>{const b=ST.players.find(p=>p.id===id);const sn=(ST.selSeason||{})[id];return b?(sn?(seasonRow(b,sn)||b):b):undefined;});
+  const [pA,pB]=ids.slice(0,2).map(resolveKey);
   if(!pA||!pB)return;
   const wrap=document.getElementById('cmpRadarWrap');
   const COL_A='#00d4ff'; // cyan for player A
@@ -5111,12 +5170,12 @@ function renderCompare(){
   // Check physical data via PHYS_PCT_CACHE (populated by buildPhysPercentileCache)
   // AND PHYS.snapshots as a fallback — most reliable indicators
   const _physCheckA=pA.pos!=='GK'&&(
-    (PHYS_PCT_CACHE[pA.id]&&Object.keys(PHYS_PCT_CACHE[pA.id]).length>0)||
-    PHYS.snapshots.some(s=>s.matchedPlayerId===pA.id&&s.season===pA.season&&s.physicalScore!=null)
+    (physPct(pA)&&Object.keys(physPct(pA)).length>0)||
+    physSnapFor(pA)
   );
   const _physCheckB=pB.pos!=='GK'&&(
-    (PHYS_PCT_CACHE[pB.id]&&Object.keys(PHYS_PCT_CACHE[pB.id]).length>0)||
-    PHYS.snapshots.some(s=>s.matchedPlayerId===pB.id&&s.season===pB.season&&s.physicalScore!=null)
+    (physPct(pB)&&Object.keys(physPct(pB)).length>0)||
+    physSnapFor(pB)
   );
   const _usePossSplit=!_physCheckA||!_physCheckB;
 
@@ -5161,8 +5220,8 @@ function buildCompareSwarms(pA,pB,colA,colB){
   const MF_GROUP=['DM','CM','AM'];
   const allPoolPos=[...new Set([...(MF_GROUP.includes(pA.pos)?['DM','CM','AM']:[pA.pos]),
                                 ...(MF_GROUP.includes(pB.pos)?['DM','CM','AM']:[pB.pos])])];
-  const peers=ST.players.filter(x=>
-    x.leagueTag===league&&x.season===season&&allPoolPos.includes(x.pos)&&(x.minutes||0)>=300);
+  const peers=seasonPool(season).filter(x=>
+    x.leagueTag===league&&allPoolPos.includes(x.pos)&&(x.minutes||0)>=300&&!x._noMetrics);
   if(peers.length<4) return '';
   // Ensure skill defs cached (warm cache if needed)
   if(!window._SKILL_DEFS_CACHE) buildFOSwarms(pA,'compare-warm');
@@ -5188,7 +5247,7 @@ function buildCompareSwarms(pA,pB,colA,colB){
     const nm=skill.metrics.map(m=>mVal(player,m)).filter(v=>v!=null);
     const ph=(skill.physLabels||[]).map(label=>{
       const key=PHYS_KEY[label]; if(!key) return null;
-      const pc=PHYS_PCT_CACHE[player.id]; return pc&&pc[key]!=null?pc[key]:null;
+      const pc=physPct(player); return pc&&pc[key]!=null?pc[key]:null;
     }).filter(v=>v!=null);
     const all=[...nm,...ph]; return all.length?all.reduce((a,b)=>a+b)/all.length:null;
   }
@@ -5280,8 +5339,8 @@ function buildRadar(pA,pB,mode,radarType,colA,colB){
     const isPhys=radarType;
     if(isPhys){
       axes=PHYS_METRICS.map(m=>({label:m.label,group:m.group,
-        valA:PHYS_PCT_CACHE[pA.id]?.[m.key]??null,
-        valB:PHYS_PCT_CACHE[pB.id]?.[m.key]??null}));
+        valA:physPct(pA)?.[m.key]??null,
+        valB:physPct(pB)?.[m.key]??null}));
     } else {
       const posConf=POS_CONFIG[pA.pos]||POS_CONFIG[pB.pos];
       if(!posConf) return '<div style="color:var(--muted)">No data</div>';
@@ -5784,8 +5843,7 @@ function renderPanel(){
   document.getElementById('ppName').textContent=p.name;
   {
     const base=ST.players.find(x=>x.id===ST.panelId);
-    const ss=[];(base?[base.season,...(base.history||[]).filter(h=>h.type!=='physical').map(h=>h.season)]:[]).forEach(x=>{const t=normSeason(x);if(t&&!ss.includes(t))ss.push(t);});
-    ss.sort((a,b)=>SEASON_ORDER(b)-SEASON_ORDER(a));
+    const ss=base?playerSeasons(base):[];
     const cur=normSeason(p.season);
     document.getElementById('ppSeasonBar').innerHTML=ss.length>1?ss.map(x=>`<button class="btn btn-ghost" style="padding:2px 8px;font-size:10px;margin-right:4px;${x===cur?'border-color:var(--accent);color:var(--accent)':''}" onclick="setPanelSeason('${x}')">${x}</button>`).join('')+(p._noMetrics?'<span style="font-size:10px;color:var(--muted);margin-left:6px">metrics not archived for this season</span>':''):'';
   }
@@ -5812,7 +5870,7 @@ function renderPanel(){
           +'<div style="position:relative;margin-bottom:6px">'
           +'<input id="cmpSearch" type="text" placeholder="Search player or club\u2026"'
           +' style="width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:5px;padding:7px 10px;color:var(--text);font-size:11px;box-sizing:border-box;outline:none"'
-          +' oninput="updateCmpSearch(this.value,\''+pid+'\',\''+ppos+'\')"'
+          +' oninput="updateCmpSearch(this.value,\''+rowKey(p)+'\',\''+ppos+'\')"'
           +' onblur="setTimeout(()=>{const r=document.getElementById(\'cmpSearchResults\');if(r)r.style.display=\'none\';},200)"'
           +'/>'
           +'<div id="cmpSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--surface2);border:1px solid var(--border2);border-radius:0 0 5px 5px;max-height:160px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5)"></div>'
@@ -5820,7 +5878,7 @@ function renderPanel(){
           +'<div id="cmpSelectedPlayer" style="display:none;padding:6px 10px;background:var(--accent-dim);border:1px solid var(--accent-border);border-radius:5px;margin-bottom:6px">'
           +'<div style="display:flex;align-items:center;justify-content:space-between">'
           +'<span id="cmpSelectedName" style="font-size:10px;font-family:\'JetBrains Mono\',monospace;color:var(--accent)"></span>'
-          +'<button class="btn btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--accent);border-color:var(--accent)" onclick="launchCompare(\''+pid+'\')">Go \u21c4</button>'
+          +'<button class="btn btn-ghost" style="font-size:10px;padding:2px 8px;color:var(--accent);border-color:var(--accent)" onclick="launchCompare(\''+rowKey(p)+'\')">Go \u21c4</button>'
           +'</div></div>';
       })()}
       ${(()=>{
@@ -6005,7 +6063,7 @@ function renderPanel(){
 
 
   } else if(ST.panelTab==='clubs'){
-    const activeSeasonsArr=ST.filterSeason&&ST.filterSeason.length?ST.filterSeason:SEASONS;
+    const activeSeasonsArr=(ST.filterSeason&&ST.filterSeason.length?ST.filterSeason:SEASONS).map(normSeason);
     const seasonPicker=`<select style="font-size:9px;padding:2px 6px;background:var(--surface3);color:var(--muted);border:1px solid var(--border2);border-radius:4px;font-family:'JetBrains Mono',monospace" onchange="ST.filterSeason=[this.value].filter(Boolean);renderPanel()">
       <option value="">All seasons</option>
       ${SEASONS.map(s=>`<option value="${s}"${activeSeasonsArr.includes(s)?' selected':''}>${s}</option>`).join('')}
@@ -6129,7 +6187,7 @@ function toggleHist(el){const b=el.nextElementSibling;b.classList.toggle('open')
 // Build physical data section for player expand metrics tab
 function buildPhysicalSection(p){
   if(p.pos==='GK') return '';
-  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  const snap=physSnapFor(p);
   if(!snap){
     return`<div style="margin-top:14px">
       <div class="skill-group-title"><div class="skill-dot" style="background:#00d4ff"></div>Physical</div>
@@ -6137,7 +6195,7 @@ function buildPhysicalSection(p){
     </div>`;
   }
   const pctMap={};
-  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null; });
+  PHYS_METRICS.forEach(({key})=>{ pctMap[key]=physPct(p)?.[key]??null; });
   const isPizza=ST.metricChartView==='pizza';
 
   if(!isPizza){
@@ -6373,19 +6431,18 @@ function updateCmpSearch(query,anchorId,anchorPos){
   const MFG=['DM','CM','AM'];
   const anchorGroup=MFG.includes(anchorPos)?'MF':anchorPos;
   const matches=ST.players.filter(x=>{
-    if(x.id===anchorId) return false;
     const xGroup=MFG.includes(x.pos)?'MF':x.pos;
     if(xGroup!==anchorGroup) return false;
     const name=(x.name||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const team=(x.team||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     return name.includes(q)||team.includes(q);
-  }).slice(0,8);
+  }).slice(0,8).flatMap(b=>playerSeasons(b).filter(sn=>!(b.id===keyPid(anchorId)&&normSeason(sn)===(String(anchorId).split('@')[1]||normSeason(b.season)))).slice(0,3).map(sn=>seasonRow(b,sn)).filter(Boolean)).slice(0,10);
   if(!matches.length){res.style.display='none';return;}
   res.innerHTML=matches.map(x=>{
-    const esc=String(x.id);
-    const lbl=(x.name+' · '+x.team+' · '+x.pos).replace(/'/g,'&#39;');
+    const esc=rowKey(x);
+    const lbl=(x.name+' · '+x.team+' · '+x.pos+' · '+normSeason(x.season)).replace(/'/g,'&#39;');
     return`<div style="padding:7px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border)" onmousedown="selectCmpPlayer('${esc}','${lbl}')">
-      <span>${x.name}</span> <span style="color:var(--muted);font-size:9px;font-family:'JetBrains Mono',monospace">${x.team} · ${x.pos} · ${x.leagueTag||''}</span>
+      <span>${x.name}</span> <span style="color:var(--muted);font-size:9px;font-family:'JetBrains Mono',monospace">${x.team} · ${x.pos} · ${x.leagueTag||''} · ${normSeason(x.season)}</span>
     </div>`;
   }).join('');
   res.style.display='block';
@@ -6414,7 +6471,7 @@ let _foMetricView='normal';
 let _foSeasons=null;
 
 function openFullOverview(){
-  const p=ST.players.find(x=>x.id===ST.panelId);
+  const p=panelRow();
   if(!p) return;
   _foMetricView='normal';
   _foSeasons=null;
@@ -6425,16 +6482,16 @@ function openFullOverview(){
 function closeFullOverview(){ document.getElementById('fullOverviewModal').style.display='none'; }
 function setFOMetricView(v){ _foMetricView=v; renderFullOverview(); }
 function toggleFOSeason(season){
-  const p=ST.players.find(x=>x.id===ST.panelId);
+  const p=panelRow();
   if(!p) return;
-  if(_foSeasons===null) _foSeasons=[p.season];
+  if(_foSeasons===null) _foSeasons=[normSeason(p.season)];
   const idx=_foSeasons.indexOf(season);
   if(idx>=0){ if(_foSeasons.length>1) _foSeasons.splice(idx,1); }
   else _foSeasons.push(season);
   renderFullOverview();
 }
 function renderFullOverview(){
-  const p=ST.players.find(x=>x.id===ST.panelId);
+  const p=panelRow();
   if(!p) return;
   try{
     document.getElementById('fullOverviewContent').innerHTML=buildFullOverview(p);
@@ -6449,7 +6506,7 @@ function buildFullOverview(p){
   const dr=displayRating(p)??0;
   const dp=displayPotential(p)??0;
   const rc=v=>v>=80?'#00e599':v>=70?'#7fd97f':v>=60?'#f5c842':v>=50?'#ff8c42':'#ff4d6a';
-  const snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+  const snap=physSnapFor(p);
   const posConf=POS_CONFIG[p.pos]||{roles:[],label:p.pos};
   const _foRoleKeys=Object.keys(p.roles||{});
   const sortedRoles=(_foRoleKeys.length?_foRoleKeys:posConf.roles).map(r=>({r:r.replace(' %',''),v:p.roles&&p.roles[r]||0})).sort((a,b)=>b.v-a.v);
@@ -6459,8 +6516,8 @@ function buildFullOverview(p){
     ?`<img class="fo-badge" src="${badgeUrl}" alt="${p.team}" onerror="this.outerHTML='<div class=fo-badge-init>${teamInitials(p.team)}</div>'"/>`
     :`<div class="fo-badge-init">${teamInitials(p.team)}</div>`;
   const insight=buildInsight(p,dr,dp,sortedRoles,snap);
-  const allSeasons=[...new Set(ST.players.map(x=>x.season).filter(Boolean))].sort().reverse();
-  const activeSeasonsArr=_foSeasons||[p.season];
+  const allSeasons=playerSeasons(ST.players.find(x=>x.id===p.id)||p);
+  const activeSeasonsArr=(_foSeasons||[p.season]).map(normSeason);
   const seasonPicker=`<div style="position:relative;display:inline-block">
     <span style="font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:2px" onclick="event.stopPropagation();document.getElementById('foSeasonPicker').style.display=document.getElementById('foSeasonPicker').style.display==='block'?'none':'block'">Seasons ▾</span>
     <div id="foSeasonPicker" style="display:none;position:absolute;right:0;top:18px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px;z-index:20;min-width:110px;box-shadow:0 4px 16px rgba(0,0,0,.3)">
@@ -6869,7 +6926,7 @@ function calcPlayerValue(p){
   // Look it up only for young players (age<27) to keep it fast
   let physMult=1.0;
   if(age<27&&p.hasPhysical&&window.PHYS&&PHYS.snapshots){
-    const _snap=PHYS.snapshots.find(s=>s.matchedPlayerId===p.id&&s.season===p.season&&s.physicalScore!=null);
+    const _snap=physSnapFor(p);
     const physScore=_snap?_snap.physicalScore:null;
     if(physScore!==null){
       const ageGate=Math.max(0,(27-age)/(27-16)); // 1.0 at 16, 0 at 27
@@ -8093,7 +8150,7 @@ const _potPhrases=[
 ];
 
 function minutesContext(mins,leagueTag,season){
-  const lp=ST.players.filter(p=>p.leagueTag===leagueTag&&p.season===season&&p.minutes>0);
+  const lp=seasonPool(season).filter(p=>p.leagueTag===leagueTag&&p.minutes>0);
   const name=(LEAGUE_QUALITY[leagueTag]?.name)||leagueTag;
   if(!lp.length){
     return mins>=2500?`playing heavily this season`:mins>=1500?`getting a good run of games`:mins>=800?`with limited minutes`:`with minimal appearances`;
@@ -8344,7 +8401,7 @@ function computePlayerSkillScores(p){
     ],
   };
   const defs=SKILL_DEFS_LOCAL[posKey]||[];
-  const phys=PHYS_PCT_CACHE[p.id]||{};
+  const phys=physPct(p)||{};
   const result={};
   defs.forEach(skill=>{
     const scores=[];
@@ -8610,7 +8667,7 @@ function buildFOSwarms(p, context='fo'){
     const physVals=(skill.physLabels||[]).map(label=>{
       const key=physLabel2key(label);
       if(!key) return null;
-      const pct=PHYS_PCT_CACHE[player.id];
+      const pct=physPct(player);
       return pct&&pct[key]!=null?pct[key]:null;
     }).filter(v=>v!=null);
     const all=[...nmVals,...physVals];
@@ -8774,7 +8831,7 @@ function buildFOMetrics(p){
 
 function buildFOPhysical(p,snap){
   if(!snap) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No physical data for this season.</div>`;
-  const pctMap={};PHYS_METRICS.forEach(({key})=>{pctMap[key]=PHYS_PCT_CACHE[p.id]?.[key]??null;});
+  const pctMap={};PHYS_METRICS.forEach(({key})=>{pctMap[key]=physPct(p)?.[key]??null;});
   const groups={'Speed':['psv99','top5psv99'],'Explosiveness':['top3timeHSR'],'Distance':['distP90'],'In Possession':['hsrDistTIP','sprintDistTIP'],'Out of Possession':['hsrDistOTIP','sprintDistOTIP']};
   const PCOLS={'Speed':'#00d4ff','Explosiveness':'#f5c842','Distance':'#00e599','In Possession':'#cc7040','Out of Possession':'#7060a8'};
   return`<div style="columns:2;column-gap:20px">${Object.entries(groups).map(([grp,keys])=>`
@@ -8821,8 +8878,8 @@ function calcSimilarity(p,x){
     if(typeof pv==='number'&&typeof xv==='number'){metSim+=100-Math.abs(pv-xv);metCount++;}
   });
   const techSim=metCount?metSim/metCount:50;
-  const pPhys=PHYS_PCT_CACHE[p.id]||{};
-  const xPhys=PHYS_PCT_CACHE[x.id]||{};
+  const pPhys=physPct(p)||{};
+  const xPhys=physPct(x)||{};
   const physKeys=Object.keys(pPhys).filter(k=>xPhys[k]!=null);
   const physSim=physKeys.length>=3?physKeys.reduce((s,k)=>s+(100-Math.abs(pPhys[k]-xPhys[k])),0)/physKeys.length:50;
   const pWy=(p.wyscoutPositions||p.pos).split(',').map(s=>s.trim());
@@ -8847,9 +8904,11 @@ function buildFOSimilar(p,seasons){
   const dr=displayRating(p)??0;
   // Hard filter: same primary pos, within ±6 rating points
   const cutoff=dr*0.05;
-  const candidates=ST.players.filter(x=>
-    x.id!==p.id&&x.pos===p.pos&&seasons.includes(x.season)&&Math.abs((displayRating(x)??0)-dr)<=cutoff
-  );
+  const _seen=new Set();
+  const candidates=[...new Set(seasons.map(normSeason))].flatMap(sn=>seasonPool(sn)).filter(x=>{
+    if(x.id===p.id||x.pos!==p.pos||x._noMetrics||Math.abs((displayRating(x)??0)-dr)>cutoff) return false;
+    const k=rowKey(x); if(_seen.has(k)) return false; _seen.add(k); return true;
+  });
   if(!candidates.length) return`<div style="color:var(--muted);font-size:12px;font-style:italic">No similar players found in the selected seasons.</div>`;
   const scored=candidates.map(x=>({x,sim:calcSimilarity(p,x)})).sort((a,b)=>b.sim-a.sim).slice(0,5);
   return scored.map(({x,sim})=>{
@@ -8861,12 +8920,12 @@ function buildFOSimilar(p,seasons){
       ?`<img style="width:18px;height:18px;border-radius:3px;object-fit:contain;flex-shrink:0" src="${xBadge}" onerror="this.style.display='none'"/>`
       :`<div style="width:18px;height:18px;border-radius:3px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:7px;color:var(--muted2)">${teamInitials(x.team)}</div>`;
     const posTags=(x.wyscoutPositions||x.pos).split(',').slice(0,3).map(pp=>`<span class="pos-tag" style="font-size:7px">${pp.trim()}</span>`).join(' ');
-    return`<div class="fo-rank-card" style="cursor:pointer;margin-bottom:8px" onclick="closeFullOverview();openPanel('${x.id}')">
+    return`<div class="fo-rank-card" style="cursor:pointer;margin-bottom:8px" onclick="closeFullOverview();openPanel('${x.id}'${x._vrow?",'"+x.season+"'":''})">
       <div style="display:flex;align-items:center;gap:8px">
         ${xBadgeHtml}
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.name}</div>
-          <div style="font-size:9px;color:var(--muted2);font-family:'JetBrains Mono',monospace;margin-top:1px">${x.team} · Age ${x.age||'—'}</div>
+          <div style="font-size:9px;color:var(--muted2);font-family:'JetBrains Mono',monospace;margin-top:1px">${x.team} · Age ${x.age||'—'}${x._vrow?' · '+x.season:''}</div>
           <div style="margin-top:3px">${posTags}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
