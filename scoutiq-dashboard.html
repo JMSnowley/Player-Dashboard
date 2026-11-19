@@ -478,6 +478,7 @@ mark{background:rgba(0,212,255,.18);color:var(--accent);border-radius:2px;paddin
     <button id="listsBtn" class="btn btn-ghost" onclick="openListsModal()" style="font-size:11px">≡ Lists</button>
     <button class="btn btn-green" id="connectBtn" onclick="connectGoogle()">⬡ Connect Google</button>
     <button class="btn btn-ghost" id="syncBtn" onclick="manualSync()" style="display:none;font-size:10px">↕ Sync</button>
+    <button class="btn btn-ghost" id="restoreExtraBtn" onclick="restoreArchive('archive_extra.json')" style="font-size:10px" title="One-off: restores the last few missing earlier-season metrics">⟲ Restore missing metrics</button>
     <button id="captureModalBtn" class="btn btn-gold" onclick="openCaptureModal()">◎ Capture</button>
     <button id="physCaptureBtn" class="btn btn-gold" onclick="openPhysCaptureModal()" style="display:none;font-size:11px">⚡ Capture Physical</button>
     <button id="physMatchBtn" class="btn btn-ghost" onclick="openPhysMatchModal()" style="display:none;font-size:11px">🔗 Match Physical</button>
@@ -2703,11 +2704,12 @@ function archivePreviousRecord(p){
   return true;
 }
 // One-off recovery: fills the missing old-season metrics of re-captured players from archive_2526.json (in the repo)
-async function restoreArchive(){
+async function restoreArchive(fname){
+  fname=fname||'archive_2526.json';
   try{
     showToast('Reading archive…','info',2500);
-    const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/archive_2526.json?cb='+Date.now());
-    if(!r.ok){showToast('archive_2526.json not found in the repo ('+r.status+')','error',8000);return;}
+    const r=await fetch('https://raw.githubusercontent.com/JMSnowley/Player-Dashboard/main/'+fname+'?cb='+Date.now());
+    if(!r.ok){showToast(fname+' not found in the repo ('+r.status+')','error',8000);return;}
     const A=await r.json(); const byId=new Map(ST.players.map(p=>[p.id,p]));
     let done=0,already=0,missing=0;
     for(const [id,a] of Object.entries(A)){
@@ -2729,6 +2731,18 @@ function addSnapshot(idx,snap){
   const he=buildHistoryEntry(snap);
   const dupH=p.history.findIndex(h=>!h.type&&h.season===he.season&&h.leagueTag===he.leagueTag&&norm(h.team)===norm(he.team)&&(h.pos||p.pos)===he.pos);
   if(dupH>=0) p.history[dupH]=he; else p.history.push(he);
+  // Capture of an EARLIER season than the main record (e.g. re-capturing a 2026 league for a player now in 26/27):
+  // fill in that season's history entry (with its full metrics) and leave the main record untouched.
+  {
+    const _sr=x=>{x=String(x||'');const m=/^(\d\d)\/(\d\d)$/.exec(x);if(m)return 2000+(+m[1])+0.5;if(/^20\d\d$/.test(x))return +x;return null;};
+    const a_=_sr(snap.season),b_=_sr(p.season);
+    if(a_!=null&&b_!=null&&a_<b_){
+      const hist=Object.assign({},he,{nm:snap.nm,pm:snap.pm,wyscoutPositions:snap.wyscoutPositions||'',pos:snap.pos});
+      const i2=p.history.findIndex(h=>!h.type&&h.season===hist.season&&h.leagueTag===hist.leagueTag&&norm(h.team)===norm(hist.team)&&(h.pos||p.pos)===hist.pos);
+      if(i2>=0) p.history[i2]=hist; else p.history.push(hist);
+      return;
+    }
+  }
   // Only update main player display if this snap is newer than current
   const snapDate=new Date(snap.capturedAt), curDate=new Date(p.capturedAt||0);
   if(snapDate<curDate) return;
@@ -2841,7 +2855,7 @@ function getRows(skipSeason){
     const used=new Set();
     sel.forEach(sn=>{
       const t=normSeason(sn); if(used.has(t)) return; used.add(t);
-      const r=seasonRow(p,sn); if(r) rows.push(r);
+      const r=seasonRowC(p,sn); if(r) rows.push(r);
     });
     if(!rows.length) return;
     if(ST.latestOnly){
@@ -2856,15 +2870,39 @@ function seasonPool(season){
   const k=ST.players.length+'|'+(ST.players[0]&&ST.players[0].capturedAt)+'|'+(window._spVer||0);
   if(_SP.k!==k){_SP={k,m:{}};}
   const t=normSeason(season);
-  if(!_SP.m[t]) _SP.m[t]=ST.players.map(x=>seasonRow(x,t)).filter(Boolean);
+  if(!_SP.m[t]){
+    const pool=ST.players.map(x=>seasonRow(x,t)).filter(Boolean);
+    // Earlier-season rows carry no stored League %ile, so rank them within their league that season
+    // (same method as computeAllLeaguePct: below + half of equal, over all rated players in that league/season)
+    const byLg={};
+    pool.forEach(r=>{const d=displayRating(r);if(d==null)return;(byLg[r.leagueTag||'']=byLg[r.leagueTag||'']||[]).push(d);});
+    Object.values(byLg).forEach(a=>a.sort((x,y)=>x-y));
+    const lower=(a,v)=>{let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<v)lo=m+1;else hi=m;}return lo;};
+    const upper=(a,v)=>{let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<=v)lo=m+1;else hi=m;}return lo;};
+    pool.forEach(r=>{
+      if(!r._vrow) return;
+      const d=displayRating(r),a=byLg[r.leagueTag||''];
+      if(d==null||!a||!a.length){r.leaguePct=null;return;}
+      if(a[0]===a[a.length-1]){r.leaguePct=50;return;}
+      const below=lower(a,d),equal=upper(a,d)-below;
+      r.leaguePct=Math.round(((below+equal*0.5)/a.length)*100);
+    });
+    _SP.m[t]=pool;
+    const ix={};pool.forEach(r=>{ix[r.id]=r;});_SP.ix=_SP.ix||{};_SP.ix[t]=ix;
+  }
   return _SP.m[t];
+}
+function seasonRowC(p,season){
+  const t=normSeason(season);
+  seasonPool(t);
+  return (_SP.ix&&_SP.ix[t]&&_SP.ix[t][p.id])||null;
 }
 function rowKey(p){return p._vrow?p.id+'@'+normSeason(p.season):p.id;}
 function keyPid(k){return String(k).split('@')[0];}
 function resolveKey(k){
   const [id,sn]=String(k).split('@');
   const b=ST.players.find(x=>x.id===id); if(!b) return undefined;
-  return sn?(seasonRow(b,sn)||b):b;
+  return sn?(seasonRowC(b,sn)||b):b;
 }
 function playerSeasons(b){
   const ss=[];[b.season,...(b.history||[]).filter(h=>h.type!=='physical').map(h=>h.season)].forEach(x=>{const t=normSeason(x);if(t&&!ss.includes(t))ss.push(t);});
@@ -3308,7 +3346,7 @@ function renderTable(){
     const pk=(MFG.includes(p.pos)?'MF':p.pos)+'|'+p.leagueTag+'|'+p.season;
     if(!_peerPoolCache.has(pk)){
       const poolPos=MFG.includes(p.pos)?MFG:[p.pos];
-      const peers=ST.players.map(x=>seasonRow(x,p.season)).filter(x=>x&&x.leagueTag===p.leagueTag&&poolPos.includes(x.pos)&&(x.minutes||0)>=300&&!x._noMetrics);
+      const peers=ST.players.map(x=>seasonRowC(x,p.season)).filter(x=>x&&x.leagueTag===p.leagueTag&&poolPos.includes(x.pos)&&(x.minutes||0)>=300&&!x._noMetrics);
       _peerPoolCache.set(pk,peers);
     }
     const peers=_peerPoolCache.get(pk);
@@ -5830,7 +5868,7 @@ function setMCV(v){ST.metricChartView=v;renderPanel();}
 function panelRow(){
   const base=ST.players.find(x=>x.id===ST.panelId); if(!base) return null;
   if(!ST.panelSeason) return base;
-  return seasonRow(base,ST.panelSeason)||base;
+  return seasonRowC(base,ST.panelSeason)||base;
 }
 function setPanelSeason(sn){ST.panelSeason=sn;renderPanel();}
 function renderPanel(){
@@ -6435,7 +6473,7 @@ function updateCmpSearch(query,anchorId,anchorPos){
     const name=(x.name||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const team=(x.team||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     return name.includes(q)||team.includes(q);
-  }).slice(0,8).flatMap(b=>playerSeasons(b).filter(sn=>!(b.id===keyPid(anchorId)&&normSeason(sn)===(String(anchorId).split('@')[1]||normSeason(b.season)))).slice(0,3).map(sn=>seasonRow(b,sn)).filter(Boolean)).slice(0,10);
+  }).slice(0,8).flatMap(b=>playerSeasons(b).filter(sn=>!(b.id===keyPid(anchorId)&&normSeason(sn)===(String(anchorId).split('@')[1]||normSeason(b.season)))).slice(0,3).map(sn=>seasonRowC(b,sn)).filter(Boolean)).slice(0,10);
   if(!matches.length){res.style.display='none';return;}
   res.innerHTML=matches.map(x=>{
     const esc=rowKey(x);
