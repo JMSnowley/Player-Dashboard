@@ -2825,7 +2825,7 @@ function seasonRow(p,season){
     age:e.age??p.age,minutes:e.minutes??null,roles:e.roles||{},pos:e.pos||p.pos,
     wyscoutPositions:e.wyscoutPositions||e.pos||p.wyscoutPositions,
     nm:hasM?e.nm:null,pm:hasM?e.pm:null,capturedAt:e.capturedAt,
-    hasPhysical:!!(window.PHYS&&physSnapFor({id:p.id,season:e.season})),_metricBonus:null,_vrow:true,_noMetrics:!hasM,_mainSeason:p.season
+    hasPhysical:!!physSnapFor({id:p.id,season:e.season}),_metricBonus:null,_vrow:true,_noMetrics:!hasM,_mainSeason:p.season
   });
   row._metricBonus=hasM?calcRowMetricBonus(row):null;
   return row;
@@ -3638,7 +3638,7 @@ let PHYS_PCT_CACHE={}; // {playerId: {metricKey: percentile}} (main/latest recor
 let PHYS_PCT_SEASON={}; // {playerId@season: {metricKey: percentile}} (every matched snapshot, any season)
 let _PHYS_SNAP_IDX={n:-1,m:{}};
 function physSnapFor(p){
-  if(!window.PHYS||!PHYS.snapshots) return undefined;
+  if(typeof PHYS==='undefined'||!PHYS||!PHYS.snapshots) return undefined;
   if(_PHYS_SNAP_IDX.n!==PHYS.snapshots.length||_PHYS_SNAP_IDX.v!==window._physIdxVer){
     const m={};
     PHYS.snapshots.forEach(sn=>{
